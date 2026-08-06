@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GreenZones — Community: Session-Ping-Flow (auf Basis Variante B)</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ok: #1DB954;
+    --ban: #E5484D;
+    --time: #F76B15;
+    --accent: #0A84FF;
+    --ink: #17191C;
+    --ink-2: #5A616B;
+    --ink-3: #9AA1AB;
+    --app-bg: #E8EAED;
+    --glass: rgba(255,255,255,.78);
+    --glass-strong: rgba(255,255,255,.90);
+    --stroke: rgba(23,25,28,.08);
+    --divider: rgba(23,25,28,.06);
+    --ease-spring: cubic-bezier(.32,.72,0,1);
+    /* Mockup: iPhone-Statusbar fix simuliert — echte App nutzt env(safe-area-inset-*) */
+    --sat: 54px;
+    --sab: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    color: var(--ink);
+    background: var(--app-bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 9px; opacity: .55; }
+  .maplibregl-ctrl-bottom-right { bottom: 96px; }
+  .glassfx {
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+  }
+
+  .statusbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: var(--sat);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px 0;
+    z-index: 30;
+    font-size: 15px;
+    font-weight: 650;
+    pointer-events: none;
+  }
+  .statusbar svg { height: 12px; fill: var(--ink); }
+
+  .search {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    left: 14px; right: 14px;
+    height: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(23,25,28,.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    z-index: 10;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+  .search svg { width: 16px; height: 16px; stroke: var(--ink-2); stroke-width: 2; fill: none; flex: none; }
+
+  /* ---------- iOS-Push-Banner (Szenario "push") ---------- */
+  .push {
+    display: none;
+    position: absolute;
+    top: calc(var(--sat) + 6px);
+    left: 8px; right: 8px;
+    z-index: 28;
+    border-radius: 24px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 12px 40px rgba(23,25,28,.22);
+    padding: 12px 14px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  body[data-s="push"] .push { display: flex; }
+  body[data-s="push"] .search { display: none; }
+  .push .appico {
+    width: 38px; height: 38px;
+    border-radius: 9px;
+    background: linear-gradient(145deg, #1DB954, #128C3E);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .push .appico svg { width: 20px; height: 20px; stroke: #fff; stroke-width: 2; fill: none; }
+  .push .body { flex: 1; min-width: 0; line-height: 1.25; }
+  .push .body .app { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ink-3); text-transform: uppercase; }
+  .push .body b { font-size: 14px; font-weight: 650; display: block; }
+  .push .body span { font-size: 13px; color: var(--ink-2); }
+  .push .when { font-size: 11px; color: var(--ink-3); align-self: flex-start; margin-top: 2px; }
+
+  /* ---------- status bar unten (aus Variante B) ---------- */
+  .bar {
+    position: absolute;
+    left: 14px; right: 14px;
+    bottom: calc(var(--sab) + 10px);
+    height: 58px;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 14px 0 12px;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(23,25,28,.14), 0 1px 2px rgba(23,25,28,.08);
+  }
+  .bar .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 5px rgba(29,185,84,.18);
+    flex: none;
+  }
+  .bar .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .bar .txt { flex: 1; min-width: 0; line-height: 1.18; }
+  .bar .txt b { font-size: 15px; font-weight: 650; letter-spacing: -.01em; display: block; }
+  .bar .txt span { font-size: 12px; color: var(--ink-2); font-weight: 480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .bar .crew-avas { display: flex; flex: none; margin-right: 2px; }
+  .bar .chev { flex: none; }
+  .bar .chev svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 2.4; fill: none; }
+
+  .ava {
+    width: 27px; height: 27px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 2px solid #fff;
+    flex: none;
+  }
+  .ava + .ava { margin-left: -8px; }
+  .ava.m { background: #7C5CFF; }
+  .ava.t { background: #0A9B8E; }
+  .ava.l { background: #0A84FF; }
+
+  .fabs {
+    position: absolute;
+    right: 14px;
+    bottom: calc(var(--sab) + 10px + 58px + 12px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+  }
+  .fab {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    box-shadow: 0 6px 24px rgba(23,25,28,.12);
+    display: grid;
+    place-items: center;
+  }
+  .fab svg { width: 20px; height: 20px; stroke: var(--ink); stroke-width: 1.8; fill: none; }
+  .fab.checkin svg { stroke: var(--accent); }
+  body[data-s="checked"] .fab.checkin {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  body[data-s="checked"] .fab.checkin svg { stroke: #fff; }
+
+  /* ---------- modale Sheets (Check-in, Crew) ---------- */
+  .backdrop {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(23,25,28,.22);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .modal {
+    display: none;
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 21;
+    background: var(--glass-strong);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--stroke);
+    box-shadow: 0 -8px 40px rgba(23,25,28,.16);
+    padding: 8px 20px calc(var(--sab) + 16px);
+  }
+  body[data-s="checkin"] .backdrop, body[data-s="checkin"] #sheet-checkin { display: block; }
+  body[data-s="crew"] .backdrop, body[data-s="crew"] #sheet-crew { display: block; }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: rgba(23,25,28,.18); margin: 2px auto 12px; }
+  .modal h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; margin: 2px 0 2px; }
+  .modal .h-sub { font-size: 13px; color: var(--ink-2); margin-bottom: 14px; }
+
+  .spot-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(29,185,84,.08);
+    border: 1px solid rgba(29,185,84,.22);
+    margin-bottom: 14px;
+  }
+  .spot-row .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .spot-row .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .spot-row b { font-size: 15px; font-weight: 650; display: block; }
+  .spot-row span { font-size: 12px; color: var(--ink-2); }
+
+  .sec-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 0 0 8px;
+  }
+  .crew-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 8px 8px;
+    border-radius: 100px;
+    border: 1.5px solid var(--accent);
+    background: rgba(10,132,255,.08);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .crew-chip .avas { display: flex; }
+  .crew-chip .ava { width: 24px; height: 24px; font-size: 10px; }
+  .crew-chip svg { width: 15px; height: 15px; stroke: var(--accent); stroke-width: 2.6; fill: none; }
+
+  .note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin-bottom: 16px;
+  }
+  .note svg { width: 15px; height: 15px; flex: none; stroke: var(--ink-3); stroke-width: 1.9; fill: none; margin-top: 1px; }
+
+  .cta {
+    width: 100%;
+    height: 50px;
+    border-radius: 15px;
+    background: var(--ink);
+    color: var(--app-bg);
+    font-size: 15.5px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 0;
+  }
+  .cta.blue { background: var(--accent); color: #fff; }
+  .ghost {
+    width: 100%;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+  }
+
+  /* Crew-Sheet */
+  .member {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+  }
+  .member + .member { border-top: 1px solid var(--divider); }
+  .member .ava { width: 38px; height: 38px; font-size: 14px; }
+  .member .who { flex: 1; min-width: 0; line-height: 1.25; }
+  .member .who b { font-size: 14.5px; font-weight: 600; display: block; }
+  .member .who span { font-size: 12px; color: var(--ink-2); }
+  .member .who span.live { color: var(--ok); font-weight: 600; }
+  .member .go {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent);
+    flex: none;
+  }
+  .invite-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    border-radius: 14px;
+    border: 1.5px dashed rgba(10,132,255,.45);
+    background: rgba(10,132,255,.06);
+    color: var(--accent);
+    font-size: 14.5px;
+    font-weight: 650;
+    margin: 14px 0 4px;
+  }
+  .invite-btn svg { width: 17px; height: 17px; stroke: var(--accent); stroke-width: 2; fill: none; }
+  .leave { text-align: center; font-size: 13px; color: var(--ink-3); padding: 12px 0 0; }
+
+  /* ---------- invite: Beitritts-Karte (öffnet man den Link) ---------- */
+  .invite-wrap {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 26;
+    background: rgba(23,25,28,.30);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  body[data-s="invite"] .invite-wrap { display: flex; }
+  .invite-card {
+    width: 100%;
+    border-radius: 24px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 24px 64px rgba(23,25,28,.3);
+    padding: 26px 22px 18px;
+    text-align: center;
+  }
+  .invite-card .avas { display: flex; justify-content: center; margin-bottom: 14px; }
+  .invite-card .avas .ava { width: 44px; height: 44px; font-size: 17px; border-width: 3px; }
+  .invite-card .avas .ava + .ava { margin-left: -12px; }
+  .invite-card .kicker { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .invite-card h1 { font-size: 24px; font-weight: 750; letter-spacing: -.02em; margin: 4px 0 2px; }
+  .invite-card .sub { font-size: 13.5px; color: var(--ink-2); margin-bottom: 18px; }
+  .name-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 46px;
+    border-radius: 13px;
+    border: 1px solid var(--stroke);
+    background: rgba(23,25,28,.04);
+    padding: 0 14px;
+    font-size: 15px;
+    text-align: left;
+    margin-bottom: 8px;
+  }
+  .name-field label { font-size: 12px; color: var(--ink-3); flex: none; }
+  .name-field b { font-weight: 600; }
+  .invite-card .priv {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ink-3);
+    margin: 10px 0 14px;
+  }
+
+  /* ---------- Karte: Puck, Freund-Pin, Selbst-Check-in ---------- */
+  .puck { position: relative; width: 22px; height: 22px; }
+  .puck .core {
+    position: absolute; inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2.5px solid #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  }
+  .puck .halo {
+    position: absolute; inset: -14px;
+    border-radius: 50%;
+    background: rgba(10,132,255,.15);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(.6); opacity: .9; }
+    70% { transform: scale(1.15); opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .me-tag {
+    display: none;
+    position: absolute;
+    top: 26px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--glass-strong);
+    border: 1px solid rgba(29,185,84,.4);
+    border-radius: 8px;
+    padding: 3px 8px;
+    box-shadow: 0 2px 10px rgba(23,25,28,.12);
+  }
+  .me-tag span { color: var(--ok); }
+  body[data-s="checked"] .me-tag { display: block; }
+  body[data-s="checked"] .puck .core { box-shadow: 0 1px 6px rgba(0,0,0,.3), 0 0 0 4px rgba(29,185,84,.35); }
+
+  .friend { position: relative; width: 34px; height: 34px; display: none; }
+  body[data-s="push"] .friend, body[data-s="crew"] .friend { display: block; }
+  .friend .fava {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: #7C5CFF;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 2.5px solid #fff;
+    box-shadow: 0 2px 10px rgba(23,25,28,.28);
+  }
+  .friend .tag {
+    position: absolute;
+    top: 38px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--glass-strong);
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    padding: 3px 8px;
+    box-shadow: 0 2px 10px rgba(23,25,28,.12);
+  }
+  .friend .tag span { color: var(--ink-2); font-weight: 480; }
+</style>
+</head>
+<body data-s="checkin">
+<div id="map"></div>
+
+<div class="statusbar">
+  <span>9:41</span>
+  <svg viewBox="0 0 62 12"><path d="M1 8h3v4H1zM6 6h3v6H6zM11 3.5h3V12h-3zM16 1h3v11h-3z"/><rect x="26" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/><rect x="28" y="3" width="15" height="6" rx="1.5"/><path d="M49.5 4.5v3c1 0 1.5-.7 1.5-1.5s-.5-1.5-1.5-1.5z" opacity=".4"/></svg>
+</div>
+
+<div class="search glassfx">
+  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+  Ort oder Adresse suchen
+</div>
+
+<!-- Szenario "push": iOS-Benachrichtigung -->
+<div class="push">
+  <div class="appico"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z"/><circle cx="12" cy="10.5" r="2.4"/></svg></div>
+  <div class="body">
+    <div class="app">GreenZones</div>
+    <b>Marcel ist eingecheckt</b>
+    <span>Küchengarten · Linden-Mitte</span>
+  </div>
+  <div class="when">Jetzt</div>
+</div>
+
+<div class="fabs">
+  <div class="fab checkin glassfx"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z"/><path d="M12 8v6M9 11h6"/></svg></div>
+  <div class="fab glassfx"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></div>
+  <div class="fab glassfx"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="7.6" r="0.4" fill="currentColor"/></svg></div>
+</div>
+
+<div class="bar glassfx">
+  <div class="dot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+  <div class="txt">
+    <b>Hier erlaubt</b>
+    <span>Verbotszone 190 m · Fußgängerzone 45 m</span>
+  </div>
+  <div class="crew-avas">
+    <div class="ava m">M</div>
+    <div class="ava t">T</div>
+  </div>
+  <div class="chev"><svg viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></svg></div>
+</div>
+
+<div class="backdrop"></div>
+
+<!-- Szenario "checkin": Check-in-Sheet -->
+<div class="modal" id="sheet-checkin">
+  <div class="grab"></div>
+  <h2>Am Spot einchecken</h2>
+  <div class="h-sub">Deine Crew sieht, wo du bist — für 2 Stunden.</div>
+  <div class="spot-row">
+    <div class="dot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+    <div>
+      <b>Küchengarten</b>
+      <span>Hier erlaubt · Linden-Mitte · Hannover</span>
+    </div>
+  </div>
+  <div class="sec-label">Sichtbar für</div>
+  <div class="crew-chip">
+    <div class="avas"><div class="ava m">M</div><div class="ava t">T</div></div>
+    Feierabend
+    <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg>
+  </div>
+  <div class="note">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+    Verschwindet nach 2 Stunden automatisch — oder sofort, wenn du auscheckst. Kein Verlauf, kein Tracking.
+  </div>
+  <button class="cta">Einchecken</button>
+  <button class="ghost">Abbrechen</button>
+</div>
+
+<!-- Szenario "crew": Crew-Sheet (Tap auf Avatare in der Bar) -->
+<div class="modal" id="sheet-crew">
+  <div class="grab"></div>
+  <h2>Feierabend</h2>
+  <div class="h-sub">3 Mitglieder · Crew</div>
+  <div class="member">
+    <div class="ava m">M</div>
+    <div class="who">
+      <b>Marcel</b>
+      <span class="live">Eingecheckt · Küchengarten · vor 12 min</span>
+    </div>
+    <div class="go">Auf Karte</div>
+  </div>
+  <div class="member">
+    <div class="ava t">T</div>
+    <div class="who">
+      <b>Tara</b>
+      <span>Zuletzt eingecheckt: gestern</span>
+    </div>
+  </div>
+  <div class="member">
+    <div class="ava l">L</div>
+    <div class="who">
+      <b>Leon</b>
+      <span>Das bist du</span>
+    </div>
+  </div>
+  <button class="invite-btn">
+    <svg viewBox="0 0 24 24"><path d="M12 15V4M8 7.5 12 3.5l4 4"/><path d="M5 12v7h14v-7"/></svg>
+    Freunde einladen — Link teilen
+  </button>
+  <div class="leave">Crew verlassen</div>
+</div>
+
+<!-- Szenario "invite": Link geöffnet, Beitritts-Karte -->
+<div class="invite-wrap">
+  <div class="invite-card">
+    <div class="avas"><div class="ava m">M</div><div class="ava t">T</div><div class="ava l">+</div></div>
+    <div class="kicker">Einladung</div>
+    <h1>Feierabend</h1>
+    <div class="sub">Marcel lädt dich in seine Crew ein · 2 Mitglieder</div>
+    <div class="name-field"><label>Dein Name</label> <b>Leon</b></div>
+    <div class="priv">Kein Konto, keine Registrierung. Was die Crew teilt, liegt im gemeinsamen iCloud-Bereich — sichtbar nur für Mitglieder.</div>
+    <button class="cta blue">Beitreten</button>
+    <button class="ghost">Ablehnen</button>
+  </div>
+</div>
+
+<script>
+document.body.dataset.s = new URLSearchParams(location.search).get("s") || "checkin";
+
+function circle(lng, lat, radiusM, steps = 64) {
+  const coords = [];
+  const kmPerDegLat = 110.574;
+  const kmPerDegLng = 111.320 * Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    coords.push([
+      lng + (Math.cos(a) * radiusM / 1000) / kmPerDegLng,
+      lat + (Math.sin(a) * radiusM / 1000) / kmPerDegLat,
+    ]);
+  }
+  return coords;
+}
+const feat = (geom, props = {}) => ({ type: "Feature", properties: props, geometry: geom });
+const poly = coords => ({ type: "Polygon", coordinates: [coords] });
+
+// Demo-Zonen Hannover Mitte (Mockup-Daten, nicht juristisch exakt)
+const banZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly(circle(9.7318, 52.3730, 100)), { name: "Spielplatz Am Ballhof" }),
+    feat(poly(circle(9.7300, 52.3773, 100)), { name: "Grundschule Calenberger Neustadt" }),
+    feat(poly(circle(9.7472, 52.3765, 100)), { name: "Kita Oststadt" }),
+    feat(poly(circle(9.7450, 52.3690, 100)), { name: "Sportplatz Südstadt" }),
+    feat(poly(circle(9.7370, 52.3672, 100)), { name: "Spielplatz Maschpark" }),
+    feat(poly(circle(9.7330, 52.3700, 100)), { name: "Kita Calenberger Neustadt" }),
+    feat(poly(circle(9.7455, 52.3742, 100)), { name: "Jugendzentrum Mitte" }),
+  ],
+};
+const timeZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly([
+      [9.7328, 52.3756], [9.7388, 52.3748], [9.7437, 52.3725],
+      [9.7433, 52.3719], [9.7386, 52.3742], [9.7330, 52.3750],
+      [9.7328, 52.3756],
+    ]), { name: "Fußgängerzone Georgstraße", hours: "7–20 Uhr" }),
+    feat(poly([
+      [9.7386, 52.3748], [9.7404, 52.3764], [9.7412, 52.3762],
+      [9.7394, 52.3746], [9.7386, 52.3748],
+    ]), { name: "Fußgängerzone Bahnhofstraße", hours: "7–20 Uhr" }),
+  ],
+};
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/positron",
+  center: [9.7386, 52.3733],
+  zoom: 14.2,
+  attributionControl: { compact: true },
+});
+
+map.on("load", () => {
+  map.addSource("ban", { type: "geojson", data: banZones });
+  map.addSource("time", { type: "geojson", data: timeZones });
+  map.addLayer({ id: "ban-fill", type: "fill", source: "ban", paint: { "fill-color": "#E5484D", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "ban-line", type: "line", source: "ban", paint: { "line-color": "#E5484D", "line-width": 1.6, "line-opacity": 0.75 } });
+  map.addLayer({ id: "time-fill", type: "fill", source: "time", paint: { "fill-color": "#F76B15", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "time-line", type: "line", source: "time", paint: { "line-color": "#F76B15", "line-width": 1.6, "line-dasharray": [2.2, 1.6], "line-opacity": 0.85 } });
+
+  const el = document.createElement("div");
+  el.className = "puck";
+  el.innerHTML = '<div class="halo"></div><div class="core"></div><div class="me-tag">Du · <span>noch 1:52 h</span></div>';
+  new maplibregl.Marker({ element: el }).setLngLat([9.7362, 52.3720]).addTo(map);
+
+  const fr = document.createElement("div");
+  fr.className = "friend";
+  fr.innerHTML = '<div class="fava">M</div><div class="tag">Marcel · <span>vor 12 min</span></div>';
+  new maplibregl.Marker({ element: fr }).setLngLat([9.7412, 52.3705]).addTo(map);
+
+  map.once("idle", () => { window.__MAP_READY__ = true; });
+});
+</script>
+</body>
+</html>
