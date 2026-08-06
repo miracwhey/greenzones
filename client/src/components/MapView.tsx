@@ -11,19 +11,34 @@ const STYLE = DARK
 
 let protocolRegistered = false;
 
+/** Ziel-Pin aus dem Mockup — bottom-anchored, damit die Spitze auf dem Punkt sitzt. */
+const TARGET_PIN_SVG =
+  '<svg viewBox="0 0 30 40"><path d="M15 39C15 39 3 24.5 3 14a12 12 0 0 1 24 0c0 10.5-12 25-12 25z" fill="#17191C" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="4.5" fill="#fff"/></svg>';
+
 interface Props {
   tilesUrl: string;
   center: LngLat;
   userPos: LngLat | null;
   accuracyM: number;
   timeActive: boolean;
+  /** Ziel-Modus: Pin + flyTo, Folgen des Nutzers ist aus. */
+  target: LngLat | null;
   onMapReady?: () => void;
 }
 
-export default function MapView({ tilesUrl, center, userPos, accuracyM, timeActive, onMapReady }: Props) {
+export default function MapView({
+  tilesUrl,
+  center,
+  userPos,
+  accuracyM,
+  timeActive,
+  target,
+  onMapReady,
+}: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const targetRef = useRef<maplibregl.Marker | null>(null);
   const followUser = useRef(true);
 
   useEffect(() => {
@@ -94,6 +109,7 @@ export default function MapView({ tilesUrl, center, userPos, accuracyM, timeActi
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
+      targetRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -131,22 +147,37 @@ export default function MapView({ tilesUrl, center, userPos, accuracyM, timeActi
     }
   }, [userPos, accuracyM]);
 
+  // Ziel-Pin + Anflug. Ohne Ziel verschwindet der Pin wieder.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!target) {
+      targetRef.current?.remove();
+      targetRef.current = null;
+      return;
+    }
+    followUser.current = false;
+    if (!targetRef.current) {
+      const el = document.createElement("div");
+      el.className = "target-pin";
+      el.innerHTML = TARGET_PIN_SVG;
+      targetRef.current = new maplibregl.Marker({ element: el, anchor: "bottom" });
+    }
+    targetRef.current.setLngLat([target.lng, target.lat]).addTo(map);
+    // Offset nach oben — sonst deckt das Sheet den Pin halb zu.
+    map.flyTo({ center: [target.lng, target.lat], zoom: 15, speed: 1.6, offset: [0, -60] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.lng, target?.lat]);
+
   useEffect(() => {
     const recenter = () => {
       followUser.current = true;
       const map = mapRef.current;
       if (map && userPos) map.flyTo({ center: [userPos.lng, userPos.lat], zoom: 15, speed: 1.4 });
     };
-    const goto = (e: Event) => {
-      followUser.current = false;
-      const { lng, lat } = (e as CustomEvent<LngLat>).detail;
-      mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, speed: 1.6 });
-    };
     window.addEventListener("gz:recenter", recenter);
-    window.addEventListener("gz:goto", goto);
     return () => {
       window.removeEventListener("gz:recenter", recenter);
-      window.removeEventListener("gz:goto", goto);
     };
   }, [userPos]);
 

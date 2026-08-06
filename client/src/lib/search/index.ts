@@ -44,8 +44,18 @@ export {
   MIN_QUERY_OFFLINE,
   MIN_QUERY_ONLINE,
   OFFLINE_LIMIT,
-  PLACES_URL,
   SearchController,
-  defaultPlacesLoader,
 } from "./controller";
-export type { PlacesLoader, SearchControllerOptions, StateListener } from "./controller";
+export type { SearchControllerOptions, StateListener } from "./controller";
+export {
+  LocalOfflineIndex,
+  PLACES_URL,
+  defaultPlacesLoader,
+  fetchPlaces,
+  isPlacesFile,
+  placesHref,
+} from "./offline";
+export type { OfflineIndexSource, PlacesLoader } from "./offline";
+export { PlacesWorkerCore } from "./workerProtocol";
+export type { PlacesFetcher, WorkerRequest, WorkerResponse } from "./workerProtocol";
+export { WorkerOfflineIndex } from "./workerIndex";

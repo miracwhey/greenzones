@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEBOUNCE_MS, SearchController, type PlacesLoader } from "../controller";
+import type { LngLat } from "../../geo";
+import type { OfflineIndexSource } from "../offline";
 import { RECENTS_KEY } from "../recents";
 import type { PhotonSource } from "../photon";
 import type { PhotonOutcome, Result, SearchState } from "../types";
@@ -26,12 +28,76 @@ class ManualPhoton implements PhotonSource {
   }
 }
 
+type Settle<T> = { resolve: (value: T) => void; reject: (reason: Error) => void };
+
+/** Offline-Quelle mit manueller Auflösung — erlaubt Out-of-Order-Antworten. */
+class ManualOffline implements OfflineIndexSource {
+  loads = 0;
+  disposed = false;
+  searches: string[] = [];
+  private loadSettles: Array<Settle<number>> = [];
+  private searchSettles: Array<Settle<Result[]>> = [];
+
+  load(): Promise<number> {
+    this.loads += 1;
+    return new Promise<number>((resolve, reject) => {
+      this.loadSettles.push({ resolve, reject });
+    });
+  }
+
+  search(query: string, _userPos: LngLat | null, _limit: number): Promise<Result[]> {
+    this.searches.push(query);
+    return new Promise<Result[]>((resolve, reject) => {
+      this.searchSettles.push({ resolve, reject });
+    });
+  }
+
+  settleLoad(count: number): void {
+    this.loadSettles.shift()?.resolve(count);
+  }
+
+  failLoad(error: Error): void {
+    this.loadSettles.shift()?.reject(error);
+  }
+
+  settleSearch(index: number, results: Result[]): void {
+    this.searchSettles[index].resolve(results);
+  }
+
+  failSearch(index: number, error: Error): void {
+    this.searchSettles[index].reject(error);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+  }
+}
+
+function offlineHarness(): {
+  controller: SearchController;
+  offline: ManualOffline;
+  photon: ManualPhoton;
+} {
+  const offline = new ManualOffline();
+  const photon = new ManualPhoton();
+  const controller = new SearchController({ offline, photon, storage: new MemoryStorage() });
+  return { controller, offline, photon };
+}
+
+function placeResult(name: string): Result {
+  return { name, detail: "Stadtteil · Hannover", lat: 52.37, lng: 9.72, source: "place" };
+}
+
 function photonResult(name: string, lat: number, lng: number): Result {
   return { name, detail: "30449, Hannover, Niedersachsen", lat, lng, source: "photon" };
 }
 
-function flush(): Promise<void> {
-  return vi.advanceTimersByTimeAsync(0).then(() => undefined);
+/**
+ * Die Offline-Quelle ist seit dem Worker async — zwischen Query und Treffern
+ * liegen mehrere Promise-Stufen (load → search → emit). Mehrfach drainen.
+ */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(0);
 }
 
 function advance(ms: number): Promise<void> {
@@ -114,13 +180,20 @@ describe("SearchController — Index-Lazy-Load", () => {
     expect(h.photon.calls).toEqual([]);
   });
 
-  it("nach geladenem Index liefert setQuery SYNCHRON Offline-Treffer", async () => {
+  it("nach geladenem Index braucht setQuery keinen Timer für Offline-Treffer", async () => {
     const h = harness();
     h.controller.setQuery("hannover");
     await flush();
 
+    const before = offlineOf(h.controller.getState());
+    expect(before.length).toBeGreaterThan(0);
+
     h.controller.setQuery("koeln");
+    // Die vorherigen Treffer bleiben stehen, bis die neuen da sind — kein Flackern.
+    expect(offlineOf(h.controller.getState())).toEqual(before);
+    await flush();
     expect(offlineOf(h.controller.getState()).map((r) => r.name)).toEqual(["Köln"]);
+    expect(h.photon.calls).toEqual([]);
   });
 
   it("Ladefehler ist ein sichtbarer Zustand, kein stilles Nichts", async () => {
@@ -381,10 +454,12 @@ describe("SearchController — Position", () => {
     expect(withoutPos.detail).not.toContain("Hannover");
 
     h.controller.setUserPos(HANNOVER);
+    await flush();
     expect(offlineOf(h.controller.getState())[0].name).toBe("Linden-Mitte");
 
     // Zurücknehmen stellt das positionslose Ranking wieder her.
     h.controller.setUserPos(null);
+    await flush();
     expect(offlineOf(h.controller.getState())[0].name).toBe(withoutPos.name);
   });
 });
@@ -419,6 +494,113 @@ describe("SearchController — Recents", () => {
     });
     const state = fresh.getState();
     expect(state.kind === "idle" && state.recents).toEqual([pick]);
+  });
+});
+
+describe("SearchController — asynchrone Offline-Quelle", () => {
+  it("prewarm lädt den Index ohne Query und genau einmal", async () => {
+    const { controller, offline } = offlineHarness();
+    controller.prewarm();
+    expect(offline.loads).toBe(1);
+    expect(controller.getState().index).toEqual({ kind: "loading" });
+
+    controller.prewarm();
+    controller.setQuery("hannover");
+    expect(offline.loads).toBe(1);
+
+    offline.settleLoad(42);
+    await flush();
+    expect(controller.getState().index).toEqual({ kind: "ready", count: 42 });
+  });
+
+  it("verwirft die langsame ALTE Offline-Antwort, die nach der neuen eintrifft", async () => {
+    const { controller, offline } = offlineHarness();
+    controller.prewarm();
+    offline.settleLoad(3);
+    await flush();
+
+    controller.setQuery("li");
+    controller.setQuery("lin");
+    expect(offline.searches).toEqual(["li", "lin"]);
+
+    offline.settleSearch(1, [placeResult("Linden-Nord")]);
+    await flush();
+    expect(offlineOf(controller.getState()).map((r) => r.name)).toEqual(["Linden-Nord"]);
+
+    offline.settleSearch(0, [placeResult("VERALTET")]);
+    await flush();
+    expect(offlineOf(controller.getState()).map((r) => r.name)).toEqual(["Linden-Nord"]);
+  });
+
+  it("solange die Offline-Suche läuft, ist es NIE empty", async () => {
+    const { controller, offline, photon } = offlineHarness();
+    controller.prewarm();
+    offline.settleLoad(3);
+    await flush();
+
+    controller.setQuery("xyzzyq");
+    await advance(DEBOUNCE_MS);
+    photon.settle(0, { ok: true, results: [] });
+    await flush();
+    // Online ist abgeschlossen und leer — offline arbeitet noch.
+    expect(controller.getState().kind).toBe("results");
+
+    offline.settleSearch(0, []);
+    await flush();
+    expect(controller.getState().kind).toBe("empty");
+  });
+
+  it("eine gescheiterte Offline-Suche ist ein sichtbarer Index-Fehler", async () => {
+    const { controller, offline } = offlineHarness();
+    controller.setQuery("linden");
+    offline.settleLoad(3);
+    await flush();
+
+    offline.failSearch(0, new Error("Ortsindex-Worker abgestürzt"));
+    await flush();
+    expect(controller.getState().index).toEqual({
+      kind: "error",
+      message: "Ortsindex-Worker abgestürzt",
+    });
+    expect(offlineOf(controller.getState())).toEqual([]);
+  });
+
+  it("nach setQuery unter der Mindestlänge zählt keine nachlaufende Antwort mehr", async () => {
+    const { controller, offline } = offlineHarness();
+    controller.prewarm();
+    offline.settleLoad(3);
+    await flush();
+
+    controller.setQuery("lin");
+    controller.setQuery("l");
+    offline.settleSearch(0, [placeResult("Linden-Mitte")]);
+    await flush();
+
+    const state = controller.getState();
+    expect(state.kind).toBe("idle");
+  });
+
+  it("destroy beendet die Offline-Quelle", () => {
+    const { controller, offline } = offlineHarness();
+    controller.prewarm();
+    controller.destroy();
+    expect(offline.disposed).toBe(true);
+  });
+});
+
+describe("SearchController — Snapshot", () => {
+  it("getState ist zwischen zwei Änderungen referenzstabil", async () => {
+    const h = harness();
+    const first = h.controller.getState();
+    expect(h.controller.getState()).toBe(first);
+
+    h.controller.setQuery("ha");
+    const second = h.controller.getState();
+    expect(second).not.toBe(first);
+    expect(h.controller.getState()).toBe(second);
+
+    await flush();
+    expect(h.controller.getState()).not.toBe(second);
   });
 });
 

@@ -9,7 +9,20 @@
   top: calc(var(--sat) + 8px);
   left: 14px;
   right: 14px;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  /* Die Liste endet über der Tastatur (≈300 px), wie im Mockup. */
+  max-height: calc(100% - var(--sat) - 320px);
+}
+/* Backdrop hinter offener Suche — deckt Sheet, Pill und FABs mit ab. */
+.scrim {
+  position: absolute;
+  inset: 0;
   z-index: 12;
+  background: rgba(23, 25, 28, 0.18);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 .search {
   height: 42px;
@@ -20,8 +33,9 @@
   gap: 8px;
   padding: 0 12px;
   color: var(--ink-2);
+  flex: none;
 }
-.search svg {
+.search .lens {
   width: 16px;
   height: 16px;
   stroke: var(--ink-2);
@@ -31,6 +45,7 @@
 }
 .search input {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: none;
   outline: none;
@@ -45,33 +60,152 @@
 .search input::-webkit-search-cancel-button {
   -webkit-appearance: none;
 }
-.search-results {
+.search .clear {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(23, 25, 28, 0.14);
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+}
+.search .clear svg {
+  width: 9px;
+  height: 9px;
+  stroke: #fff;
+  stroke-width: 2.6;
+  fill: none;
+}
+
+/* ---------- search results overlay ---------- */
+.search-panel {
   margin-top: 8px;
-  border-radius: 14px;
+  border-radius: 16px;
+  background: var(--glass-strong);
   box-shadow: var(--shadow-2);
-  overflow: hidden;
+  overflow-y: auto;
+  padding: 4px 0 6px;
+  min-height: 0;
+}
+.search-sec {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  padding: 10px 16px 4px;
 }
 .search-row {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 11px 14px;
-  line-height: 1.25;
-}
-.search-row + .search-row {
-  border-top: 1px solid var(--divider);
-}
-.search-row b {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-}
-.search-row span {
-  font-size: 12px;
-  color: var(--ink-2);
+  padding: 9px 16px;
 }
 .search-row:active {
   background: var(--divider);
+}
+.search-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex: none;
+  background: var(--divider);
+  display: grid;
+  place-items: center;
+}
+.search-ico svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--ink-2);
+  stroke-width: 1.9;
+  fill: none;
+}
+.search-body {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.search-body b {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-body span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.search-dist {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.search-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.search-note svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.9;
+  fill: none;
+}
+.search-retry {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: none;
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 2px solid var(--stroke);
+  border-top-color: var(--ink-2);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.search-empty {
+  padding: 22px 16px 24px;
+  text-align: center;
+}
+.search-empty b {
+  font-size: 14px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 3px;
+}
+.search-empty span {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+/* Die grauen Chips brauchen auf dunklem Glas den umgekehrten Kontrast. */
+@media (prefers-color-scheme: dark) {
+  .search .clear {
+    background: rgba(255, 255, 255, 0.22);
+  }
+  .pill-close {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .scrim {
+    background: rgba(0, 0, 0, 0.32);
+  }
 }
 
 /* ---------- status pill ---------- */
@@ -106,7 +240,7 @@
   transition: background 320ms var(--ease-spring), box-shadow 320ms var(--ease-spring);
   position: relative;
 }
-.pill svg {
+.pill .dot svg {
   width: 15px;
   height: 15px;
   stroke: #fff;
@@ -114,6 +248,23 @@
   fill: none;
   position: absolute;
   transition: opacity 200ms, transform 320ms var(--ease-spring);
+}
+.pill-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(23, 25, 28, 0.1);
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+}
+.pill-close svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  fill: none;
 }
 .pill .ic-x,
 .pill .ic-spin {
@@ -337,6 +488,17 @@
   font-size: 13px;
   color: var(--ink-2);
   box-shadow: var(--shadow-1);
+}
+
+/* ---------- target pin ---------- */
+.target-pin {
+  width: 30px;
+  height: 40px;
+}
+.target-pin svg {
+  width: 30px;
+  height: 40px;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
 }
 
 /* ---------- user puck ---------- */

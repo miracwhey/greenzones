@@ -15,6 +15,11 @@ export function distanceM(a: LngLat, b: LngLat): number {
   return Math.sqrt(x * x + y * y) * R;
 }
 
+/** de-DE-Distanz: unter 1 km "650 m", darüber "2,1 km". */
+export function formatDistanceM(m: number): string {
+  return m >= 1000 ? (m / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(m) + " m";
+}
+
 /** Punkt-in-Ring (Ray-Casting), Ring = [[lng,lat],...]. */
 function inRing(p: LngLat, ring: number[][]): boolean {
   let inside = false;

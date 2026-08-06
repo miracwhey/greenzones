@@ -12,6 +12,7 @@ import { ZoneEngine, type ZoneStatus } from "./lib/zones";
 import { pedestrianBanActive } from "./lib/time";
 import { distanceM, type LngLat } from "./lib/geo";
 import { hapticTap, initNative } from "./lib/native";
+import { SearchController, WorkerOfflineIndex, type Result } from "./lib/search";
 import "./App.css";
 
 const FALLBACK_CENTER: LngLat = { lng: 9.7386, lat: 52.3728 };
@@ -26,15 +27,30 @@ function loadLastPos(): LngLat | null {
   }
 }
 
+/** Ziel-Modus: der gewählte Ort und sein Zonen-Status. */
+interface Target {
+  result: Result;
+  status: ZoneStatus | null;
+}
+
 export default function App() {
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("gz_onboarded") === "1");
   const [status, setStatus] = useState<ZoneStatus | null>(null);
   const [timeActive, setTimeActive] = useState(pedestrianBanActive());
   const [infoOpen, setInfoOpen] = useState(false);
+  const [target, setTarget] = useState<Target | null>(null);
 
   const location = useLocation(onboarded);
   const engine = useMemo(() => new ZoneEngine(new URL(TILES_URL, window.location.href).href), []);
   const lastEval = useRef<LngLat | null>(null);
+
+  // Der Index lebt im Worker; die Instanz muss den StrictMode-Doppelrender
+  // überleben, sonst laufen zwei Worker.
+  const searchRef = useRef<SearchController | null>(null);
+  if (!searchRef.current) {
+    searchRef.current = new SearchController({ offline: new WorkerOfflineIndex() });
+  }
+  const search = searchRef.current;
 
   useEffect(() => {
     void initNative();
@@ -81,6 +97,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos?.lng, pos?.lat, timeActive, engine]);
 
+  // Das Offline-Ranking der Suche kennt die Nutzerposition.
+  useEffect(() => {
+    search.setUserPos(pos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos?.lng, pos?.lat, search]);
+
+  // Ziel-Status: dieselbe Engine, nur an einem anderen Punkt. Beim
+  // Zeitfenster-Flip neu bewerten wie beim GPS-Status.
+  const targetResult = target?.result ?? null;
+  useEffect(() => {
+    if (!targetResult) return;
+    let stale = false;
+    engine
+      .status({ lng: targetResult.lng, lat: targetResult.lat })
+      .then((s) => {
+        if (!stale) {
+          setTarget((t) => (t && t.result === targetResult ? { result: t.result, status: s } : t));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [targetResult, timeActive, engine]);
+
+  /** Ziel-Modus beenden: Pin weg, Feld leer, zurück auf den eigenen Standort. */
+  const clearTarget = () => {
+    // Ohne Ziel ist das nur ein geleertes Suchfeld — dann die Karte in Ruhe lassen.
+    if (target) window.dispatchEvent(new Event("gz:recenter"));
+    setTarget(null);
+  };
+
   const center = pos ?? loadLastPos() ?? FALLBACK_CENTER;
 
   return (
@@ -91,10 +139,23 @@ export default function App() {
         userPos={pos}
         accuracyM={location.kind === "ready" ? location.accuracyM : 50}
         timeActive={timeActive}
+        target={targetResult ? { lng: targetResult.lng, lat: targetResult.lat } : null}
+        onMapReady={() => search.prewarm()}
       />
 
-      <SearchBar />
-      <StatusPill status={status} locating={location.kind === "locating" || location.kind === "idle"} />
+      <SearchBar
+        controller={search}
+        selected={targetResult}
+        userPos={pos}
+        onSelect={(r) => setTarget({ result: r, status: null })}
+        onClear={clearTarget}
+      />
+      <StatusPill
+        status={target ? target.status : status}
+        locating={location.kind === "locating" || location.kind === "idle"}
+        target={targetResult}
+        onClearTarget={clearTarget}
+      />
 
       <div className="fabs">
         <button
@@ -134,9 +195,9 @@ export default function App() {
       )}
 
       <BottomSheet peekHeight={214} expandedHeight={420}>
-        <h2 className="sheet-title">In deiner Nähe</h2>
+        <h2 className="sheet-title">{target ? "Am Ziel" : "In deiner Nähe"}</h2>
         <div className="sheet-scroll">
-          <ZoneList status={status} />
+          <ZoneList status={target ? target.status : status} />
           <p className="sheet-foot">
             Umkreis 2 km · Daten © OpenStreetMap · keine Rechtsberatung
           </p>

@@ -2,36 +2,38 @@
  * SearchController — der Such-Kern. UI-frei, keine React-Abhängigkeit.
  *
  * Ablauf pro Tastendruck:
- *  1. Offline-Index (lazy geladen) liefert SOFORT synchron seine Treffer.
+ *  1. Offline-Index (lazy geladen, im Worker) antwortet in einem Roundtrip.
  *  2. Photon wird 300 ms debounced hinterhergeschickt.
- * Jede Antwort trägt die Request-ID ihres Query-Standes; ältere Antworten
- * werden verworfen. Fehler beider Quellen landen in einem sichtbaren State.
+ * Jede Antwort trägt die Sequenz ihres Query-Standes; ältere Antworten werden
+ * verworfen. Fehler beider Quellen landen in einem sichtbaren State.
  */
 import type { LngLat } from "../geo";
 import { dedupeAgainstOffline } from "./merge";
-import { PlaceIndex } from "./places";
+import {
+  LocalOfflineIndex,
+  PLACES_URL,
+  defaultPlacesLoader,
+  type OfflineIndexSource,
+  type PlacesLoader,
+} from "./offline";
 import { PhotonClient, type HttpTransport, type PhotonSource } from "./photon";
 import { RecentsStore, type StorageLike } from "./recents";
-import type {
-  IndexState,
-  OnlineState,
-  PlacesFile,
-  Result,
-  SearchState,
-} from "./types";
+import type { IndexState, OnlineState, Result, SearchState } from "./types";
 
 export const MIN_QUERY_OFFLINE = 2;
 export const MIN_QUERY_ONLINE = 3;
 export const DEBOUNCE_MS = 300;
 export const OFFLINE_LIMIT = 6;
-/** Relativ zur index.html — Capacitor serviert das Bundle unter capacitor://localhost. */
-export const PLACES_URL = "places.json";
 
-export type PlacesLoader = () => Promise<PlacesFile>;
+export { PLACES_URL, defaultPlacesLoader };
+export type { PlacesLoader };
+
 export type StateListener = (state: SearchState) => void;
 
 export interface SearchControllerOptions {
-  /** Default: fetch auf PLACES_URL relativ zur aktuellen Seite. */
+  /** Default: Index im aufrufenden Thread über `loadPlaces`. Produktion: WorkerOfflineIndex. */
+  offline?: OfflineIndexSource;
+  /** Wird nur benutzt, wenn `offline` nicht gesetzt ist. */
   loadPlaces?: PlacesLoader;
   /** Default: PhotonClient über CapacitorHttp. */
   photon?: PhotonSource;
@@ -44,32 +46,14 @@ export interface SearchControllerOptions {
   offlineLimit?: number;
 }
 
-/** Default-Loader. Greift erst beim Aufruf auf `window` zu — Node-sicher. */
-export function defaultPlacesLoader(url: string = PLACES_URL): PlacesLoader {
-  return async () => {
-    const href = new URL(url, window.location.href).href;
-    const res = await fetch(href);
-    if (!res.ok) throw new Error(`places.json: HTTP ${res.status}`);
-    return (await res.json()) as PlacesFile;
-  };
-}
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-function isPlacesFile(value: unknown): value is PlacesFile {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    Array.isArray((value as PlacesFile).places)
-  );
 }
 
 export class SearchController {
   private listeners = new Set<StateListener>();
 
-  private loadPlaces: PlacesLoader;
+  private offlineSource: OfflineIndexSource;
   private photon: PhotonSource;
   private recentsStore: RecentsStore;
   private debounceMs: number;
@@ -77,17 +61,25 @@ export class SearchController {
 
   private query = "";
   private userPos: LngLat | null = null;
-  private index: PlaceIndex | null = null;
   private indexState: IndexState = { kind: "unloaded" };
   private offline: Result[] = [];
   private online: OnlineState = { kind: "idle" };
 
   /** Monoton steigend pro Query-Änderung — Sequenz-Guard für Photon. */
   private reqId = 0;
+  /**
+   * Eigene Sequenz für die Offline-Quelle: sie wird auch ohne Query-Änderung
+   * neu befragt (setUserPos), und ihre Antworten sind seit dem Worker async.
+   */
+  private offlineSeq = 0;
+  private offlinePending = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Snapshot-Cache — `getState()` muss referenzstabil sein (useSyncExternalStore). */
+  private snapshot: SearchState | null = null;
 
   constructor(options: SearchControllerOptions = {}) {
-    this.loadPlaces = options.loadPlaces ?? defaultPlacesLoader();
+    this.offlineSource =
+      options.offline ?? new LocalOfflineIndex(options.loadPlaces ?? defaultPlacesLoader());
     this.photon = options.photon ?? new PhotonClient({ transport: options.http });
     this.recentsStore = options.recents ?? new RecentsStore(options.storage);
     this.debounceMs = options.debounceMs ?? DEBOUNCE_MS;
@@ -96,8 +88,10 @@ export class SearchController {
 
   // ---------------------------------------------------------------- Zugriff
 
+  /** Referenzstabil zwischen zwei Änderungen — der Store-Kontrakt von React. */
   getState(): SearchState {
-    return this.buildState();
+    if (!this.snapshot) this.snapshot = this.buildState();
+    return this.snapshot;
   }
 
   /**
@@ -113,6 +107,16 @@ export class SearchController {
 
   // ---------------------------------------------------------------- Aktionen
 
+  /**
+   * Index vorwärmen, sobald die App bereit ist — der Bau dauert Sekunden und
+   * darf nicht erst beim ersten Tastendruck anfangen.
+   */
+  prewarm(): void {
+    if (this.indexState.kind !== "unloaded") return;
+    this.ensureIndex();
+    this.emit();
+  }
+
   setQuery(query: string): void {
     this.query = query;
     this.cancelTimer();
@@ -122,7 +126,7 @@ export class SearchController {
     const length = query.trim().length;
 
     if (length < MIN_QUERY_OFFLINE) {
-      this.offline = [];
+      this.resetOffline();
       this.online = { kind: "idle" };
       this.emit();
       return;
@@ -164,7 +168,7 @@ export class SearchController {
     this.query = "";
     this.cancelTimer();
     this.reqId += 1;
-    this.offline = [];
+    this.resetOffline();
     this.online = { kind: "idle" };
     this.emit();
   }
@@ -172,7 +176,6 @@ export class SearchController {
   /** Nach einem Index-Ladefehler erneut versuchen. */
   reloadIndex(): void {
     if (this.indexState.kind === "loading") return;
-    this.index = null;
     this.indexState = { kind: "unloaded" };
     this.ensureIndex();
     this.emit();
@@ -181,7 +184,10 @@ export class SearchController {
   destroy(): void {
     this.cancelTimer();
     this.reqId += 1;
+    this.offlineSeq += 1;
+    this.offlinePending = false;
     this.listeners.clear();
+    this.offlineSource.dispose?.();
   }
 
   // ----------------------------------------------------------------- intern
@@ -193,20 +199,14 @@ export class SearchController {
     }
   }
 
-  /** Lädt places.json beim ERSTEN Bedarf, nie beim Konstruieren. */
+  /** Lädt den Index beim ERSTEN Bedarf (oder per `prewarm`), nie beim Konstruieren. */
   private ensureIndex(): void {
     if (this.indexState.kind !== "unloaded") return;
     this.indexState = { kind: "loading" };
 
-    this.loadPlaces().then(
-      (file) => {
-        if (!isPlacesFile(file)) {
-          this.indexState = { kind: "error", message: "places.json: unerwartetes Format" };
-          this.emit();
-          return;
-        }
-        this.index = new PlaceIndex(file.places);
-        this.indexState = { kind: "ready", count: file.places.length };
+    this.offlineSource.load().then(
+      (count) => {
+        this.indexState = { kind: "ready", count };
         this.recomputeOffline();
         this.emit();
       },
@@ -217,12 +217,42 @@ export class SearchController {
     );
   }
 
+  private resetOffline(): void {
+    this.offlineSeq += 1;
+    this.offlinePending = false;
+    this.offline = [];
+  }
+
+  /**
+   * Fragt die Offline-Quelle. Die bisherigen Treffer bleiben währenddessen
+   * stehen (kein Flackern), `offlinePending` verhindert ein verfrühtes "empty".
+   */
   private recomputeOffline(): void {
-    if (!this.index || this.query.trim().length < MIN_QUERY_OFFLINE) {
-      this.offline = [];
+    if (this.indexState.kind !== "ready" || this.query.trim().length < MIN_QUERY_OFFLINE) {
+      this.resetOffline();
       return;
     }
-    this.offline = this.index.search(this.query, this.userPos, this.offlineLimit);
+
+    const seq = ++this.offlineSeq;
+    this.offlinePending = true;
+
+    this.offlineSource.search(this.query, this.userPos, this.offlineLimit).then(
+      (results) => {
+        if (seq !== this.offlineSeq) return;
+        this.offlinePending = false;
+        this.offline = results;
+        this.emit();
+      },
+      (err: unknown) => {
+        if (seq !== this.offlineSeq) return;
+        // Eine gescheiterte Suche heißt: der Index ist weg. Das ist ein
+        // sichtbarer Zustand mit Retry, kein leeres Ergebnis.
+        this.offlinePending = false;
+        this.offline = [];
+        this.indexState = { kind: "error", message: errorMessage(err) };
+        this.emit();
+      },
+    );
   }
 
   private async runPhoton(query: string, id: number): Promise<void> {
@@ -252,9 +282,14 @@ export class SearchController {
     const onlineSettledEmpty =
       online.kind === "idle" || (online.kind === "results" && online.results.length === 0);
 
-    // Solange der Index lädt, ist "leer" eine Lüge — dann bleibt es `results`
-    // mit leerer Offline-Sektion und sichtbarem `index.kind === "loading"`.
-    if (this.offline.length === 0 && onlineSettledEmpty && index.kind !== "loading") {
+    // Solange eine Quelle noch arbeitet, ist "leer" eine Lüge — dann bleibt es
+    // `results` mit leerer Offline-Sektion und sichtbarem Ladezustand.
+    if (
+      this.offline.length === 0 &&
+      onlineSettledEmpty &&
+      index.kind !== "loading" &&
+      !this.offlinePending
+    ) {
       return { kind: "empty", query, index, online };
     }
 
@@ -268,6 +303,7 @@ export class SearchController {
 
   private emit(): void {
     const state = this.buildState();
+    this.snapshot = state;
     for (const listener of this.listeners) listener(state);
   }
 }

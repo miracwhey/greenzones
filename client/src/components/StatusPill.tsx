@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ZoneStatus } from "../lib/zones";
+import type { Result } from "../lib/search";
+import { formatDistanceM } from "../lib/geo";
 import { pedestrianBanActive } from "../lib/time";
 import { hapticStatus } from "../lib/native";
 
@@ -12,16 +14,27 @@ export function pillKind(status: ZoneStatus | null): PillKind {
   return "ok";
 }
 
-function fmtDist(m: number): string {
-  return m >= 1000 ? (m / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(m) + " m";
+/**
+ * Kontext-Zeile des Ziels: "Linden-Mitte · Hannover".
+ * Ein Offline-Treffer trägt sein Detail als "Typ · Kontext" — im Ziel-Modus ist
+ * der Typ redundant (der Name steht ja nicht daneben), der Kontext nicht.
+ * Photon-Treffer haben kein Typ-Präfix, ihre Detail-Zeile bleibt wie sie ist.
+ */
+function targetSub(result: Result): string {
+  if (result.source === "photon") return result.detail || result.name;
+  const context = result.detail.split(" · ").slice(1).join(" · ");
+  return context ? `${result.name} · ${context}` : result.name;
 }
 
 interface Props {
   status: ZoneStatus | null;
   locating: boolean;
+  /** Gesetzt = Ziel-Modus: der Status gilt fürs Ziel, nicht für den Standort. */
+  target: Result | null;
+  onClearTarget: () => void;
 }
 
-export default function StatusPill({ status, locating }: Props) {
+export default function StatusPill({ status, locating, target, onClearTarget }: Props) {
   const kind = pillKind(status);
   const prev = useRef<PillKind>("wait");
 
@@ -32,8 +45,17 @@ export default function StatusPill({ status, locating }: Props) {
   }, [kind]);
 
   let title = "Standort wird ermittelt …";
-  let sub = " ";
-  if (!locating && status) {
+  let sub = " ";
+
+  if (target) {
+    if (!status) {
+      title = "Ziel wird geprüft …";
+      sub = targetSub(target);
+    } else {
+      title = kind === "ok" ? "Am Ziel erlaubt" : "Am Ziel verboten";
+      sub = targetSub(target);
+    }
+  } else if (!locating && status) {
     if (kind === "ban") {
       title = "Hier verboten";
       sub = "Verbotszone · ganztägig";
@@ -46,7 +68,7 @@ export default function StatusPill({ status, locating }: Props) {
         Number.isFinite,
       );
       sub = cands.length
-        ? `Nächste Verbotszone in ${fmtDist(Math.min(...cands))}`
+        ? `Nächste Verbotszone in ${formatDistanceM(Math.min(...cands))}`
         : "Keine Verbotszone in der Nähe";
     }
   }
@@ -67,6 +89,19 @@ export default function StatusPill({ status, locating }: Props) {
           <b>{title}</b>
           <span>{sub}</span>
         </div>
+        {target && (
+          <button
+            type="button"
+            className="pill-close"
+            aria-label="Ziel verlassen"
+            data-testid="target-close"
+            onPointerDown={onClearTarget}
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );
