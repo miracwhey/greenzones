@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GreenZones — Redesign A: Karte frei (Pill + Detail on Tap)</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ok: #1DB954;
+    --ban: #E5484D;
+    --time: #F76B15;
+    --accent: #0A84FF;
+    --ink: #17191C;
+    --ink-2: #5A616B;
+    --ink-3: #9AA1AB;
+    --glass: rgba(255,255,255,.78);
+    --glass-strong: rgba(255,255,255,.90);
+    --stroke: rgba(23,25,28,.08);
+    --ease-spring: cubic-bezier(.32,.72,0,1);
+    /* Mockup: iPhone-Statusbar fix simuliert — echte App nutzt env(safe-area-inset-*) */
+    --sat: 54px;
+    --sab: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    color: var(--ink);
+    background: #E8EAED;
+    -webkit-font-smoothing: antialiased;
+  }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 9px; opacity: .55; }
+  .maplibregl-ctrl-bottom-right { bottom: 14px; }
+
+  .statusbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: var(--sat);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px 0;
+    z-index: 20;
+    font-size: 15px;
+    font-weight: 650;
+    pointer-events: none;
+  }
+  .statusbar svg { height: 12px; fill: var(--ink); }
+
+  .search {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    left: 14px; right: 14px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 4px 16px rgba(23,25,28,.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    z-index: 10;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+  .search svg { width: 16px; height: 16px; stroke: var(--ink-2); stroke-width: 2; fill: none; flex: none; }
+
+  /* ---------- status pill: einziger permanenter Status, Tap öffnet Detail ---------- */
+  .top {
+    position: absolute;
+    top: calc(var(--sat) + 60px);
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .pill {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px 10px 12px;
+    border-radius: 100px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 8px 32px rgba(23,25,28,.14), 0 1px 2px rgba(23,25,28,.08);
+  }
+  .pill .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 5px rgba(29,185,84,.18);
+  }
+  .pill .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .pill .txt { line-height: 1.15; }
+  .pill .txt b { font-size: 15px; font-weight: 650; letter-spacing: -.01em; display: block; }
+  .pill .txt span { font-size: 12px; color: var(--ink-2); font-weight: 480; }
+  .pill .chev { margin-left: 2px; }
+  .pill .chev svg { width: 14px; height: 14px; stroke: var(--ink-3); stroke-width: 2.4; fill: none; }
+
+  .fabs {
+    position: absolute;
+    right: 14px;
+    bottom: calc(var(--sab) + 14px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10;
+  }
+  .fab {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 6px 24px rgba(23,25,28,.12);
+    display: grid;
+    place-items: center;
+  }
+  .fab svg { width: 20px; height: 20px; stroke: var(--ink); stroke-width: 1.8; fill: none; }
+  .fab.checkin { display: none; }
+  .fab.checkin svg { stroke: var(--accent); }
+
+  /* ---------- detail sheet: NUR nach Pill-Tap, modal, kein Peek ---------- */
+  .backdrop {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 14;
+    background: rgba(23,25,28,.18);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .detail {
+    display: none;
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 15;
+    background: var(--glass-strong);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--stroke);
+    box-shadow: 0 -8px 40px rgba(23,25,28,.16);
+    padding: 8px 18px calc(var(--sab) + 16px);
+  }
+  body[data-s="detail"] .backdrop, body[data-s="detail"] .detail { display: block; }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: rgba(23,25,28,.18); margin: 2px auto 12px; }
+  .detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .detail h2 { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .close {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(23,25,28,.07);
+    display: grid;
+    place-items: center;
+  }
+  .close svg { width: 12px; height: 12px; stroke: var(--ink-2); stroke-width: 2.6; fill: none; }
+  .zone-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+  }
+  .zone-row + .zone-row { border-top: 1px solid rgba(23,25,28,.06); }
+  .zone-ico {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .zone-ico.ban { background: rgba(229,72,77,.12); }
+  .zone-ico.time { background: rgba(247,107,21,.12); }
+  .zone-ico svg { width: 17px; height: 17px; stroke-width: 1.9; fill: none; }
+  .zone-ico.ban svg { stroke: var(--ban); }
+  .zone-ico.time svg { stroke: var(--time); }
+  .zone-body { flex: 1; min-width: 0; line-height: 1.25; }
+  .zone-body b { font-size: 14px; font-weight: 600; letter-spacing: -.01em; display: block; }
+  .zone-body span { font-size: 12px; color: var(--ink-2); }
+  .zone-dist { font-size: 13px; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .badge-live {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 650;
+    color: var(--time);
+    background: rgba(247,107,21,.12);
+    border-radius: 5px;
+    padding: 1.5px 6px;
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+  .sheet-foot { font-size: 11px; color: var(--ink-3); margin-top: 10px; }
+
+  /* ---------- future: Freunde-Pin + Check-in (nur Szenario "future") ---------- */
+  body[data-s="future"] .fab.checkin { display: grid; }
+  .friend { position: relative; width: 34px; height: 34px; display: none; }
+  body[data-s="future"] .friend { display: block; }
+  .friend .ava {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: #7C5CFF;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 2.5px solid #fff;
+    box-shadow: 0 2px 10px rgba(23,25,28,.28);
+  }
+  .friend .tag {
+    position: absolute;
+    top: 38px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--glass-strong);
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    padding: 3px 8px;
+    box-shadow: 0 2px 10px rgba(23,25,28,.12);
+  }
+  .friend .tag span { color: var(--ink-2); font-weight: 480; }
+
+  .puck { position: relative; width: 22px; height: 22px; }
+  .puck .core {
+    position: absolute; inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2.5px solid #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  }
+  .puck .halo {
+    position: absolute; inset: -14px;
+    border-radius: 50%;
+    background: rgba(10,132,255,.15);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(.6); opacity: .9; }
+    70% { transform: scale(1.15); opacity: 0; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body data-s="idle">
+<div id="map"></div>
+
+<div class="statusbar">
+  <span>9:41</span>
+  <svg viewBox="0 0 62 12"><path d="M1 8h3v4H1zM6 6h3v6H6zM11 3.5h3V12h-3zM16 1h3v11h-3z"/><rect x="26" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/><rect x="28" y="3" width="15" height="6" rx="1.5"/><path d="M49.5 4.5v3c1 0 1.5-.7 1.5-1.5s-.5-1.5-1.5-1.5z" opacity=".4"/></svg>
+</div>
+
+<div class="search">
+  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+  Ort oder Adresse suchen
+</div>
+
+<div class="top">
+  <div class="pill">
+    <div class="dot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+    <div class="txt">
+      <b>Hier erlaubt</b>
+      <span>Nächste Verbotszone in 220 m</span>
+    </div>
+    <div class="chev"><svg viewBox="0 0 24 24"><path d="m6 10 6 6 6-6"/></svg></div>
+  </div>
+</div>
+
+<div class="fabs">
+  <div class="fab checkin"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z"/><path d="M12 8v6M9 11h6"/></svg></div>
+  <div class="fab"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></div>
+  <div class="fab"><svg viewBox="0 0 24 24"><path d="m12 3 8.5 4.5L12 12 3.5 7.5 12 3zM3.5 12.2 12 16.7l8.5-4.5M3.5 16.7 12 21.2l8.5-4.5"/></svg></div>
+</div>
+
+<div class="backdrop"></div>
+<div class="detail">
+  <div class="grab"></div>
+  <div class="detail-head">
+    <h2>In deiner Nähe</h2>
+    <div class="close"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19"/></svg></div>
+  </div>
+  <div class="zone-row">
+    <div class="zone-ico ban"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+    <div class="zone-body">
+      <b>Verbotszone</b>
+      <span>Schule, Kita, Spielplatz o. Sportstätte · 100 m · ganztägig</span>
+    </div>
+    <div class="zone-dist">220 m</div>
+  </div>
+  <div class="zone-row">
+    <div class="zone-ico time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+    <div class="zone-body">
+      <b>Fußgängerzone<span class="badge-live">JETZT VERBOTEN</span></b>
+      <span>Verboten 7–20 Uhr · frei ab 20:00</span>
+    </div>
+    <div class="zone-dist">250 m</div>
+  </div>
+  <p class="sheet-foot">Umkreis 2 km · Daten © OpenStreetMap · keine Rechtsberatung</p>
+</div>
+
+<script>
+document.body.dataset.s = new URLSearchParams(location.search).get("s") || "idle";
+
+function circle(lng, lat, radiusM, steps = 64) {
+  const coords = [];
+  const kmPerDegLat = 110.574;
+  const kmPerDegLng = 111.320 * Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    coords.push([
+      lng + (Math.cos(a) * radiusM / 1000) / kmPerDegLng,
+      lat + (Math.sin(a) * radiusM / 1000) / kmPerDegLat,
+    ]);
+  }
+  return coords;
+}
+const feat = (geom, props = {}) => ({ type: "Feature", properties: props, geometry: geom });
+const poly = coords => ({ type: "Polygon", coordinates: [coords] });
+
+// Demo-Zonen Hannover Mitte (Mockup-Daten, nicht juristisch exakt)
+const banZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly(circle(9.7318, 52.3730, 100)), { name: "Spielplatz Am Ballhof" }),
+    feat(poly(circle(9.7300, 52.3773, 100)), { name: "Grundschule Calenberger Neustadt" }),
+    feat(poly(circle(9.7472, 52.3765, 100)), { name: "Kita Oststadt" }),
+    feat(poly(circle(9.7450, 52.3690, 100)), { name: "Sportplatz Südstadt" }),
+    feat(poly(circle(9.7370, 52.3672, 100)), { name: "Spielplatz Maschpark" }),
+    feat(poly(circle(9.7330, 52.3700, 100)), { name: "Kita Calenberger Neustadt" }),
+    feat(poly(circle(9.7455, 52.3742, 100)), { name: "Jugendzentrum Mitte" }),
+  ],
+};
+const timeZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly([
+      [9.7328, 52.3756], [9.7388, 52.3748], [9.7437, 52.3725],
+      [9.7433, 52.3719], [9.7386, 52.3742], [9.7330, 52.3750],
+      [9.7328, 52.3756],
+    ]), { name: "Fußgängerzone Georgstraße", hours: "7–20 Uhr" }),
+    feat(poly([
+      [9.7386, 52.3748], [9.7404, 52.3764], [9.7412, 52.3762],
+      [9.7394, 52.3746], [9.7386, 52.3748],
+    ]), { name: "Fußgängerzone Bahnhofstraße", hours: "7–20 Uhr" }),
+  ],
+};
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/positron",
+  center: [9.7386, 52.3733],
+  zoom: 14.2,
+  attributionControl: { compact: true },
+});
+
+map.on("load", () => {
+  map.addSource("ban", { type: "geojson", data: banZones });
+  map.addSource("time", { type: "geojson", data: timeZones });
+  map.addLayer({ id: "ban-fill", type: "fill", source: "ban", paint: { "fill-color": "#E5484D", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "ban-line", type: "line", source: "ban", paint: { "line-color": "#E5484D", "line-width": 1.6, "line-opacity": 0.75 } });
+  map.addLayer({ id: "time-fill", type: "fill", source: "time", paint: { "fill-color": "#F76B15", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "time-line", type: "line", source: "time", paint: { "line-color": "#F76B15", "line-width": 1.6, "line-dasharray": [2.2, 1.6], "line-opacity": 0.85 } });
+
+  const el = document.createElement("div");
+  el.className = "puck";
+  el.innerHTML = '<div class="halo"></div><div class="core"></div>';
+  new maplibregl.Marker({ element: el }).setLngLat([9.7362, 52.3720]).addTo(map);
+
+  // future: eingecheckter Freund als Avatar-Pin
+  const fr = document.createElement("div");
+  fr.className = "friend";
+  fr.innerHTML = '<div class="ava">M</div><div class="tag">Marcel · <span>vor 12 min</span></div>';
+  new maplibregl.Marker({ element: fr }).setLngLat([9.7412, 52.3705]).addTo(map);
+
+  map.once("idle", () => { window.__MAP_READY__ = true; });
+});
+</script>
+</body>
+</html>
