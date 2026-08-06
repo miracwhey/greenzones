@@ -1,0 +1,10 @@
+.DS_Store
+.venv/
+data/
+node_modules/
+dist/
+
+# Von `cap sync` generiert (Kopie von client/dist inkl. 59-MB-Tiles)
+client/ios/App/App/public/
+client/ios/App/Pods/
+client/ios/DerivedData/

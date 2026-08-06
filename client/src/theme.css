@@ -1,0 +1,88 @@
+:root {
+  --ok: #1db954;
+  --ban: #e5484d;
+  --time: #f76b15;
+  --accent: #0a84ff;
+
+  --ink: #17191c;
+  --ink-2: #5a616b;
+  --ink-3: #9aa1ab;
+  --app-bg: #e8eaed;
+  --glass: rgba(255, 255, 255, 0.78);
+  --glass-strong: rgba(255, 255, 255, 0.9);
+  --stroke: rgba(23, 25, 28, 0.08);
+  --divider: rgba(23, 25, 28, 0.06);
+  --shadow-1: 0 4px 16px rgba(23, 25, 28, 0.08);
+  --shadow-2: 0 8px 32px rgba(23, 25, 28, 0.14), 0 1px 2px rgba(23, 25, 28, 0.08);
+  --shadow-3: 0 -8px 40px rgba(23, 25, 28, 0.16);
+
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f2f3f5;
+    --ink-2: #a7adb7;
+    --ink-3: #6b7280;
+    --app-bg: #131518;
+    --glass: rgba(28, 30, 34, 0.72);
+    --glass-strong: rgba(28, 30, 34, 0.88);
+    --stroke: rgba(255, 255, 255, 0.08);
+    --divider: rgba(255, 255, 255, 0.07);
+    --shadow-1: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-3: 0 -8px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--app-bg);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+  color: var(--ink);
+  background: var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid var(--stroke);
+}
+
+.maplibregl-ctrl-attrib {
+  font-size: 9px;
+  opacity: 0.55;
+}
