@@ -1,6 +1,6 @@
 # Community-Feature — Local-first-Konzept (bindend)
 
-Stand: 2026-08-06 · Status: **Entwurf, wartet auf Leons Abnahme** · Gilt nach Abnahme als Design-Gate für den Build.
+Stand: 2026-08-06 (v2 — Leon-Korrektur: persistente Spots + Einladungen statt ephemerem Check-in; Freunde statt Crew-Zwang) · Status: **Entwurf, wartet auf Leons Abnahme** · Gilt nach Abnahme als Design-Gate für den Build.
 
 ## Produktregeln (die Verfassung)
 
@@ -15,32 +15,37 @@ Stand: 2026-08-06 · Status: **Entwurf, wartet auf Leons Abnahme** · Gilt nach 
 | Schublade | Inhalt | Wo liegt es | Verlässt Gerät? |
 |---|---|---|---|
 | **A — nur meins** | Konsum-Journal, Such-Verlauf/Recents, Einstellungen, eigener Standort(verlauf) | Gerät (Filesystem/lokale DB) | **Nie** |
-| **B — für meine Crew** | Check-ins, Spot-Fotos, Crew-Mitgliedschaft, Anzeigename | Geteilte iCloud-Zone der Crew (CloudKit shared zone) | Nur an Crew-Mitglieder |
+| **B — geteilt mit Freunden** | Spots, Einladungen, Spot-Fotos, Freundesliste, Anzeigename | Geteilte iCloud-Bereiche (CloudKit CKShare) | Nur an die jeweiligen Teilnehmer |
 | **C — für alle** | Zonen-Daten, Orte-Index (165k) | Im App-Bundle / als Download | Kommt ZUM Gerät, nicht vom Gerät |
 
 Regel bei jedem neuen Feature: erst einordnen — A, B oder C? Gibt es Zweifel, ist es A.
 
-## Crew-Modell (statt Einzelfreundschaften)
+## Objektmodell: Freunde · Spots · Einladungen (Leon-Modell, „wie Pokémon Go")
 
-- Grundeinheit = **Crew** (Freundesgruppe), nicht Einzelfreund. Passt zur Realität (Kiffen = Gruppenritual) und ist technisch sauberer: 1 Crew = 1 geteilte CloudKit-Zone (CKShare).
-- **Beitritt per Einladungslink** (Share-Sheet → iMessage/WhatsApp/beliebig). Kein Nutzerverzeichnis, kein Kontakte-Upload, keine Handynummern/E-Mails.
-- Mehrere Crews möglich (Kollegen ≠ Schulfreunde). Inhalte sind strikt pro Crew getrennt.
-- **Verlassen/Rauswerfen = Zugriff sofort weg** (CKShare-Teilnehmer entfernen).
-- Identität: **frei wählbarer Anzeigename** (pro Crew änderbar). Account = Apple-ID implizit via CloudKit, für Nutzer unsichtbar — kein Login-Screen.
+**Freunde** — personenbasiert, einzeln hinzugefügt:
+- Hinzufügen per **Einladungslink** (Share-Sheet → iMessage/WhatsApp/beliebig). Kein Nutzerverzeichnis, kein Kontakte-Upload, keine Handynummern/E-Mails.
+- Identität: **frei wählbarer Anzeigename**. Account = Apple-ID implizit via CloudKit, für Nutzer unsichtbar — kein Login-Screen.
+- Entfernen/Blockieren = Zugriff sofort weg (CKShare-Teilnehmer entfernen).
 
-## Features auf dieser Basis
+**Spots** — persistente, benutzerdefinierte Orte. Das Herzstück:
+- „Unsere Bank": am eigenen Standort markieren ODER Punkt auf der Karte wählen. Name + Icon/Emoji.
+- Spot **bleibt dauerhaft auf der Karte** — für mich und alle Freunde, mit denen er geteilt ist (Sichtbarkeit pro Spot wählbar: welche Freunde „haben" diesen Spot).
+- Die App rechnet den **Legal-Status des Spots** automatisch dazu (erlaubt / Verbotszone-Distanz) — Alleinstellungsmerkmal gegenüber jeder generischen Karten-App.
+- Technisch: 1 Spot = 1 geteilter CloudKit-Record-Baum (CKShare), Teilnehmer = die eingeladenen Freunde. Einladungen und später Fotos hängen als Child-Records am Spot.
 
-### Session-Ping (Kern, Phase 1)
-- Check-in an Spot aus der Karte → Record in Crew-Zone → CloudKit-Subscription pusht an Crew.
-- Freunde sehen Check-in als Pin auf der Karte.
-- **TTL 2 h.** CloudKit löscht nicht automatisch → Clients ignorieren abgelaufene Records beim Lesen und löschen sie opportunistisch.
-- Kein Dauer-Standort-Tracking. Nur der eine, bewusst geteilte Moment.
-- Offline: Check-in ohne Netz → ehrlicher Abbruch mit Meldung (Flüchtiges wird nie gequeued — verspäteter Check-in ist Falschinformation).
+**Einladungen (Sessions)** — die Verabredungs-Mechanik:
+- Von einem Spot aus: „Einladen" → Zeit wählen (**Jetzt** oder geplant, z. B. 20:00) → Empfänger (Spot-Teilnehmer vorausgewählt, abwählbar) → senden.
+- **Funktioniert von überall** — auch von zu Hause eine Einladung für einen Spot schicken. Kein Standort-Zwang, kein Standort-Broadcast: geteilt wird der SPOT, nie die eigene Live-Position.
+- Empfänger: Push („Leon lädt dich ein · Unsere Bank · 20:00") → Zusagen/Absagen; Antworten sehen alle Eingeladenen.
+- Eine Einladung läuft nach ihrem Zeitpunkt natürlich aus (Client blendet Vergangenes aus); Spots bleiben.
+- Offline: Einladung ohne Netz → ehrlicher Abbruch mit Meldung. Spots selbst sind lokal gecacht und offline sichtbar.
+
+## Weitere Phasen
 
 ### Spot-Fotos (Phase 2)
-- Foto an Ort hinterlassen, **sichtbar nur für die Crew** (CKAsset in Crew-Zone).
-- Lokal-first: Aufnahme funktioniert offline → Outbox → Upload bei Netz. Empfangene Crew-Fotos werden lokal gecacht → offline ansehbar.
-- UGC-Pflichten (Apple 1.2) im privaten Kreis minimal: Melden + Blockieren + Crew-Rauswurf reichen.
+- Foto am Spot hinterlassen, **sichtbar nur für die Spot-Teilnehmer** (CKAsset als Child-Record am Spot).
+- Lokal-first: Aufnahme funktioniert offline → Outbox → Upload bei Netz. Empfangene Fotos werden lokal gecacht → offline ansehbar.
+- UGC-Pflichten (Apple 1.2) im privaten Kreis minimal: Melden + Blockieren + Teilnehmer entfernen reichen.
 
 ### Konsum-Tracking (Phase 3, optional)
 - Schublade A, **komplett lokal**, geht nie ins Netz. Kein Cloud-Sync, kein Opt-in-Server.
@@ -48,7 +53,7 @@ Regel bei jedem neuen Feature: erst einordnen — A, B oder C? Gibt es Zweifel, 
 
 ## Push & Wording (Apple-Gate)
 
-- Push technisch: CKQuerySubscription auf Check-in-Records → sichtbare Remote-Notification, kein eigener Push-Server.
+- Push technisch: CKQuerySubscription auf Einladungs-/Antwort-Records → sichtbare Remote-Notification, kein eigener Push-Server.
 - **Store-Fassade konsumneutral:** Screenshots/Metadata/Push-Texte sprechen von „Spot", „Treffpunkt", „eingecheckt" — nie Konsum-Aufforderung („Komm rauchen" o. ä.). Guideline 1.4.3 (encourage consumption) ist ein hartes Rejection-Risiko. In-App-Tonalität darf lockerer sein, die nach außen sichtbare Fassade bleibt clean. 18+ Rating, Vertrieb DE.
 
 ## Privacy-Label-Ziel
@@ -61,7 +66,7 @@ CloudKit aus dem Capacitor-WebView braucht ein **eigenes natives Plugin** (Swift
 
 ## Reihenfolge
 
-1. Bottom-Sheet-Umbau (bereits gelockte Prio 1) — beim Redesign Slot für Freunde-Pins/Status mitdenken.
-2. Mockup Session-Ping-Flow (Check-in, Push, Friend-Pin, Crew-Beitritt) → Leons Abnahme.
+1. ✅ Bottom-Sheet-Umbau (StatusBar, committet).
+2. Mockups Spots+Einladungen-Flow (Spot anlegen, Karte mit Spots, Einladung senden — auch remote, Empfänger-Push, Freundesliste) → Leons Abnahme.
 3. CloudKit-Plugin-Spike (Share-Accept auf 2 echten Geräten beweisen).
-4. Build Phase 1.
+4. Build Phase 1: Freunde + Spots + Einladungen/Push.
