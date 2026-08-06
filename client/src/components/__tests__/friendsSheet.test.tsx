@@ -98,4 +98,14 @@ describe("FriendsSheet", () => {
     expect(html).not.toContain("bei iCloud anmelden");
     state.status = "unknown";
   });
+
+  it("autoInvite öffnet direkt den Namens-Schritt — kein Cloud-Write beim Mount", () => {
+    friends = [];
+    spots = [];
+    const html = renderToStaticMarkup(
+      <FriendsSheet autoInvite onNotice={() => {}} onClose={() => {}} />,
+    );
+    expect(html).toContain("Dein Name");
+    expect(html).toContain("Weiter — Link teilen");
+  });
 });

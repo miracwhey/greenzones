@@ -1,6 +1,8 @@
 import { chromium } from "playwright";
 
-// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|invite|sent|manage|reply|friends> [dark]
+// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|solo|invite|sent|manage|reply|friends> [dark]
+// solo = Leons Erstnutzer-Fall: 0 Freunde, lokaler Spot → Detail muss in den
+// Freund-einladen-Flow führen (keine Sackgasse).
 // Screenshots des Community-Features. Der Bestand kommt als Fixture in den
 // Storage, den die App wirklich liest (Capacitor Preferences → localStorage
 // unter "CapacitorStorage.<key>"); gerendert wird danach der echte App-Pfad.
@@ -66,9 +68,15 @@ await page.addInitScript((s) => {
   if (s === "reply") invites = invitation({ hostId: "f1", replies: [{ participantId: "f2", status: "in" }] });
 
   localStorage.setItem("gz_onboarded", "1");
-  localStorage.setItem("CapacitorStorage.gz_spots", JSON.stringify(spots));
-  localStorage.setItem("CapacitorStorage.gz_invites", JSON.stringify(invites));
-  localStorage.setItem("CapacitorStorage.gz_friends", JSON.stringify(friends));
+  if (s === "solo") {
+    localStorage.setItem("CapacitorStorage.gz_spots", JSON.stringify([spots[1]]));
+    localStorage.setItem("CapacitorStorage.gz_invites", "[]");
+    localStorage.setItem("CapacitorStorage.gz_friends", "[]");
+  } else {
+    localStorage.setItem("CapacitorStorage.gz_spots", JSON.stringify(spots));
+    localStorage.setItem("CapacitorStorage.gz_invites", JSON.stringify(invites));
+    localStorage.setItem("CapacitorStorage.gz_friends", JSON.stringify(friends));
+  }
 }, scenario);
 
 await page.goto(url);
@@ -91,6 +99,8 @@ if (scenario === "newspot" || scenario === "pick") {
   }
 } else if (scenario === "detail" || scenario === "manage" || scenario === "reply") {
   await openSpot("Unsere Bank");
+} else if (scenario === "solo") {
+  await openSpot("Maschsee-Ecke");
 } else if (scenario === "invite" || scenario === "sent") {
   await openSpot("Unsere Bank");
   await page.click(".detail .sp-cta.blue");

@@ -41,7 +41,7 @@ type SheetState =
   | { kind: "pick" }
   | { kind: "detail"; spotId: string }
   | { kind: "invite"; spotId: string }
-  | { kind: "friends" };
+  | { kind: "friends"; autoInvite?: boolean };
 
 export default function App() {
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("gz_onboarded") === "1");
@@ -311,6 +311,7 @@ export default function App() {
           engine={engine}
           userPos={pos}
           onInvite={() => setSheet({ kind: "invite", spotId: sheetSpot.id })}
+          onAddFriend={() => setSheet({ kind: "friends", autoInvite: true })}
           onNotice={showToast}
           onClose={() => setSheet(null)}
         />

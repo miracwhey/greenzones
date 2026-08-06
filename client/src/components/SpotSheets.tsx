@@ -561,6 +561,8 @@ interface SpotDetailSheetProps {
   engine: ZoneEngine;
   userPos: LngLat | null;
   onInvite: () => void;
+  /** Ohne Freunde führt das Sheet in den Freund-einladen-Flow statt in eine Sackgasse. */
+  onAddFriend: () => void;
   /** Meldung an den Nutzer (Toast) — trägt auch gescheiterte Cloud-Writes. */
   onNotice: (text: string) => void;
   onClose: () => void;
@@ -571,6 +573,7 @@ export function SpotDetailSheet({
   engine,
   userPos,
   onInvite,
+  onAddFriend,
   onNotice,
   onClose,
 }: SpotDetailSheetProps) {
@@ -828,8 +831,26 @@ export function SpotDetailSheet({
             {spot.zoneName ? "Weiteren Freunden geben" : "Mit Freunden teilen"}
           </button>
         )}
+        {isMine && !spot.zoneName && friends.length === 0 && (
+          <button
+            type="button"
+            className="sp-cta blue"
+            onClick={() => {
+              hapticTap();
+              onAddFriend();
+            }}
+          >
+            Freund einladen
+          </button>
+        )}
       </div>
 
+      {!spot.zoneName && friends.length === 0 && (
+        <div className="sp-note">
+          <IconInfo />
+          Noch keine Freunde — teile einen Link, dann könnt ihr Spots teilen und euch einladen.
+        </div>
+      )}
       {!spot.zoneName && friends.length === 0 && <CloudHint />}
 
       <div className="sp-actions">
@@ -953,6 +974,8 @@ function sharedSpotsLine(names: string[]): string {
 }
 
 interface FriendsSheetProps {
+  /** Direkt im Einladen-Schritt öffnen (Absprung aus dem Spot-Detail ohne Freunde). */
+  autoInvite?: boolean;
   /** Meldung an den Nutzer (Toast). */
   onNotice: (text: string) => void;
   onClose: () => void;
@@ -966,11 +989,12 @@ interface FriendsSheetProps {
  * genau einmal erfragt und liegt lokal — er ist frei wählbar und für den Link
  * das Einzige, was der Empfänger von dir sieht.
  */
-export function FriendsSheet({ onNotice, onClose }: FriendsSheetProps) {
+export function FriendsSheet({ autoInvite = false, onNotice, onClose }: FriendsSheetProps) {
   const friends = useFriends();
   const spots = useSpots();
   const sync = useSyncState();
-  const [ask, setAsk] = useState<"invite" | "rename" | null>(null);
+  // autoInvite landet im Namens-Schritt (kein Auto-Cloud-Write beim Mount).
+  const [ask, setAsk] = useState<"invite" | "rename" | null>(autoInvite ? "invite" : null);
   const [name, setName] = useState(sync.displayName);
   const [busy, setBusy] = useState(false);
 
