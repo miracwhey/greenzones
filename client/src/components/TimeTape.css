@@ -1,0 +1,201 @@
+/* ================= Zeit-Band-Picker (TimeTape) =================
+   Port aus mockup/invite.html. Alle Klassen tt-präfixiert — App.css benutzt
+   generische Namen wie .tape/.anchor potenziell selbst.
+   --tt-bleed: seitliches Sheet-Padding, das das Band überziehen soll
+   (App-Sheets: .detail = 18px). Vom Aufrufer überschreibbar. */
+.tt {
+  --tt-bleed: 18px;
+  --tt-line: 23, 25, 28;
+  --tt-fade: 255, 255, 255;
+  --tt-fade-a: 0.9;
+  --tt-chip: rgba(23, 25, 28, 0.03);
+  margin: 2px 0 4px;
+}
+@media (prefers-color-scheme: dark) {
+  .tt {
+    --tt-line: 255, 255, 255;
+    --tt-fade: 28, 30, 34;
+    --tt-fade-a: 0.88;
+    --tt-chip: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.tt-readout {
+  text-align: center;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+.tt-readout b {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tt-rel {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.tt-tape {
+  position: relative;
+  height: 74px;
+  margin: 10px calc(var(--tt-bleed) * -1) 0; /* volle Sheet-Breite */
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+}
+.tt-tape:active {
+  cursor: grabbing;
+}
+
+/* Kanten-Fade auf die Sheet-Farbe; explizit transparente Variante derselben
+   Farbe statt `transparent` — sonst graut der Verlauf in WebKit ab. */
+.tt-tape::before,
+.tt-tape::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  z-index: 3;
+  pointer-events: none;
+}
+.tt-tape::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(var(--tt-fade), var(--tt-fade-a)), rgba(var(--tt-fade), 0));
+}
+.tt-tape::after {
+  right: 0;
+  background: linear-gradient(-90deg, rgba(var(--tt-fade), var(--tt-fade-a)), rgba(var(--tt-fade), 0));
+}
+
+/* fixer Cursor in der Mitte */
+.tt-needle {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  bottom: 18px;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.14);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.tt-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  will-change: transform;
+}
+.tt-track.tt-animate {
+  transition: transform 0.45s var(--ease-spring);
+}
+
+.tt-tick {
+  position: absolute;
+  bottom: 26px;
+  width: 1.5px;
+  height: 12px;
+  background: rgba(var(--tt-line), 0.18);
+  border-radius: 1px;
+}
+.tt-tick-hour {
+  height: 22px;
+  background: rgba(var(--tt-line), 0.32);
+}
+.tt-tick-label {
+  position: absolute;
+  bottom: 6px;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tt-day-label {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(10, 132, 255, 0.09);
+  padding: 2px 8px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+/* Referenzzeit-Marker (z. B. die bisher vereinbarte Zeit) */
+.tt-ref-flag {
+  position: absolute;
+  top: 3px;
+  transition: opacity 0.25s;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+  background: rgba(var(--tt-line), 0.08);
+  border: 1px solid var(--stroke);
+  padding: 2px 7px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.tt-ref-flag::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 1.5px;
+  height: 10px;
+  background: rgba(var(--tt-line), 0.25);
+}
+
+.tt-anchors {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: center;
+}
+.tt-anchor {
+  padding: 7px 13px;
+  border-radius: 100px;
+  border: 1px solid var(--stroke);
+  background: var(--tt-chip);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.tt-anchor:active {
+  background: rgba(10, 132, 255, 0.1);
+  color: var(--accent);
+}
+
+.tt-legal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ok);
+  margin-top: 11px;
+}
+.tt-legal svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--ok);
+  stroke-width: 2.6;
+  fill: none;
+}

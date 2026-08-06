@@ -1,0 +1,558 @@
+/* ================= Community: Spots · Einladungen =================
+   Port aus mockup/community.html (.spot/.field/.seg) und mockup/invite.html
+   (.spot-card/.chip/.rsvp-row/.time-row/.cta/.ghost/.note/.toast).
+   Alle Klassen sp-präfixiert — App.css belegt generische Namen selbst.
+   Das Mockup ist light-only; die dunklen Ableitungen stehen unten, nach dem
+   Muster, das App.css für .bar/.detail benutzt. */
+
+/* ---------- Karten-Marker ---------- */
+/* absolute, NICHT relative: maplibre positioniert das Marker-Element selbst
+   (.maplibregl-marker{position:absolute}) — eine gleich spezifische Regel
+   danach nimmt es aus dem Fluss-Layout heraus und jeder weitere Marker
+   verschiebt alle folgenden um seine Höhe. Als Containing Block für tag/pill
+   taugt absolute genauso. */
+.sp-spot {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+}
+.sp-badge {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50% 50% 50% 6px;
+  background: var(--glass-strong);
+  border: 2px solid var(--ok);
+  box-shadow: 0 3px 12px rgba(23, 25, 28, 0.25);
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  line-height: 1;
+  transition: transform 160ms var(--ease-spring);
+}
+.sp-badge:active {
+  transform: scale(0.92);
+}
+.sp-tag {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--glass-strong);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  padding: 3px 8px;
+  box-shadow: 0 2px 10px rgba(23, 25, 28, 0.12);
+  pointer-events: none;
+}
+.sp-sep,
+.sp-sub {
+  color: var(--ink-2);
+  font-weight: 480;
+}
+.sp-timepill {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 100px;
+  padding: 2px 8px;
+  box-shadow: 0 2px 8px rgba(23, 25, 28, 0.3);
+  font-variant-numeric: tabular-nums;
+  display: none;
+  pointer-events: none;
+}
+.sp-session .sp-badge {
+  border-color: var(--accent);
+  box-shadow:
+    0 3px 12px rgba(23, 25, 28, 0.25),
+    0 0 0 6px rgba(10, 132, 255, 0.18);
+}
+.sp-session .sp-timepill {
+  display: block;
+}
+
+/* ---------- FAB „Spot markieren" ---------- */
+.fab.sp-add svg {
+  stroke: var(--accent);
+}
+
+/* ---------- Sheet-Bausteine (im .detail-Rahmen aus App.css) ---------- */
+.sp-h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 2px 0 2px;
+}
+.sp-hsub {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 14px;
+  line-height: 1.35;
+}
+.sp-sec {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 14px 0 8px;
+}
+/* Ohne Untertitel (Spot ohne Einladung) klebt die Karte sonst an der Zeile. */
+.sp-h2 + .sp-card {
+  margin-top: 12px;
+}
+.sp-actions {
+  margin-top: 14px;
+}
+
+.sp-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(29, 185, 84, 0.08);
+  border: 1px solid rgba(29, 185, 84, 0.22);
+}
+.sp-card.sp-card-no {
+  background: rgba(229, 72, 77, 0.08);
+  border-color: rgba(229, 72, 77, 0.22);
+}
+.sp-card-emoji {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--glass-strong);
+  border: 1px solid var(--stroke);
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex: none;
+}
+.sp-card-body {
+  min-width: 0;
+  line-height: 1.3;
+}
+.sp-card-body b {
+  font-size: 15px;
+  font-weight: 650;
+  display: block;
+}
+.sp-card-body span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.sp-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+.sp-no {
+  color: var(--ban);
+  font-weight: 600;
+}
+
+/* Name-Eingabe */
+.sp-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  border-radius: 13px;
+  border: 1px solid var(--stroke);
+  background: rgba(23, 25, 28, 0.04);
+  padding: 0 14px;
+}
+.sp-field-emoji {
+  font-size: 19px;
+  flex: none;
+}
+.sp-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  -webkit-user-select: text;
+  user-select: text;
+}
+.sp-field input::placeholder {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* Emoji-Wahl */
+.sp-emojis {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.sp-emoji {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  border: 1.5px solid var(--stroke);
+  background: rgba(23, 25, 28, 0.03);
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+.sp-emoji.on {
+  border-color: var(--accent);
+  background: rgba(10, 132, 255, 0.08);
+}
+
+/* Segment „Mein Standort / Auf Karte wählen" */
+.sp-seg {
+  display: flex;
+  background: rgba(23, 25, 28, 0.06);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+}
+.sp-seg button {
+  flex: 1;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sp-seg button.on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(23, 25, 28, 0.12);
+}
+
+/* Chips (Freunde) */
+.sp-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 100px;
+  border: 1.5px solid var(--stroke);
+  background: rgba(23, 25, 28, 0.03);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.sp-chip.on {
+  border-color: var(--accent);
+  background: rgba(10, 132, 255, 0.08);
+  color: var(--ink);
+}
+.sp-chip svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  fill: none;
+}
+.sp-chip .sp-ava {
+  width: 22px;
+  height: 22px;
+  font-size: 9.5px;
+  border-width: 1.5px;
+}
+
+.sp-ava {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--glass-strong);
+  flex: none;
+}
+
+.sp-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  margin: 14px 0 16px;
+}
+.sp-note svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.9;
+  fill: none;
+  margin-top: 1px;
+}
+.sp-note.sp-note-ok svg {
+  stroke: var(--ok);
+}
+.sp-note.sp-note-no svg {
+  stroke: var(--ban);
+}
+
+/* Aktionen */
+.sp-cta {
+  width: 100%;
+  height: 50px;
+  border-radius: 15px;
+  background: var(--ink);
+  color: var(--app-bg);
+  font-size: 15.5px;
+  font-weight: 650;
+  display: grid;
+  place-items: center;
+  transition: transform 160ms var(--ease-spring);
+}
+.sp-cta:active {
+  transform: scale(0.97);
+}
+.sp-cta:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sp-cta:disabled:active {
+  transform: none;
+}
+.sp-cta.blue {
+  background: var(--accent);
+  color: #fff;
+}
+.sp-cta.green {
+  background: var(--ok);
+  color: #fff;
+}
+.sp-cta.outline {
+  background: rgba(10, 132, 255, 0.07);
+  color: var(--accent);
+  border: 1.5px solid rgba(10, 132, 255, 0.4);
+}
+.sp-cta + .sp-cta {
+  margin-top: 9px;
+}
+.sp-ghost {
+  width: 100%;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.sp-ghost.danger {
+  color: var(--ban);
+}
+
+/* Zeit-Zeile mit Stift (Host) */
+.sp-timerow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 13px;
+  border: 1px solid var(--stroke);
+  background: rgba(23, 25, 28, 0.03);
+  margin: 4px 0 2px;
+  text-align: left;
+}
+.sp-timerow .sp-clock {
+  width: 17px;
+  height: 17px;
+  stroke: var(--ink-2);
+  stroke-width: 1.9;
+  fill: none;
+  flex: none;
+}
+.sp-timerow b {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.sp-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.sp-edit svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: none;
+}
+
+/* Teilnehmer-Zeilen */
+.sp-rsvp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  font-size: 13.5px;
+}
+.sp-rsvp + .sp-rsvp {
+  border-top: 1px solid var(--divider);
+}
+.sp-who {
+  flex: 1;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-st {
+  font-size: 12.5px;
+  font-weight: 600;
+  flex: none;
+}
+.sp-st.in {
+  color: var(--ok);
+}
+.sp-st.open {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* Am Spot verboten: die Zeile des Bandes kippt auf Orange (TimeTape bleibt
+   unangetastet — der Zustand kommt über die Hülle). */
+.sp-tape-warn .tt-legal {
+  color: var(--time);
+}
+.sp-tape-warn .tt-legal svg {
+  stroke: var(--time);
+}
+
+/* ---------- Punkt auf der Karte wählen ---------- */
+.sp-cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 54px;
+  height: 54px;
+  z-index: 14;
+  pointer-events: none;
+}
+.sp-cross svg {
+  width: 54px;
+  height: 54px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+/* Über der Status-Bar (deren Platz die FABs im Pick-Modus freigeben) — sie
+   liegt sonst durchscheinend darunter und beide Texte lesen sich ineinander. */
+.sp-pickbar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(var(--sab) + 80px);
+  z-index: 24;
+  border-radius: 18px;
+  padding: 12px 14px 4px;
+  box-shadow: var(--shadow-2);
+}
+.sp-pickbar-txt {
+  line-height: 1.25;
+  margin-bottom: 10px;
+}
+.sp-pickbar-txt b {
+  font-size: 15px;
+  font-weight: 650;
+  display: block;
+}
+.sp-pickbar-txt span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---------- Toast ---------- */
+.sp-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sab) + 84px);
+  transform: translateX(-50%) translateY(8px);
+  z-index: 40;
+  background: rgba(23, 25, 28, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 550;
+  padding: 10px 16px;
+  border-radius: 100px;
+  box-shadow: 0 8px 30px rgba(23, 25, 28, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.3s,
+    transform 0.3s var(--ease-spring);
+  max-width: calc(100% - 28px);
+  text-align: center;
+}
+.sp-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---------- Dark Mode (Mockup ist light-only) ---------- */
+@media (prefers-color-scheme: dark) {
+  .sp-badge,
+  .sp-tag {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  }
+  .sp-card {
+    background: rgba(29, 185, 84, 0.13);
+  }
+  .sp-card.sp-card-no {
+    background: rgba(229, 72, 77, 0.13);
+  }
+  .sp-field {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .sp-emoji,
+  .sp-chip,
+  .sp-timerow {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .sp-emoji.on,
+  .sp-chip.on {
+    background: rgba(10, 132, 255, 0.16);
+  }
+  .sp-seg {
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .sp-seg button.on {
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: none;
+  }
+  .sp-toast {
+    background: rgba(58, 62, 70, 0.95);
+  }
+}

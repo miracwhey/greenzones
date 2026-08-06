@@ -1,8 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LngLat } from "../lib/geo";
+import { useFriends, type Spot } from "../lib/spots";
+import { fmtClock } from "../lib/spots/timeFmt";
+import { hapticTap } from "../lib/native";
+import "./spots.css";
 
 const DARK = window.matchMedia("(prefers-color-scheme: dark)").matches;
 const STYLE = DARK
@@ -23,6 +27,15 @@ interface Props {
   timeActive: boolean;
   /** Ziel-Modus: Pin + flyTo, Folgen des Nutzers ist aus. */
   target: LngLat | null;
+  /** Persistente Spots — Marker werden per id angelegt/aktualisiert/entfernt. */
+  spots: Spot[];
+  /** Aktive Einladung pro Spot-Id: Anker-Zeit fürs time-pill („ab 20:00"). */
+  sessions: ReadonlyMap<string, number>;
+  onSpotTap: (id: string) => void;
+  /** Pick-Modus: Karte bleibt frei beweglich (kein Folgen des Pucks). */
+  pickCenter?: boolean;
+  /** Die Karten-Instanz nach außen — „Auf Karte wählen" braucht getCenter(). */
+  onMapInstance?: (map: maplibregl.Map) => void;
   onMapReady?: () => void;
 }
 
@@ -33,13 +46,31 @@ export default function MapView({
   accuracyM,
   timeActive,
   target,
+  spots,
+  sessions,
+  onSpotTap,
+  pickCenter,
+  onMapInstance,
   onMapReady,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const targetRef = useRef<maplibregl.Marker | null>(null);
+  const spotMarkers = useRef(new Map<string, maplibregl.Marker>());
   const followUser = useRef(true);
+
+  // Der Marker-Listener lebt so lange wie sein DOM-Element; ohne Ref zeigt er
+  // auf den Callback des ersten Renders.
+  const onSpotTapRef = useRef(onSpotTap);
+  useEffect(() => {
+    onSpotTapRef.current = onSpotTap;
+  }, [onSpotTap]);
+
+  // Die Freundesliste ist global (ein Spot trägt keine Teilnehmer) — sie färbt
+  // nur den Untertitel des Tags: „mit Marcel, Tara".
+  const friends = useFriends();
+  const withWhom = useMemo(() => friends.map((f) => f.name).join(", "), [friends]);
 
   useEffect(() => {
     if (!container.current) return;
@@ -48,6 +79,9 @@ export default function MapView({
       protocolRegistered = true;
     }
 
+    // Für die Cleanup-Closure festhalten: die Ref-Identität ändert sich nie,
+    // aber `.current` darf im Cleanup nicht frisch gelesen werden.
+    const markers = spotMarkers.current;
     const map = new maplibregl.Map({
       container: container.current,
       style: STYLE,
@@ -56,6 +90,7 @@ export default function MapView({
       attributionControl: { compact: true },
     });
     mapRef.current = map;
+    onMapInstance?.(map);
 
     map.on("dragstart", () => {
       followUser.current = false;
@@ -110,6 +145,9 @@ export default function MapView({
       mapRef.current = null;
       markerRef.current = null;
       targetRef.current = null;
+      // Die Marker hingen an der zerstörten Karte; ohne Leeren würde der
+      // StrictMode-Zweitlauf sie für „schon vorhanden" halten und nie neu setzen.
+      markers.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -169,6 +207,43 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.lng, target?.lat]);
 
+  // Im Pick-Modus gehört die Karte dem Nutzer — ein GPS-Update darf ihm den
+  // gewählten Ausschnitt nicht unter der Hand wegziehen.
+  useEffect(() => {
+    if (pickCenter) followUser.current = false;
+  }, [pickCenter]);
+
+  // Spot-Marker: anlegen/aktualisieren/entfernen per id.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const live = new Set<string>();
+
+    for (const spot of spots) {
+      live.add(spot.id);
+      let marker = spotMarkers.current.get(spot.id);
+      if (!marker) {
+        const el = createSpotElement();
+        el.querySelector<HTMLButtonElement>(".sp-badge")?.addEventListener("click", () => {
+          hapticTap();
+          onSpotTapRef.current(spot.id);
+        });
+        marker = new maplibregl.Marker({ element: el, anchor: "center" });
+        spotMarkers.current.set(spot.id, marker);
+        marker.setLngLat([spot.lng, spot.lat]).addTo(map);
+      } else {
+        marker.setLngLat([spot.lng, spot.lat]);
+      }
+      updateSpotElement(marker.getElement(), spot, sessions.get(spot.id), withWhom);
+    }
+
+    for (const [id, marker] of spotMarkers.current) {
+      if (live.has(id)) continue;
+      marker.remove();
+      spotMarkers.current.delete(id);
+    }
+  }, [spots, sessions, withWhom]);
+
   useEffect(() => {
     const recenter = () => {
       followUser.current = true;
@@ -182,6 +257,44 @@ export default function MapView({
   }, [userPos]);
 
   return <div ref={container} className="map-root" />;
+}
+
+/** Marker-Gerüst nach mockup/invite.html (.spot → sp-spot). */
+function createSpotElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className = "sp-spot";
+  // Statisches Gerüst per innerHTML, Nutzertexte ausschließlich per textContent.
+  el.innerHTML =
+    '<div class="sp-timepill"></div>' +
+    '<button type="button" class="sp-badge"></button>' +
+    '<div class="sp-tag"><b class="sp-name"></b><span class="sp-sep"> · </span><span class="sp-sub"></span></div>';
+  return el;
+}
+
+function updateSpotElement(
+  el: HTMLElement,
+  spot: Spot,
+  sessionTime: number | undefined,
+  withWhom: string,
+): void {
+  const badge = el.querySelector<HTMLButtonElement>(".sp-badge");
+  if (badge) {
+    badge.textContent = spot.emoji;
+    badge.setAttribute("aria-label", `Spot ${spot.name}`);
+  }
+  const name = el.querySelector<HTMLElement>(".sp-name");
+  if (name) name.textContent = spot.name;
+
+  // Läuft eine Einladung, zeigt der Tag ihre Anker-Zeit statt der Runde.
+  const sub = sessionTime !== undefined ? `ab ${fmtClock(sessionTime)}` : withWhom ? `mit ${withWhom}` : "";
+  const subEl = el.querySelector<HTMLElement>(".sp-sub");
+  if (subEl) subEl.textContent = sub;
+  const sep = el.querySelector<HTMLElement>(".sp-sep");
+  if (sep) sep.style.display = sub ? "" : "none";
+
+  const pill = el.querySelector<HTMLElement>(".sp-timepill");
+  if (pill && sessionTime !== undefined) pill.textContent = `ab ${fmtClock(sessionTime)}`;
+  el.classList.toggle("sp-session", sessionTime !== undefined);
 }
 
 function metersPerPixel(map: maplibregl.Map, lat: number): number {

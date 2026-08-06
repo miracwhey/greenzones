@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import MapView from "./components/MapView";
 import StatusBar from "./components/StatusBar";
 import SearchBar from "./components/SearchBar";
 import Onboarding from "./components/Onboarding";
 import InfoSheet from "./components/InfoSheet";
+import { InviteSheet, NewSpotSheet, SpotDetailSheet } from "./components/SpotSheets";
 import { Geolocation } from "@capacitor/geolocation";
 import { useLocation } from "./lib/location";
 import { ZoneEngine, type ZoneStatus } from "./lib/zones";
@@ -11,6 +13,7 @@ import { pedestrianBanActive } from "./lib/time";
 import { distanceM, type LngLat } from "./lib/geo";
 import { hapticTap, initNative } from "./lib/native";
 import { SearchController, WorkerOfflineIndex, type Result } from "./lib/search";
+import { inviteStore, invitationActive, useSpots, type Invitation } from "./lib/spots";
 import "./App.css";
 
 const FALLBACK_CENTER: LngLat = { lng: 9.7386, lat: 52.3728 };
@@ -31,16 +34,28 @@ interface Target {
   status: ZoneStatus | null;
 }
 
+/** Genau EIN offenes Sheet — parallele Booleans könnten sich widersprechen. */
+type SheetState =
+  | { kind: "newspot" }
+  /** „Auf Karte wählen": Sheet eingeklappt, Karte gehört dem Nutzer. */
+  | { kind: "pick" }
+  | { kind: "detail"; spotId: string }
+  | { kind: "invite"; spotId: string };
+
 export default function App() {
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("gz_onboarded") === "1");
   const [status, setStatus] = useState<ZoneStatus | null>(null);
   const [timeActive, setTimeActive] = useState(pedestrianBanActive());
+  const [now, setNow] = useState(() => Date.now());
   const [infoOpen, setInfoOpen] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: "", on: false });
 
   const location = useLocation(onboarded);
   const engine = useMemo(() => new ZoneEngine(new URL(TILES_URL, window.location.href).href), []);
   const lastEval = useRef<LngLat | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
 
   // Der Index lebt im Worker; die Instanz muss den StrictMode-Doppelrender
   // überleben, sonst laufen zwei Worker.
@@ -68,9 +83,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Zeitfenster-Flip (7/20 Uhr) ohne App-Neustart
+  // Zeitfenster-Flip (7/20 Uhr) ohne App-Neustart. Derselbe Takt trägt `now`:
+  // setTimeActive mit unverändertem Boolean lässt React aussteigen — abgelaufene
+  // Einladungen blieben sonst bis zum nächsten Flip auf der Karte stehen.
   useEffect(() => {
-    const t = setInterval(() => setTimeActive(pedestrianBanActive()), 30_000);
+    const t = setInterval(() => {
+      setTimeActive(pedestrianBanActive());
+      setNow(Date.now());
+    }, 30_000);
     return () => clearInterval(t);
   }, []);
 
@@ -120,6 +140,50 @@ export default function App() {
     };
   }, [targetResult, timeActive, engine]);
 
+  // ---------------------------------------------------------------- Community
+  const spots = useSpots();
+  const invitations = useSyncExternalStore(
+    useCallback((cb: () => void) => inviteStore.subscribe(cb), []),
+    () => inviteStore.getInvitations(),
+    () => inviteStore.getInvitations(),
+  );
+
+  /** Anker-Zeit je Spot mit laufender Einladung — bei mehreren die jüngste. */
+  const sessions = useMemo(() => {
+    const latest = new Map<string, Invitation>();
+    for (const inv of invitations) {
+      if (!invitationActive(inv, now)) continue;
+      const cur = latest.get(inv.spotId);
+      if (!cur || inv.createdAt >= cur.createdAt) latest.set(inv.spotId, inv);
+    }
+    const out = new Map<string, number>();
+    for (const [spotId, inv] of latest) out.set(spotId, inv.time);
+    return out;
+  }, [invitations, now]);
+
+  const sheetSpot =
+    sheet && (sheet.kind === "detail" || sheet.kind === "invite")
+      ? (spots.find((s) => s.id === sheet.spotId) ?? null)
+      : null;
+
+  const onSpotTap = useCallback((spotId: string) => setSheet({ kind: "detail", spotId }), []);
+  const onMapInstance = useCallback((map: MapLibreMap) => {
+    mapRef.current = map;
+  }, []);
+  const getMapCenter = useCallback((): LngLat | null => {
+    const map = mapRef.current;
+    if (!map) return null;
+    const c = map.getCenter();
+    return { lng: c.lng, lat: c.lat };
+  }, []);
+
+  const showToast = useCallback((text: string) => setToast({ text, on: true }), []);
+  useEffect(() => {
+    if (!toast.on) return;
+    const t = setTimeout(() => setToast((s) => ({ ...s, on: false })), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   /** Ziel-Modus beenden: Pin weg, Feld leer, zurück auf den eigenen Standort. */
   const clearTarget = () => {
     // Ohne Ziel ist das nur ein geleertes Suchfeld — dann die Karte in Ruhe lassen.
@@ -138,6 +202,11 @@ export default function App() {
         accuracyM={location.kind === "ready" ? location.accuracyM : 50}
         timeActive={timeActive}
         target={targetResult ? { lng: targetResult.lng, lat: targetResult.lat } : null}
+        spots={spots}
+        sessions={sessions}
+        onSpotTap={onSpotTap}
+        pickCenter={sheet?.kind === "pick"}
+        onMapInstance={onMapInstance}
         onMapReady={() => search.prewarm()}
       />
 
@@ -155,7 +224,21 @@ export default function App() {
         onClearTarget={clearTarget}
       />
 
+      {sheet?.kind !== "pick" && (
       <div className="fabs">
+        <button
+          className="fab glass sp-add"
+          aria-label="Spot markieren"
+          onClick={() => {
+            hapticTap();
+            setSheet({ kind: "newspot" });
+          }}
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z" />
+            <path d="M12 8v6M9 11h6" />
+          </svg>
+        </button>
         <button
           className="fab glass"
           aria-label="Auf meinen Standort zentrieren"
@@ -184,6 +267,43 @@ export default function App() {
             <circle cx="12" cy="7.6" r="0.4" fill="currentColor" />
           </svg>
         </button>
+      </div>
+      )}
+
+      {(sheet?.kind === "newspot" || sheet?.kind === "pick") && (
+        <NewSpotSheet
+          engine={engine}
+          userPos={pos}
+          getMapCenter={getMapCenter}
+          picking={sheet.kind === "pick"}
+          onPickStart={() => setSheet({ kind: "pick" })}
+          onPickEnd={() => setSheet({ kind: "newspot" })}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      {sheet?.kind === "detail" && sheetSpot && (
+        <SpotDetailSheet
+          spot={sheetSpot}
+          engine={engine}
+          userPos={pos}
+          onInvite={() => setSheet({ kind: "invite", spotId: sheetSpot.id })}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      {sheet?.kind === "invite" && sheetSpot && (
+        <InviteSheet
+          spot={sheetSpot}
+          engine={engine}
+          userPos={pos}
+          onSent={showToast}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      <div className={toast.on ? "sp-toast show" : "sp-toast"} role="status">
+        {toast.text}
       </div>
 
       {location.kind === "denied" && (

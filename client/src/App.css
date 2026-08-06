@@ -521,8 +521,10 @@
 }
 
 /* ---------- user puck ---------- */
+/* absolute wie .maplibregl-marker: als einziger Marker fiel `relative` nicht
+   auf, mit Spot-Markern daneben rutscht der Puck sonst um deren Höhe weg. */
 .puck {
-  position: relative;
+  position: absolute;
   width: 22px;
   height: 22px;
 }
