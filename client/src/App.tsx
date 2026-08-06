@@ -5,7 +5,7 @@ import StatusBar from "./components/StatusBar";
 import SearchBar from "./components/SearchBar";
 import Onboarding from "./components/Onboarding";
 import InfoSheet from "./components/InfoSheet";
-import { InviteSheet, NewSpotSheet, SpotDetailSheet } from "./components/SpotSheets";
+import { FriendsSheet, InviteSheet, NewSpotSheet, SpotDetailSheet } from "./components/SpotSheets";
 import { Geolocation } from "@capacitor/geolocation";
 import { useLocation } from "./lib/location";
 import { ZoneEngine, type ZoneStatus } from "./lib/zones";
@@ -13,7 +13,7 @@ import { pedestrianBanActive } from "./lib/time";
 import { distanceM, type LngLat } from "./lib/geo";
 import { hapticTap, initNative } from "./lib/native";
 import { SearchController, WorkerOfflineIndex, type Result } from "./lib/search";
-import { inviteStore, invitationActive, useSpots, type Invitation } from "./lib/spots";
+import { inviteStore, invitationActive, spotSync, useSpots, type Invitation } from "./lib/spots";
 import "./App.css";
 
 const FALLBACK_CENTER: LngLat = { lng: 9.7386, lat: 52.3728 };
@@ -40,7 +40,8 @@ type SheetState =
   /** „Auf Karte wählen": Sheet eingeklappt, Karte gehört dem Nutzer. */
   | { kind: "pick" }
   | { kind: "detail"; spotId: string }
-  | { kind: "invite"; spotId: string };
+  | { kind: "invite"; spotId: string }
+  | { kind: "friends" };
 
 export default function App() {
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem("gz_onboarded") === "1");
@@ -67,6 +68,13 @@ export default function App() {
 
   useEffect(() => {
     void initNative();
+  }, []);
+
+  // Der CloudKit-Sync lebt so lange wie die App. Kein Teardown im Effekt: der
+  // StrictMode-Doppelmount würde sonst die Listener der überlebenden Instanz
+  // abräumen. Ein zweiter start() ist ein No-Op.
+  useEffect(() => {
+    void spotSync.start();
   }, []);
 
   // Permission schon erteilt (z. B. Reinstall) → Onboarding ist redundant
@@ -220,6 +228,7 @@ export default function App() {
       <StatusBar
         status={target ? target.status : status}
         locating={location.kind === "locating" || location.kind === "idle"}
+        denied={location.kind === "denied"}
         target={targetResult}
         onClearTarget={clearTarget}
       />
@@ -237,6 +246,20 @@ export default function App() {
           <svg viewBox="0 0 24 24">
             <path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z" />
             <path d="M12 8v6M9 11h6" />
+          </svg>
+        </button>
+        <button
+          className="fab glass"
+          aria-label="Freunde"
+          onClick={() => {
+            hapticTap();
+            setSheet({ kind: "friends" });
+          }}
+        >
+          <svg viewBox="0 0 24 24">
+            <circle cx="9.5" cy="8.5" r="3.4" />
+            <path d="M3.5 19.5c0-3.1 2.7-5 6-5s6 1.9 6 5" />
+            <path d="M16 5.6a3.4 3.4 0 0 1 0 6.6M17.5 14.9c2 .6 3.4 2.2 3.4 4.6" />
           </svg>
         </button>
         <button
@@ -288,6 +311,7 @@ export default function App() {
           engine={engine}
           userPos={pos}
           onInvite={() => setSheet({ kind: "invite", spotId: sheetSpot.id })}
+          onNotice={showToast}
           onClose={() => setSheet(null)}
         />
       )}
@@ -297,12 +321,19 @@ export default function App() {
           spot={sheetSpot}
           engine={engine}
           userPos={pos}
-          onSent={showToast}
+          onNotice={showToast}
           onClose={() => setSheet(null)}
         />
       )}
 
-      <div className={toast.on ? "sp-toast show" : "sp-toast"} role="status">
+      {sheet?.kind === "friends" && (
+        <FriendsSheet onNotice={showToast} onClose={() => setSheet(null)} />
+      )}
+
+      <div
+        className={`sp-toast${sheet ? " top" : ""}${toast.on ? " show" : ""}`}
+        role="status"
+      >
         {toast.text}
       </div>
 

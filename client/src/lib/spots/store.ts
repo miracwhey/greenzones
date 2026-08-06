@@ -29,25 +29,57 @@ function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }
 
+function strings(value: unknown): boolean {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+function optional(value: unknown, kind: "string" | "boolean" | "strings"): boolean {
+  if (value === undefined) return true;
+  return kind === "strings" ? strings(value) : typeof value === kind;
+}
+
+/**
+ * Cloud-Felder sind eine Ergänzung, kein Existenzgrund: ist eines davon kaputt,
+ * fällt der Spot auf seinen lokalen Kern zurück statt ganz zu verschwinden.
+ * Alteinträge ohne diese Felder gehen unverändert durch.
+ */
 function parseSpot(value: unknown): Spot | null {
   const r = record(value);
   if (!r) return null;
-  return typeof r.id === "string" &&
-    typeof r.name === "string" &&
-    typeof r.emoji === "string" &&
-    typeof r.lng === "number" &&
-    typeof r.lat === "number" &&
-    typeof r.createdAt === "number"
-    ? (value as Spot)
-    : null;
+  if (
+    typeof r.id !== "string" ||
+    typeof r.name !== "string" ||
+    typeof r.emoji !== "string" ||
+    typeof r.lng !== "number" ||
+    typeof r.lat !== "number" ||
+    typeof r.createdAt !== "number"
+  ) {
+    return null;
+  }
+  const spot = value as Spot;
+  if (
+    optional(spot.zoneName, "string") &&
+    optional(spot.ownerId, "string") &&
+    optional(spot.shareURL, "string") &&
+    optional(spot.sharePending, "boolean") &&
+    optional(spot.participantIds, "strings")
+  ) {
+    return spot;
+  }
+  const { id, name, emoji, lng, lat, createdAt } = spot;
+  return { id, name, emoji, lng, lat, createdAt };
 }
 
 function parseFriend(value: unknown): Friend | null {
   const r = record(value);
   if (!r) return null;
-  return typeof r.id === "string" && typeof r.name === "string" && typeof r.color === "string"
-    ? (value as Friend)
-    : null;
+  if (typeof r.id !== "string" || typeof r.name !== "string" || typeof r.color !== "string") {
+    return null;
+  }
+  const friend = value as Friend;
+  if (optional(friend.friendshipZone, "string")) return friend;
+  const { id, name, color } = friend;
+  return { id, name, color };
 }
 
 function parseReply(value: unknown): Reply | null {
@@ -82,6 +114,26 @@ function parseInvitation(value: unknown): Invitation | null {
   return replies.length === r.replies.length
     ? (value as Invitation)
     : ({ ...(value as Invitation), replies } satisfies Invitation);
+}
+
+/**
+ * Struktureller Vergleich für den Sync-Merge: ein Feld, das den JSON-Roundtrip
+ * nicht überlebt (`undefined` vs. fehlend), darf keine Scheinänderung erzeugen —
+ * sonst schriebe jeder Fetch dieselben Daten neu und die UI rendert grundlos.
+ */
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => deepEqual(item, b[i]));
+  }
+  const ra = record(a);
+  const rb = record(b);
+  if (!ra || !rb) return false;
+  for (const key of new Set([...Object.keys(ra), ...Object.keys(rb)])) {
+    if (!deepEqual(ra[key], rb[key])) return false;
+  }
+  return true;
 }
 
 function parseList<T>(raw: string | null, parse: Parse<T>): T[] {
@@ -143,6 +195,14 @@ abstract class PersistedStore<T> {
    * das Eingangs-Array unverändert zurück, passiert nichts: kein Write, keine
    * neue Version, keine Benachrichtigung (Snapshot bleibt referenzstabil).
    */
+  /**
+   * Ersetzt den Bestand durch das Ergebnis eines Sync-Merges. Inhaltsgleich =
+   * keine Mutation (derselbe Snapshot zweimal darf die UI nicht anfassen).
+   */
+  async replaceAll(next: T[]): Promise<void> {
+    await this.mutate((items) => (deepEqual(items, next) ? items : next));
+  }
+
   protected async mutate(next: (items: T[]) => T[]): Promise<void> {
     const run = this.tail.then(async () => {
       const value = next(this.items);
@@ -205,11 +265,34 @@ export class SpotStore extends PersistedStore<Spot> {
       items.some((s) => s.id === id) ? items.filter((s) => s.id !== id) : items,
     );
   }
+
+  /**
+   * Cloud-Zustand eines Spots (Zone, Teilnehmer, Outbox-Flag). Unbekannte id ist
+   * ein No-Op: der Spot kann während des Cloud-Writes entfernt worden sein.
+   */
+  async setCloudState(id: string, patch: SpotCloudState): Promise<void> {
+    await this.mutate((items) => {
+      const index = items.findIndex((s) => s.id === id);
+      if (index === -1) return items;
+      const next = { ...items[index], ...patch };
+      if (deepEqual(next, items[index])) return items;
+      const list = items.slice();
+      list[index] = next;
+      return list;
+    });
+  }
 }
 
+/** Cloud-Anteil eines Spots — der lokale Kern (Name, Position) gehört dem Nutzer. */
+export type SpotCloudState = Partial<
+  Pick<Spot, "zoneName" | "ownerId" | "participantIds" | "shareURL" | "sharePending">
+>;
+
 /**
- * Freunde kommen erst mit dem CloudKit-Sync ins Gerät; lokal gibt es dafür
- * nur Laden + Lesen, keinen Schreibpfad (den hätte sonst niemand als Quelle).
+ * Freunde entstehen ausschließlich aus dem CloudKit-Sync (Freundesliste = Menge
+ * der Friendship-Zonen). Geschrieben wird deshalb nur über `replaceAll` aus dem
+ * Merge — es gibt keinen lokalen „Freund anlegen"-Pfad, der eine zweite Quelle
+ * wäre.
  */
 export class FriendStore extends PersistedStore<Friend> {
   constructor() {
@@ -265,8 +348,16 @@ export class InviteStore extends PersistedStore<Invitation> {
       cancelled: false,
       replies: [],
     };
-    await this.mutate((items) => [...items, invitation]);
+    await this.add(invitation);
     return invitation;
+  }
+
+  /**
+   * Übernimmt eine fertige Einladung. Der Sync schreibt bei geteilten Spots
+   * zuerst in die Cloud und braucht dieselbe id auf beiden Seiten.
+   */
+  async add(invitation: Invitation): Promise<void> {
+    await this.mutate((items) => [...items, invitation]);
   }
 
   /** Anker verschieben. Antworten BLEIBEN — sie tragen ihre eigene Zeit (v2.2). */

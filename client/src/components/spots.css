@@ -494,6 +494,61 @@
   color: var(--ink-2);
 }
 
+/* ---------- Freunde-Sheet (mockup/community.html, Szenario friends) ---------- */
+.sp-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.sp-member + .sp-member {
+  border-top: 1px solid var(--divider);
+}
+.sp-member .sp-ava {
+  width: 38px;
+  height: 38px;
+  font-size: 14px;
+}
+.sp-member-who {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.sp-member-who b {
+  font-size: 14.5px;
+  font-weight: 600;
+  display: block;
+}
+.sp-member-who span {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.sp-invite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(10, 132, 255, 0.45);
+  background: rgba(10, 132, 255, 0.06);
+  color: var(--accent);
+  font-size: 14.5px;
+  font-weight: 650;
+  margin: 14px 0 4px;
+}
+.sp-invite-btn:disabled {
+  opacity: 0.45;
+}
+.sp-invite-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: none;
+}
+
 /* ---------- Toast ---------- */
 .sp-toast {
   position: absolute;
@@ -515,6 +570,13 @@
     transform 0.3s var(--ease-spring);
   max-width: calc(100% - 28px);
   text-align: center;
+}
+/* Bei offenem Sheet wandert der Toast nach oben — unten würde er das
+   Sheet (Eingabefeld, CTA) verdecken. Suchleiste endet bei ~sat+72px. */
+.sp-toast.top {
+  bottom: auto;
+  top: calc(var(--sat) + 84px);
+  transform: translateX(-50%) translateY(-8px);
 }
 .sp-toast.show {
   opacity: 1;

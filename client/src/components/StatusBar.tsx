@@ -30,12 +30,14 @@ function targetSub(result: Result): string {
 interface Props {
   status: ZoneStatus | null;
   locating: boolean;
+  /** Standort verweigert — „wird ermittelt …" wäre dann eine falsche Aussage. */
+  denied?: boolean;
   /** Gesetzt = Ziel-Modus: der Status gilt fürs Ziel, nicht für den Standort. */
   target: Result | null;
   onClearTarget: () => void;
 }
 
-export default function StatusBar({ status, locating, target, onClearTarget }: Props) {
+export default function StatusBar({ status, locating, denied, target, onClearTarget }: Props) {
   const kind = statusKind(status);
   const prev = useRef<StatusKind>("wait");
   const [open, setOpen] = useState(false);
@@ -52,6 +54,9 @@ export default function StatusBar({ status, locating, target, onClearTarget }: P
   if (target) {
     title = !status ? "Ziel wird geprüft …" : kind === "ok" ? "Am Ziel erlaubt" : "Am Ziel verboten";
     sub = targetSub(target);
+  } else if (denied) {
+    title = "Standort nicht freigegeben";
+    sub = "In den iOS-Einstellungen erlauben";
   } else if (!locating && status) {
     if (kind === "ban") {
       title = "Hier verboten";

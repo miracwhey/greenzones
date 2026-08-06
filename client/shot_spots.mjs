@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|invite|sent|manage|reply> [dark]
+// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|invite|sent|manage|reply|friends> [dark]
 // Screenshots des Community-Features. Der Bestand kommt als Fixture in den
 // Storage, den die App wirklich liest (Capacitor Preferences → localStorage
 // unter "CapacitorStorage.<key>"); gerendert wird danach der echte App-Pfad.
@@ -36,13 +36,17 @@ await page.addInitScript((s) => {
 
   // Beide Spots müssen bei Startzoom (14.2 ≈ 2,54 m/px) neben dem Puck ins
   // Bild passen — sonst zeigt „map" nur einen halben Marker am Rand.
+  // s1 ist geteilt (zoneName → „Einladen"-CTA), s2 bleibt lokal („Mit
+  // Freunden teilen") — beide Welten sichtbar. Ohne zoneName gäbe es den
+  // Einladen-Pfad der Szenarien invite/sent gar nicht mehr.
   const spots = [
-    { id: "s1", name: "Unsere Bank", emoji: "🪑", lng: 9.7354, lat: 52.3733, createdAt: now - 86400000 },
+    { id: "s1", name: "Unsere Bank", emoji: "🪑", lng: 9.7354, lat: 52.3733, createdAt: now - 86400000,
+      zoneName: "spot-s1", participantIds: ["f1", "f2"], shareURL: "https://www.icloud.com/share/s1" },
     { id: "s2", name: "Maschsee-Ecke", emoji: "🌳", lng: 9.7408, lat: 52.3693, createdAt: now - 43200000 },
   ];
   const friends = [
-    { id: "f1", name: "Marcel", color: "#7C5CFF" },
-    { id: "f2", name: "Tara", color: "#0A9B8E" },
+    { id: "f1", name: "Marcel", color: "#7C5CFF", friendshipZone: "friend-f1" },
+    { id: "f2", name: "Tara", color: "#0A9B8E", friendshipZone: "friend-f2" },
   ];
   const invitation = (extra) => [
     { id: "i1", spotId: "s1", hostId: "me", time: t20, createdAt: now - 3600000, cancelled: false, replies: [], ...extra },
@@ -92,10 +96,15 @@ if (scenario === "newspot" || scenario === "pick") {
   await page.click(".detail .sp-cta.blue");
   await page.waitForTimeout(700);
   if (scenario === "sent") {
-    // Ganzer Schreibpfad: Einladung → Store → Toast + Session-Pille am Marker.
+    // Geteilte Spots schreiben CK-first; im Browser läuft der Web-Stub →
+    // dieses Szenario zeigt den EHRLICHEN ABBRUCH (Toast, Sheet bleibt offen,
+    // Store unverändert). Der Erfolgspfad ist nur auf Gerät/Sim mit iCloud real.
     await page.click(".detail .sp-cta.blue");
     await page.waitForTimeout(900);
   }
+} else if (scenario === "friends") {
+  await page.click('.fab[aria-label="Freunde"]');
+  await page.waitForTimeout(700);
 }
 
 await page.screenshot({ path: out });

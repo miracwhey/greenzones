@@ -9,6 +9,7 @@
  */
 import { useCallback, useRef, useSyncExternalStore } from "react";
 import { FriendStore, InviteStore, SpotStore, friendStore, inviteStore, spotStore } from "./store";
+import { SpotSync, spotSync, type SyncState } from "./sync";
 import type { Friend, Invitation, Spot } from "./types";
 
 export function useSpots(store: SpotStore = spotStore): Spot[] {
@@ -21,6 +22,12 @@ export function useFriends(store: FriendStore = friendStore): Friend[] {
   const subscribe = useCallback((cb: () => void) => store.subscribe(cb), [store]);
   const snapshot = useCallback(() => store.getFriends(), [store]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
+/** Zustand des CloudKit-Syncs (Konto, Outbox, letzte Meldung). */
+export function useSyncState(sync: SpotSync = spotSync): SyncState {
+  const subscribe = useCallback((cb: () => void) => sync.subscribe(cb), [sync]);
+  return useSyncExternalStore(subscribe, sync.getState, sync.getState);
 }
 
 export function useActiveInvitation(

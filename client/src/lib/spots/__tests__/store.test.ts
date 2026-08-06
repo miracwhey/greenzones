@@ -184,11 +184,110 @@ describe("SpotStore", () => {
   });
 });
 
+describe("Kaltstart mit Altbestand (vor dem CloudKit-Sync)", () => {
+  // Wörtlich das Format, das die committete Version 2.2 persistiert hat —
+  // kein zoneName, kein ownerId, kein friendshipZone.
+  const OLD_SPOT = { id: "s1", name: "Unsere Bank", emoji: "🌳", lng: 9.7218, lat: 52.3663, createdAt: 1 };
+  const OLD_FRIEND = { id: "f1", name: "Tara", color: "#7dd" };
+  const OLD_INVITE = {
+    id: "i1",
+    spotId: "s1",
+    hostId: "me",
+    time: 5,
+    createdAt: 4,
+    cancelled: false,
+    replies: [{ participantId: "f1", status: "in" }],
+  };
+
+  it("parst Spots, Freunde und Einladungen unverändert", async () => {
+    seed(SPOTS_KEY, JSON.stringify([OLD_SPOT]));
+    seed(FRIENDS_KEY, JSON.stringify([OLD_FRIEND]));
+    seed(INVITES_KEY, JSON.stringify([OLD_INVITE]));
+
+    const spots = new SpotStore();
+    const friends = new FriendStore();
+    const invites = new InviteStore();
+    await Promise.all([spots.ready, friends.ready, invites.ready]);
+
+    expect(spots.getSpots()).toEqual([OLD_SPOT]);
+    expect(spots.getSpots()[0].zoneName).toBeUndefined();
+    expect(friends.getFriends()).toEqual([OLD_FRIEND]);
+    expect(invites.getInvitations()).toEqual([OLD_INVITE]);
+  });
+
+  it("verwirft ein kaputtes Cloud-Feld, nicht den Spot", async () => {
+    seed(
+      SPOTS_KEY,
+      JSON.stringify([{ ...OLD_SPOT, zoneName: 7, participantIds: ["f1"], sharePending: true }]),
+    );
+    const store = new SpotStore();
+    await store.ready;
+    expect(store.getSpots()).toEqual([OLD_SPOT]);
+  });
+
+  it("nimmt gültige Cloud-Felder mit", async () => {
+    const shared: Spot = { ...OLD_SPOT, zoneName: "spot-s1", ownerId: "me", participantIds: ["f1"] };
+    seed(SPOTS_KEY, JSON.stringify([shared]));
+    const store = new SpotStore();
+    await store.ready;
+    expect(store.getSpots()).toEqual([shared]);
+  });
+});
+
+describe("SpotStore Cloud-Zustand", () => {
+  it("setCloudState schreibt nur bei echter Änderung", async () => {
+    const store = new SpotStore();
+    await store.ready;
+    const spot = await store.addSpot(BANK);
+    const version = store.getVersion();
+
+    await store.setCloudState(spot.id, { zoneName: `spot-${spot.id}`, participantIds: ["f1"] });
+    expect(store.getVersion()).toBe(version + 1);
+    expect(store.getSpots()[0].zoneName).toBe(`spot-${spot.id}`);
+
+    const after = store.getSpots();
+    await store.setCloudState(spot.id, { zoneName: `spot-${spot.id}`, participantIds: ["f1"] });
+    expect(store.getSpots()).toBe(after);
+    expect(store.getVersion()).toBe(version + 1);
+
+    // Unbekannte id ist ein No-Op (der Spot kann inzwischen entfernt sein).
+    await store.setCloudState("gibt-es-nicht", { sharePending: true });
+    expect(store.getSpots()).toBe(after);
+  });
+
+  it("replaceAll ist bei inhaltsgleicher Liste eine Nulloperation", async () => {
+    const store = new SpotStore();
+    await store.ready;
+    await store.addSpot(BANK);
+    const before = store.getSpots();
+    const version = store.getVersion();
+
+    await store.replaceAll(before.map((s) => ({ ...s })));
+    expect(store.getSpots()).toBe(before);
+    expect(store.getVersion()).toBe(version);
+
+    await store.replaceAll([]);
+    expect(store.getSpots()).toEqual([]);
+    expect(store.getVersion()).toBe(version + 1);
+  });
+});
+
 describe("FriendStore", () => {
   it("ist lokal leer, bis der Sync etwas hinterlegt hat", async () => {
     const store = new FriendStore();
     await store.ready;
     expect(store.getFriends()).toEqual([]);
+  });
+
+  it("bekommt seinen Bestand über replaceAll aus dem Sync", async () => {
+    const store = new FriendStore();
+    await store.ready;
+    const tara: Friend = { id: "f1", name: "Tara", color: "#7dd", friendshipZone: "friend-1" };
+    await store.replaceAll([tara]);
+
+    const reader = new FriendStore();
+    await reader.ready;
+    expect(reader.getFriends()).toEqual([tara]);
   });
 
   it("liest hinterlegte Freunde unter gz_friends und filtert kaputte Einträge", async () => {

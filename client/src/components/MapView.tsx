@@ -3,7 +3,7 @@ import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LngLat } from "../lib/geo";
-import { useFriends, type Spot } from "../lib/spots";
+import { friendLabel, useFriends, type Spot } from "../lib/spots";
 import { fmtClock } from "../lib/spots/timeFmt";
 import { hapticTap } from "../lib/native";
 import "./spots.css";
@@ -67,10 +67,13 @@ export default function MapView({
     onSpotTapRef.current = onSpotTap;
   }, [onSpotTap]);
 
-  // Die Freundesliste ist global (ein Spot trägt keine Teilnehmer) — sie färbt
-  // nur den Untertitel des Tags: „mit Marcel, Tara".
+  // Untertitel des Tags („mit Marcel, Tara") kommt aus den echten Teilnehmern
+  // des jeweiligen Spots — ein rein lokaler Spot hat keine und bleibt stumm.
   const friends = useFriends();
-  const withWhom = useMemo(() => friends.map((f) => f.name).join(", "), [friends]);
+  const friendNames = useMemo(
+    () => new Map(friends.map((f) => [f.id, friendLabel(f)])),
+    [friends],
+  );
 
   useEffect(() => {
     if (!container.current) return;
@@ -234,6 +237,9 @@ export default function MapView({
       } else {
         marker.setLngLat([spot.lng, spot.lat]);
       }
+      const withWhom = (spot.participantIds ?? [])
+        .map((id) => friendNames.get(id) ?? "Freund")
+        .join(", ");
       updateSpotElement(marker.getElement(), spot, sessions.get(spot.id), withWhom);
     }
 
@@ -242,7 +248,7 @@ export default function MapView({
       marker.remove();
       spotMarkers.current.delete(id);
     }
-  }, [spots, sessions, withWhom]);
+  }, [spots, sessions, friendNames]);
 
   useEffect(() => {
     const recenter = () => {

@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import CloudKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // CKDatabaseSubscriptions liefern silent Pushes — ohne diese Registrierung kommt nichts an.
+        application.registerForRemoteNotifications()
         return true
     }
 
@@ -40,5 +42,30 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                           sessionRole: connectingSceneSession.role)
         config.delegateClass = SceneDelegate.self
         return config
+    }
+
+    // MARK: - CloudKit
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NSLog("[GreenZones] remote notifications registered")
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NSLog("[GreenZones] remote notification registration failed: \(error.localizedDescription)")
+    }
+
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        if CloudKitService.shared.handleRemoteNotification(userInfo) {
+            completionHandler(.newData)
+        } else {
+            completionHandler(.noData)
+        }
+    }
+
+    /// Zweiter Zustellweg für Share-Links: greift, wenn iOS den Share nicht über die Scene liefert.
+    func application(_ application: UIApplication, userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
+        CloudKitService.shared.handleAcceptedShare(cloudKitShareMetadata)
     }
 }

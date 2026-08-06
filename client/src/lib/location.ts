@@ -29,26 +29,50 @@ export function useLocation(enabled: boolean): LocationState {
     let cancelled = false;
     setState({ kind: "locating" });
 
-    Geolocation.watchPosition(
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
-      (position, err) => {
-        if (cancelled) return;
-        if (err || !position) {
-          const message = err?.message ?? "Standort nicht verfügbar";
-          setState(
-            /denied|permission/i.test(message) ? { kind: "denied" } : { kind: "error", message },
-          );
-          return;
+    // watchPosition allein prompted nicht: ein CLLocationManager ohne
+    // Authorization liefert nie eine Position und nie einen Fehler — der
+    // Zustand bliebe ewig „locating" (z. B. nach iOS-Datenschutz-Reset,
+    // Onboarding längst durch). Deshalb Permission explizit klären.
+    const ensurePermission = async (): Promise<"ok" | "denied"> => {
+      try {
+        let status = await Geolocation.checkPermissions();
+        if (status.location === "prompt" || status.location === "prompt-with-rationale") {
+          status = await Geolocation.requestPermissions();
         }
-        setState({
-          kind: "ready",
-          pos: { lng: position.coords.longitude, lat: position.coords.latitude },
-          accuracyM: position.coords.accuracy ?? 50,
-        });
-      },
-    ).then((id) => {
-      watchId.current = id;
-      if (cancelled) void Geolocation.clearWatch({ id });
+        return status.location === "denied" ? "denied" : "ok";
+      } catch {
+        // Web kennt requestPermissions nicht — der Browser prompted selbst.
+        return "ok";
+      }
+    };
+
+    ensurePermission().then((perm) => {
+      if (cancelled) return;
+      if (perm === "denied") {
+        setState({ kind: "denied" });
+        return;
+      }
+      void Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 },
+        (position, err) => {
+          if (cancelled) return;
+          if (err || !position) {
+            const message = err?.message ?? "Standort nicht verfügbar";
+            setState(
+              /denied|permission/i.test(message) ? { kind: "denied" } : { kind: "error", message },
+            );
+            return;
+          }
+          setState({
+            kind: "ready",
+            pos: { lng: position.coords.longitude, lat: position.coords.latitude },
+            accuracyM: position.coords.accuracy ?? 50,
+          });
+        },
+      ).then((id) => {
+        watchId.current = id;
+        if (cancelled) void Geolocation.clearWatch({ id });
+      });
     });
 
     return () => {

@@ -1,6 +1,6 @@
 /**
  * Sheets des Community-Features — Port der abgenommenen Mockups
- * mockup/community.html (Spot markieren) und mockup/invite.html
+ * mockup/community.html (Spot markieren · Freunde) und mockup/invite.html
  * (Einladen · Antworten · Verwalten).
  *
  * Konzept v2.2: die Host-Zeit ist ein ANKER, jede Antwort trägt ihren eigenen
@@ -8,27 +8,34 @@
  * Zeit stellt sich durch die Antwort eines anderen um.
  *
  * Darstellung kommt über Props (Spot, Engine, Position), der Bestand über die
- * Store-Hooks. Die Sheets liegen im Rahmen aus App.css
- * (.detail-backdrop/.detail/.grab), alles Eigene ist sp-präfixiert.
+ * Store-Hooks. Jede Änderung an geteilten Daten läuft über `spotSync`, nie am
+ * Store vorbei: dort liegt die Reihenfolge Cloud-zuerst und damit die Garantie,
+ * dass nichts lokal als „gesendet" dasteht, was nie rausging.
+ *
+ * Die Sheets liegen im Rahmen aus App.css (.detail-backdrop/.detail/.grab),
+ * alles Eigene ist sp-präfixiert.
  */
 import { useEffect, useState, type ReactNode } from "react";
+import { Share } from "@capacitor/share";
 import TimeTape from "./TimeTape";
 import { statusKind } from "./StatusBar";
 import { distanceM, formatDistanceM, type LngLat } from "../lib/geo";
 import type { ZoneEngine, ZoneStatus } from "../lib/zones";
 import { hapticTap } from "../lib/native";
+import { cloudMessage } from "../lib/cloudkit";
 import {
-  inviteStore,
-  spotStore,
+  SELF_ID,
+  friendLabel,
+  spotSync,
   useActiveInvitation,
   useFriends,
+  useSpots,
+  useSyncState,
   type Friend,
   type Invitation,
   type Reply,
   type Spot,
 } from "../lib/spots";
-// SELF_ID liegt (noch) nicht auf der Fassade — die Datenschicht bleibt unangetastet.
-import { SELF_ID } from "../lib/spots/types";
 import { MIN_MS, NOW_ZONE_MIN, dayWord, fmtClock, spotAllowedAt } from "../lib/spots/timeFmt";
 import "./spots.css";
 
@@ -111,6 +118,34 @@ function Avatar({ name, color }: { name: string; color: string }) {
   );
 }
 
+/**
+ * Cloud-Aktion mit ehrlichem Ausgang: klappt der Write nicht, sagt es die App
+ * und der lokale Bestand bleibt, wie er war (der Sync schreibt Cloud-zuerst).
+ */
+function cloudAction(onNotice: (text: string) => void) {
+  return (action: () => Promise<unknown>): void => {
+    hapticTap();
+    action().catch((error: unknown) => onNotice(cloudMessage(error)));
+  };
+}
+
+/**
+ * Ruhiger Hinweis auf den Kontostatus — Wortlaut aus dem Contract. Kein
+ * Modal, kein Dauerbanner: die App bleibt ohne iCloud voll lokal nutzbar.
+ */
+function CloudHint() {
+  const sync = useSyncState();
+  if (sync.status === "available" || sync.status === "unknown") return null;
+  return (
+    <div className="sp-note">
+      <IconInfo />
+      {sync.status === "noAccount"
+        ? "Für Freunde & geteilte Spots bei iCloud anmelden — Einstellungen → [dein Name]."
+        : "iCloud antwortet gerade nicht — deine Spots bleiben lokal da."}
+    </div>
+  );
+}
+
 interface RsvpEntry {
   key: string;
   name: string;
@@ -130,33 +165,47 @@ function replyState(reply: Reply | undefined, self: boolean): { text: string; to
 }
 
 /**
- * „Wer kommt": Gastgeber (falls fremd) · Freunde · eigene Antwort. Teilnehmer
- * ohne Antwort stehen auf „offen" — das ist ein Zustand, kein Fehlen.
+ * „Wer kommt": Gastgeber (falls fremd) · die echten Spot-Teilnehmer · eigene
+ * Antwort. Teilnehmer ohne Antwort stehen auf „offen" — das ist ein Zustand,
+ * kein Fehlen. Wer nur als Antwort auftaucht (Freundesliste noch nicht
+ * synchronisiert), steht namenlos, aber sichtbar dabei.
  */
-function rsvpEntries(inv: Invitation, friends: Friend[]): RsvpEntry[] {
+function rsvpEntries(inv: Invitation, friends: Friend[], participantIds: string[]): RsvpEntry[] {
   const rows: RsvpEntry[] = [];
+  const known = (id: string): Friend | undefined => friends.find((f) => f.id === id);
+  const row = (id: string, reply: Reply | undefined): RsvpEntry => {
+    const friend = known(id);
+    return {
+      key: id,
+      name: friend ? friendLabel(friend) : "Freund",
+      color: friend?.color ?? "var(--ink-3)",
+      ...replyState(reply, false),
+    };
+  };
+
+  const seen = new Set<string>([SELF_ID]);
   if (inv.hostId !== SELF_ID) {
-    const host = friends.find((f) => f.id === inv.hostId);
+    const host = known(inv.hostId);
+    seen.add(inv.hostId);
     rows.push({
       key: `host-${inv.hostId}`,
-      name: host?.name ?? "Gastgeber",
+      name: host ? friendLabel(host) : "Gastgeber",
       color: host?.color ?? "var(--accent)",
       text: `ab ${fmtClock(inv.time)} · Gastgeber`,
       tone: "in",
     });
   }
-  for (const f of friends) {
-    if (f.id === inv.hostId) continue;
-    const reply = inv.replies.find((r) => r.participantId === f.id);
-    rows.push({ key: f.id, name: f.name, color: f.color, ...replyState(reply, false) });
+  for (const id of participantIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    rows.push(row(id, inv.replies.find((r) => r.participantId === id)));
   }
   const own = inv.replies.find((r) => r.participantId === SELF_ID);
   if (own) rows.push({ key: "self", name: "Du", color: "var(--accent)", ...replyState(own, true) });
-  // Antworten von Teilnehmern, die (noch) nicht lokal als Freund bekannt sind.
   for (const r of inv.replies) {
-    if (r.participantId === SELF_ID || r.participantId === inv.hostId) continue;
-    if (friends.some((f) => f.id === r.participantId)) continue;
-    rows.push({ key: r.participantId, name: "Freund", color: "var(--ink-3)", ...replyState(r, false) });
+    if (seen.has(r.participantId)) continue;
+    seen.add(r.participantId);
+    rows.push(row(r.participantId, r));
   }
   return rows;
 }
@@ -246,8 +295,8 @@ export function NewSpotSheet({
   const [emoji, setEmoji] = useState(EMOJIS[0]);
   const [source, setSource] = useState<"me" | "map">("me");
   const [picked, setPicked] = useState<LngLat | null>(null);
-  // Der Spot-Record kennt keine Teilnehmer (Sichtbarkeit kommt mit CloudKit) —
-  // die Auswahl ist deshalb bewusst reiner Bedienzustand.
+  // Die Auswahl entscheidet, ob der Spot rein lokal bleibt (leer) oder in eine
+  // geteilte Zone geht — sie ist der Auslöser für den CloudKit-Share.
   const [shared, setShared] = useState<ReadonlySet<string>>(() => new Set<string>());
   useEffect(() => {
     setShared(new Set(friends.map((f) => f.id)));
@@ -298,7 +347,11 @@ export function NewSpotSheet({
   const save = () => {
     if (!point || !name.trim()) return;
     hapticTap();
-    void spotStore.addSpot({ name: name.trim(), emoji, lng: point.lng, lat: point.lat });
+    // Der Spot liegt sofort lokal; das Teilen holt der Sync notfalls nach
+    // (Outbox) — deshalb blockiert das Speichern nicht auf dem Netz.
+    void spotSync.createSpot({ name: name.trim(), emoji, lng: point.lng, lat: point.lat }, [
+      ...shared,
+    ]);
     onClose();
   };
 
@@ -395,6 +448,8 @@ export function NewSpotSheet({
         </>
       )}
 
+      <CloudHint />
+
       <div className="sp-actions">
         <button type="button" className="sp-cta" disabled={!name.trim() || !point} onClick={save}>
           Spot speichern
@@ -466,14 +521,36 @@ function FriendChip({
         onToggle();
       }}
     >
-      <Avatar name={friend.name} color={friend.color} />
-      {friend.name}
+      <Avatar name={friendLabel(friend)} color={friend.color} />
+      {friendLabel(friend)}
       {on && (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4.5 12.5l5 5 10-11" />
         </svg>
       )}
     </button>
+  );
+}
+
+/**
+ * Teilnehmer eines geteilten Spots — Anzeige statt Auswahl: die Einladung hängt
+ * am Spot, alle seine Teilnehmer sehen sie. Eine Auswahl hätte im Record kein
+ * Gegenstück und würde etwas versprechen, das die Zone nicht einhält.
+ */
+function ParticipantChips({ ids, friends }: { ids: string[]; friends: Friend[] }) {
+  return (
+    <div className="sp-chips">
+      {ids.map((id) => {
+        const friend = friends.find((f) => f.id === id);
+        const name = friend ? friendLabel(friend) : "Freund";
+        return (
+          <span key={id} className="sp-chip on">
+            <Avatar name={name} color={friend?.color ?? "var(--ink-3)"} />
+            {name}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -484,24 +561,82 @@ interface SpotDetailSheetProps {
   engine: ZoneEngine;
   userPos: LngLat | null;
   onInvite: () => void;
+  /** Meldung an den Nutzer (Toast) — trägt auch gescheiterte Cloud-Writes. */
+  onNotice: (text: string) => void;
   onClose: () => void;
 }
 
-export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: SpotDetailSheetProps) {
+export function SpotDetailSheet({
+  spot,
+  engine,
+  userPos,
+  onInvite,
+  onNotice,
+  onClose,
+}: SpotDetailSheetProps) {
   const inv = useActiveInvitation(spot.id);
   const friends = useFriends();
   const status = useZoneStatus(engine, spot);
-  const [mode, setMode] = useState<"view" | "host-time" | "my-time">("view");
+  const [mode, setMode] = useState<"view" | "host-time" | "my-time" | "share">("view");
   const [draft, setDraft] = useState(() => Date.now());
   const [now] = useState(() => Date.now());
+  const [addTo, setAddTo] = useState<ReadonlySet<string>>(() => new Set<string>());
 
+  const run = cloudAction(onNotice);
+  const participants = spot.participantIds ?? [];
+  const isMine = spot.ownerId === undefined || spot.ownerId === SELF_ID;
   const isHost = inv !== null && inv.hostId === SELF_ID;
   const own = inv?.replies.find((r) => r.participantId === SELF_ID) ?? null;
-  const hostName =
-    inv && !isHost ? (friends.find((f) => f.id === inv.hostId)?.name ?? "Gastgeber") : "";
+  const host = inv && !isHost ? friends.find((f) => f.id === inv.hostId) : undefined;
+  const hostName = inv && !isHost ? (host ? friendLabel(host) : "Gastgeber") : "";
   // Liegt der Anker schon in der Vergangenheit (Einladung läuft aus), muss das
   // Band bis zu ihm zurückreichen — sonst wäre die eigene Zeit nicht darstellbar.
   const tapeBase = inv ? Math.min(inv.time, now) : now;
+  const shareable = friends.filter((f) => !participants.includes(f.id));
+
+  if (mode === "share") {
+    return (
+      <Sheet onClose={onClose}>
+        <h2 className="sp-h2">Spot teilen</h2>
+        <div className="sp-hsub">Gewählte Freunde bekommen den Spot dauerhaft auf ihre Karte.</div>
+        <div className="sp-chips">
+          {shareable.map((f) => (
+            <FriendChip
+              key={f.id}
+              friend={f}
+              on={addTo.has(f.id)}
+              onToggle={() =>
+                setAddTo((prev) => {
+                  const next = new Set(prev);
+                  if (!next.delete(f.id)) next.add(f.id);
+                  return next;
+                })
+              }
+            />
+          ))}
+        </div>
+        <div className="sp-note">
+          <IconInfo />
+          Der Spot liegt dann in eurem gemeinsamen iCloud-Bereich — nicht bei uns.
+        </div>
+        <button
+          type="button"
+          className="sp-cta blue"
+          disabled={addTo.size === 0}
+          onClick={() => {
+            run(() => spotSync.shareSpot(spot.id, [...addTo]));
+            setAddTo(new Set<string>());
+            setMode("view");
+          }}
+        >
+          Spot teilen
+        </button>
+        <button type="button" className="sp-ghost" onClick={() => setMode("view")}>
+          Zurück
+        </button>
+      </Sheet>
+    );
+  }
 
   if (inv && mode === "host-time") {
     return (
@@ -524,8 +659,7 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           type="button"
           className="sp-cta blue"
           onClick={() => {
-            hapticTap();
-            void inviteStore.changeTime(inv.id, draft);
+            run(() => spotSync.changeInvitationTime(inv.id, draft));
             setMode("view");
           }}
         >
@@ -561,12 +695,7 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           type="button"
           className="sp-cta blue"
           onClick={() => {
-            hapticTap();
-            void inviteStore.setReply(inv.id, {
-              participantId: SELF_ID,
-              status: "in",
-              arrivalTime: draft,
-            });
+            run(() => spotSync.reply(inv.id, "in", draft));
             setMode("view");
           }}
         >
@@ -579,7 +708,7 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
     );
   }
 
-  const rows = inv ? rsvpEntries(inv, friends) : [];
+  const rows = inv ? rsvpEntries(inv, friends, participants) : [];
 
   return (
     <Sheet onClose={onClose}>
@@ -620,6 +749,20 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
         </>
       )}
 
+      {!inv && participants.length > 0 && (
+        <>
+          <div className="sp-sec">Geteilt mit</div>
+          <ParticipantChips ids={participants} friends={friends} />
+        </>
+      )}
+
+      {spot.sharePending && (
+        <div className="sp-note">
+          <IconInfo />
+          Teilen wird nachgeholt, sobald du wieder Netz hast — lokal ist der Spot längst da.
+        </div>
+      )}
+
       {inv && rows.length > 0 && (
         <>
           <div className="sp-sec">Wer kommt</div>
@@ -634,10 +777,7 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           <button
             type="button"
             className="sp-cta green"
-            onClick={() => {
-              hapticTap();
-              void inviteStore.setReply(inv.id, { participantId: SELF_ID, status: "in" });
-            }}
+            onClick={() => run(() => spotSync.reply(inv.id, "in"))}
           >
             Bin dabei
           </button>
@@ -655,18 +795,15 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           <button
             type="button"
             className="sp-ghost"
-            onClick={() => {
-              hapticTap();
-              void inviteStore.setReply(inv.id, { participantId: SELF_ID, status: "out" });
-            }}
+            onClick={() => run(() => spotSync.reply(inv.id, "out"))}
           >
             Kann nicht
           </button>
         </div>
       )}
 
-      {!inv && friends.length > 0 && (
-        <div className="sp-actions">
+      <div className="sp-actions">
+        {!inv && spot.zoneName && (
           <button
             type="button"
             className="sp-cta blue"
@@ -677,18 +814,30 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           >
             Einladen
           </button>
-        </div>
-      )}
+        )}
+        {isMine && shareable.length > 0 && (
+          <button
+            type="button"
+            className={spot.zoneName ? "sp-cta outline" : "sp-cta blue"}
+            onClick={() => {
+              hapticTap();
+              setAddTo(new Set(shareable.map((f) => f.id)));
+              setMode("share");
+            }}
+          >
+            {spot.zoneName ? "Weiteren Freunden geben" : "Mit Freunden teilen"}
+          </button>
+        )}
+      </div>
+
+      {!spot.zoneName && friends.length === 0 && <CloudHint />}
 
       <div className="sp-actions">
         {inv && isHost && (
           <button
             type="button"
             className="sp-ghost danger"
-            onClick={() => {
-              hapticTap();
-              void inviteStore.cancel(inv.id);
-            }}
+            onClick={() => run(() => spotSync.cancelInvitation(inv.id))}
           >
             Einladung absagen
           </button>
@@ -697,12 +846,11 @@ export function SpotDetailSheet({ spot, engine, userPos, onInvite, onClose }: Sp
           type="button"
           className="sp-ghost danger"
           onClick={() => {
-            hapticTap();
-            void spotStore.removeSpot(spot.id);
+            run(() => spotSync.removeSpot(spot.id));
             onClose();
           }}
         >
-          Spot entfernen
+          {isMine ? "Spot entfernen" : "Spot verlassen"}
         </button>
         <button type="button" className="sp-ghost" onClick={onClose}>
           Schließen
@@ -718,32 +866,48 @@ interface InviteSheetProps {
   spot: Spot;
   engine: ZoneEngine;
   userPos: LngLat | null;
-  /** Bestätigung nach dem Senden — die App zeigt sie als Toast. */
-  onSent: (message: string) => void;
+  /** Bestätigung oder Fehlermeldung — die App zeigt sie als Toast. */
+  onNotice: (message: string) => void;
   onClose: () => void;
 }
 
-export function InviteSheet({ spot, engine, userPos, onSent, onClose }: InviteSheetProps) {
+export function InviteSheet({ spot, engine, userPos, onNotice, onClose }: InviteSheetProps) {
   const friends = useFriends();
   const status = useZoneStatus(engine, spot);
   // Bandanfang einmal einfrieren — sonst wandert „Jetzt" unter dem Finger.
   const [now] = useState(() => Date.now());
   const [time, setTime] = useState(now);
-  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set<string>());
-  useEffect(() => {
-    setPicked(new Set(friends.map((f) => f.id)));
-  }, [friends]);
+  const [sending, setSending] = useState(false);
 
   const isNow = time - now < NOW_ZONE_MIN * MIN_MS;
-  const names = friends.filter((f) => picked.has(f.id)).map((f) => f.name);
+  const participants = spot.participantIds ?? [];
+  const names = participants.map((id) => {
+    const friend = friends.find((f) => f.id === id);
+    return friend ? friendLabel(friend) : "Freund";
+  });
 
+  /**
+   * Die Einladung geht erst raus, dann in den lokalen Bestand. Scheitert der
+   * Cloud-Write, bleibt das Sheet offen und es gibt KEINE lokale Einladung —
+   * ein flüchtiger Termin wird ehrlich abgebrochen, nie nachgeliefert.
+   */
   const send = () => {
     hapticTap();
-    // Die Einladung trägt nur den Anker; die Empfänger stehen bis zum
-    // CloudKit-Transport in der Spot-Teilnehmerschaft, nicht im Record.
-    void inviteStore.invite(spot.id, isNow ? Date.now() : time);
-    onSent(`Einladung ${isNow ? "jetzt" : `für ${fmtClock(time)}`} · ${names.join(", ")} sehen sie`);
-    onClose();
+    setSending(true);
+    spotSync
+      .invite(spot.id, isNow ? Date.now() : time)
+      .then(() => {
+        onNotice(
+          `Einladung ${isNow ? "jetzt" : `für ${fmtClock(time)}`}${
+            names.length > 0 ? ` · ${names.join(", ")} sehen sie` : ""
+          }`,
+        );
+        onClose();
+      })
+      .catch((error: unknown) => {
+        setSending(false);
+        onNotice(cloudMessage(error));
+      });
   };
 
   return (
@@ -756,33 +920,200 @@ export function InviteSheet({ spot, engine, userPos, onSent, onClose }: InviteSh
       <SpotTape status={status} value={time} onChange={setTime} minTime={now} />
 
       <div className="sp-sec">Wer</div>
-      <div className="sp-chips">
-        {friends.map((f) => (
-          <FriendChip
-            key={f.id}
-            friend={f}
-            on={picked.has(f.id)}
-            onToggle={() =>
-              setPicked((prev) => {
-                const next = new Set(prev);
-                if (!next.delete(f.id)) next.add(f.id);
-                return next;
-              })
-            }
-          />
-        ))}
-      </div>
+      {participants.length > 0 ? (
+        <ParticipantChips ids={participants} friends={friends} />
+      ) : (
+        <div className="sp-note">
+          <IconInfo />
+          Noch niemand hat den Spot angenommen — die Einladung wartet dort auf sie.
+        </div>
+      )}
 
       <div className="sp-note">
         <IconPin />
         Geteilt wird der Spot — nie dein Live-Standort.
       </div>
 
-      <button type="button" className="sp-cta blue" disabled={picked.size === 0} onClick={send}>
+      <button type="button" className="sp-cta blue" disabled={sending} onClick={send}>
         {isNow ? "Jetzt einladen" : `Für ${fmtClock(time)} einladen`}
       </button>
       <button type="button" className="sp-ghost" onClick={onClose}>
         Abbrechen
+      </button>
+    </Sheet>
+  );
+}
+
+// ------------------------------------------------------------------- Freunde
+
+function sharedSpotsLine(names: string[]): string {
+  if (names.length === 0) return "Noch keine gemeinsamen Spots";
+  const word = names.length === 1 ? "gemeinsamer Spot" : "gemeinsame Spots";
+  return `${names.length} ${word} · ${names.join(", ")}`;
+}
+
+interface FriendsSheetProps {
+  /** Meldung an den Nutzer (Toast). */
+  onNotice: (text: string) => void;
+  onClose: () => void;
+}
+
+/**
+ * Freundesliste nach mockup/community.html (Szenario „friends").
+ *
+ * Freunde entstehen ausschließlich über einen Einladungslink: kein
+ * Verzeichnis, keine Kontakte, keine Handynummer. Der eigene Anzeigename wird
+ * genau einmal erfragt und liegt lokal — er ist frei wählbar und für den Link
+ * das Einzige, was der Empfänger von dir sieht.
+ */
+export function FriendsSheet({ onNotice, onClose }: FriendsSheetProps) {
+  const friends = useFriends();
+  const spots = useSpots();
+  const sync = useSyncState();
+  const [ask, setAsk] = useState<"invite" | "rename" | null>(null);
+  const [name, setName] = useState(sync.displayName);
+  const [busy, setBusy] = useState(false);
+
+  const shared = spots.filter((s) => s.zoneName !== undefined || s.sharePending === true);
+  const spotNames = (friendId: string): string[] =>
+    shared.filter((s) => (s.participantIds ?? []).includes(friendId)).map((s) => s.name);
+
+  const invite = async (displayName: string): Promise<void> => {
+    setBusy(true);
+    let url: string;
+    try {
+      url = await spotSync.inviteFriend(displayName);
+    } catch (error) {
+      setBusy(false);
+      onNotice(cloudMessage(error));
+      return;
+    }
+    setBusy(false);
+    setAsk(null);
+    try {
+      await Share.share({
+        title: "GreenZones",
+        text: `${displayName} teilt seine Spots mit dir.`,
+        url,
+        dialogTitle: "Freund einladen",
+      });
+    } catch {
+      // Abbruch im Share-Sheet ist keine Störung — der Link bleibt gültig.
+    }
+  };
+
+  const rename = async (displayName: string): Promise<void> => {
+    setBusy(true);
+    try {
+      await spotSync.setDisplayName(displayName);
+      setAsk(null);
+    } catch (error) {
+      onNotice(cloudMessage(error));
+    }
+    setBusy(false);
+  };
+
+  if (ask !== null) {
+    const forInvite = ask === "invite";
+    return (
+      <Sheet onClose={onClose}>
+        <h2 className="sp-h2">Dein Name</h2>
+        <div className="sp-hsub">
+          So stehst du in der Freundesliste der anderen. Frei wählbar — kein Konto, kein Klarname.
+        </div>
+        <div className="sp-field">
+          <span className="sp-field-emoji">🙂</span>
+          <input
+            type="text"
+            value={name}
+            placeholder="Leon"
+            aria-label="Dein Anzeigename"
+            onChange={(e) => setName(e.target.value)}
+            autoCorrect="off"
+            autoComplete="off"
+            enterKeyHint="done"
+          />
+        </div>
+        <button
+          type="button"
+          className="sp-cta blue"
+          disabled={busy || !name.trim()}
+          onClick={() => void (forInvite ? invite(name.trim()) : rename(name.trim()))}
+        >
+          {forInvite ? "Weiter — Link teilen" : "Name speichern"}
+        </button>
+        <button type="button" className="sp-ghost" onClick={() => setAsk(null)}>
+          Zurück
+        </button>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Sheet onClose={onClose}>
+      <h2 className="sp-h2">Freunde</h2>
+      <div className="sp-hsub">
+        {friends.length === 0
+          ? "Noch niemand — teilt einen Link, dann seht ihr eure Spots gemeinsam."
+          : `${friends.length} ${friends.length === 1 ? "Freund" : "Freunde"} · ${shared.length} ${
+              shared.length === 1 ? "gemeinsamer Spot" : "gemeinsame Spots"
+            }`}
+      </div>
+
+      {friends.map((f) => (
+        <div className="sp-member" key={f.id}>
+          <Avatar name={friendLabel(f)} color={f.color} />
+          <div className="sp-member-who">
+            <b>{friendLabel(f)}</b>
+            <span>{sharedSpotsLine(spotNames(f.id))}</span>
+          </div>
+        </div>
+      ))}
+
+      {sync.displayName !== "" && (
+        <>
+          <div className="sp-sec">Dein Name</div>
+          <button
+            type="button"
+            className="sp-timerow"
+            onClick={() => {
+              hapticTap();
+              setName(sync.displayName);
+              setAsk("rename");
+            }}
+          >
+            <b>{sync.displayName}</b>
+            <span className="sp-edit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z" />
+              </svg>
+              Ändern
+            </span>
+          </button>
+        </>
+      )}
+
+      <button
+        type="button"
+        className="sp-invite-btn"
+        disabled={busy}
+        onClick={() => {
+          hapticTap();
+          if (sync.displayName === "") {
+            setAsk("invite");
+            return;
+          }
+          void invite(sync.displayName);
+        }}
+      >
+        <IconShare />
+        Freund hinzufügen — Link teilen
+      </button>
+
+      <CloudHint />
+
+      <button type="button" className="sp-ghost" onClick={onClose}>
+        Schließen
       </button>
     </Sheet>
   );
@@ -820,6 +1151,15 @@ function IconPin() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z" />
       <circle cx="12" cy="10.5" r="2.4" />
+    </svg>
+  );
+}
+
+function IconShare() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 15V4M8 7.5 12 3.5l4 4" />
+      <path d="M5 12v7h14v-7" />
     </svg>
   );
 }
