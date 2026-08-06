@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./components/MapView";
-import StatusPill from "./components/StatusPill";
-import BottomSheet from "./components/BottomSheet";
-import ZoneList from "./components/ZoneList";
+import StatusBar from "./components/StatusBar";
 import SearchBar from "./components/SearchBar";
 import Onboarding from "./components/Onboarding";
 import InfoSheet from "./components/InfoSheet";
@@ -150,7 +148,7 @@ export default function App() {
         onSelect={(r) => setTarget({ result: r, status: null })}
         onClear={clearTarget}
       />
-      <StatusPill
+      <StatusBar
         status={target ? target.status : status}
         locating={location.kind === "locating" || location.kind === "idle"}
         target={targetResult}
@@ -193,16 +191,6 @@ export default function App() {
           Standort nicht freigegeben — Status zeigt nichts an. In den iOS-Einstellungen aktivieren.
         </div>
       )}
-
-      <BottomSheet peekHeight={214} expandedHeight={420}>
-        <h2 className="sheet-title">{target ? "Am Ziel" : "In deiner Nähe"}</h2>
-        <div className="sheet-scroll">
-          <ZoneList status={target ? target.status : status} />
-          <p className="sheet-foot">
-            Umkreis 2 km · Daten © OpenStreetMap · keine Rechtsberatung
-          </p>
-        </div>
-      </BottomSheet>
 
       <InfoSheet open={infoOpen} onClose={() => setInfoOpen(false)} />
 
