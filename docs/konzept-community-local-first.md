@@ -34,11 +34,41 @@ Regel bei jedem neuen Feature: erst einordnen — A, B oder C? Gibt es Zweifel, 
 - Technisch: 1 Spot = 1 geteilter CloudKit-Record-Baum (CKShare), Teilnehmer = die eingeladenen Freunde. Einladungen und später Fotos hängen als Child-Records am Spot.
 
 **Einladungen (Sessions)** — die Verabredungs-Mechanik:
-- Von einem Spot aus: „Einladen" → Zeit wählen (**Jetzt** oder geplant, z. B. 20:00) → Empfänger (Spot-Teilnehmer vorausgewählt, abwählbar) → senden.
+- Von einem Spot aus: „Einladen" → Zeit wählen (Zeit-Band, s. u.) → Empfänger (Spot-Teilnehmer vorausgewählt, abwählbar) → senden.
 - **Funktioniert von überall** — auch von zu Hause eine Einladung für einen Spot schicken. Kein Standort-Zwang, kein Standort-Broadcast: geteilt wird der SPOT, nie die eigene Live-Position.
-- Empfänger: Push („Leon lädt dich ein · Unsere Bank · 20:00") → Zusagen/Absagen; Antworten sehen alle Eingeladenen.
+- Empfänger: Push („Leon lädt dich ein · Unsere Bank · 20:00") → antworten (s. „Antworten: jeder sagt seine Zeit"); Antworten sehen alle Eingeladenen.
 - Eine Einladung läuft nach ihrem Zeitpunkt natürlich aus (Client blendet Vergangenes aus); Spots bleiben.
 - Offline: Einladung ohne Netz → ehrlicher Abbruch mit Meldung. Spots selbst sind lokal gecacht und offline sichtbar.
+
+### Zeitwahl: das Zeit-Band (v2.1, Leon-Prio „deutlich intuitiver als 3 Chips")
+
+**Ein draggbares Zeit-Band (Tape) unter fixem Cursor** — wie Kamera-Zoom/Timer, statt kuratierter Chips. Direkte Manipulation: jede Zeit ist erreichbar, nicht nur vorgegebene Griffe.
+
+- Bereich **Jetzt … +36 h**, Snap auf runde Viertelstunden (absolute Uhrzeit, nie „jetzt + k·15"). Linkes Ende hat eine **„Jetzt"-Rastzone** (< 8 min → Anzeige „Jetzt", CTA „Jetzt einladen").
+- Große Live-Anzeige („Heute · 20:00" + „in 10 Std 19 Min"), Stunden-Ticks mit Labels, Tagesgrenzen als „MORGEN"-Marker im Band.
+- **Anker-Chips („Jetzt" · „Heute Abend" · „Morgen Abend") sind nur Sprungmarken aufs Band** — es animiert dorthin und bleibt frei justierbar. Kein Rückfall in Chip-Auswahl.
+- **Legal-Status live zur gewählten Zeit:** unterm Band steht „Am Spot um 20:00 erlaubt" und rechnet beim Ziehen mit — bei Spots nahe Fußgängerzonen (7–20 Uhr) kippt der Status sichtbar mit der Uhrzeit. Das macht den Picker zum GreenZones-Feature statt zu einem generischen Datepicker.
+- **Dasselbe Band überall:** Einladung senden, eigene Ankunftszeit nennen, Host-Zeit nachträglich ändern — eine gelernte Geste für alles. Bei „Ich komme um …" ist die Host-Zeit als **„Leon ab 20:00"-Flagge** im Band markiert, beim Host-Ändern eine „bisher"-Flagge (erscheint erst beim Wegziehen).
+- Im echten Build: Haptik-Ticks beim Snappen (UIImpactFeedbackGenerator via Plugin).
+
+### Antworten: jeder sagt seine Zeit (v2.2 — Leon-Korrektur, ersetzt das Verhandlungs-Modell)
+
+**Kein Konsens-Protokoll.** Die Host-Zeit ist ein Anker („Ich bin ab 20:00 da"), kein Termin, der für alle verhandelt wird. Es gibt keinen Entscheidungs-Flow, keine Übernahme, nichts stellt sich für andere um — wie im echten Leben: „Bin ab 8 da" — „ich komm um 9". Fertig.
+
+- Antwortraum des Empfängers: **„Bin dabei"** (zur Host-Zeit) · **„Ich komme um …"** (Band, vorpositioniert auf Host-Zeit) · **„Kann nicht"**.
+- „Ich komme um 21:00" **gilt als Zusage mit eigener Ankunftszeit** — für niemanden sonst ändert sich etwas. Alle sehen in der Teilnehmerliste, wer wann kommt: „Leon ab 20:00 · Marcel dabei · Tara kommt um 21:00".
+- Der Host bekommt Antworten **nur als Push** („Tara kommt um 21:00") — kein Screen, der eine Entscheidung verlangt.
+- Karten-Pin zeigt die Anker-Zeit: „ab 20:00".
+
+### Nachträglich ändern & absagen (v2.2)
+
+- **Host ändert seine Anker-Zeit** direkt: Einladungs-Detail → „Deine Zeit" → gleiches Band → Push an alle. **Antworten bleiben bestehen** (haben ja eigene Zeiten) — wer nicht mehr kann, meldet sich neu.
+- Eingeladene ändern ihre eigene Ankunftszeit jederzeit über dieselbe „Ich komme um …"-Mechanik.
+- **Host kann die Einladung absagen** → Push an alle, Session verschwindet, **der Spot bleibt**.
+
+**CloudKit-Mapping (konfliktfrei by design):** Einladung = Child-Record am Spot, nur der Host schreibt ihn (Feld `time` = Anker-Zeit). Antwort = ein Child-Record **pro Teilnehmer**, nur der jeweilige Teilnehmer schreibt ihn (`status: dabei|absage`, optional `arrivalTime`). Jeder Record hat genau einen Schreiber → keine Merge-Konflikte, keine Abstimmungs-Zustände.
+
+**Mockup (bindend nach Abnahme):** `mockup/invite.html` — klickbar mit Rollenwechsel Leon⇄Tara (kompletter Loop spielbar), Screenshot-Szenarien `iv_*.png` (`?s=picker|picker-idle|push|received|mytime|answered-host|manage|edit|updated`), Interaktionstest `mockup/test_invite.mjs`.
 
 ## Weitere Phasen
 

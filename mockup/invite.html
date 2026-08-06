@@ -1,0 +1,1256 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GreenZones — Einladungs-UX: Zeit-Band · Verhandlung</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ok: #1DB954;
+    --ban: #E5484D;
+    --time: #F76B15;
+    --accent: #0A84FF;
+    --ink: #17191C;
+    --ink-2: #5A616B;
+    --ink-3: #9AA1AB;
+    --app-bg: #E8EAED;
+    --glass: rgba(255,255,255,.78);
+    --glass-strong: rgba(255,255,255,.90);
+    --stroke: rgba(23,25,28,.08);
+    --divider: rgba(23,25,28,.06);
+    --ease-spring: cubic-bezier(.32,.72,0,1);
+    /* Mockup: iPhone-Statusbar fix simuliert — echte App nutzt env(safe-area-inset-*) */
+    --sat: 54px;
+    --sab: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    color: var(--ink);
+    background: var(--app-bg);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 9px; opacity: .55; }
+  .maplibregl-ctrl-bottom-right { bottom: 96px; }
+  .glassfx {
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+  }
+
+  .statusbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: var(--sat);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px 0;
+    z-index: 30;
+    font-size: 15px;
+    font-weight: 650;
+    pointer-events: none;
+  }
+  .statusbar svg { height: 12px; fill: var(--ink); }
+
+  .search {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    left: 14px; right: 14px;
+    height: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(23,25,28,.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    z-index: 10;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+  .search svg { width: 16px; height: 16px; stroke: var(--ink-2); stroke-width: 2; fill: none; flex: none; }
+
+  /* ---------- iOS-Push-Banner ---------- */
+  .push {
+    position: absolute;
+    top: calc(var(--sat) + 6px);
+    left: 8px; right: 8px;
+    z-index: 28;
+    border-radius: 24px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 12px 40px rgba(23,25,28,.22);
+    padding: 12px 14px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    animation: pushIn .5s var(--ease-spring);
+  }
+  @keyframes pushIn { from { transform: translateY(-120%); } to { transform: translateY(0); } }
+  body.has-push .push { display: flex; }
+  body.has-push .search { display: none; }
+  .push .appico {
+    width: 38px; height: 38px;
+    border-radius: 9px;
+    background: linear-gradient(145deg, #1DB954, #128C3E);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .push .appico svg { width: 20px; height: 20px; stroke: #fff; stroke-width: 2; fill: none; }
+  .push .body { flex: 1; min-width: 0; line-height: 1.25; }
+  .push .body .app { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ink-3); text-transform: uppercase; }
+  .push .body b { font-size: 14px; font-weight: 650; display: block; }
+  .push .body span { font-size: 13px; color: var(--ink-2); }
+  .push .when { font-size: 11px; color: var(--ink-3); align-self: flex-start; margin-top: 2px; }
+
+  /* ---------- status bar unten ---------- */
+  .bar {
+    position: absolute;
+    left: 14px; right: 14px;
+    bottom: calc(var(--sab) + 10px);
+    height: 58px;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 14px 0 12px;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(23,25,28,.14), 0 1px 2px rgba(23,25,28,.08);
+  }
+  .bar .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 5px rgba(29,185,84,.18);
+    flex: none;
+  }
+  .bar .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .bar .txt { flex: 1; min-width: 0; line-height: 1.18; }
+  .bar .txt b { font-size: 15px; font-weight: 650; letter-spacing: -.01em; display: block; }
+  .bar .txt span { font-size: 12px; color: var(--ink-2); font-weight: 480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .bar .chev { flex: none; }
+  .bar .chev svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 2.4; fill: none; }
+
+  .ava {
+    width: 27px; height: 27px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 2px solid #fff;
+    flex: none;
+  }
+  .ava.m { background: #7C5CFF; }
+  .ava.t { background: #0A9B8E; }
+  .ava.l { background: #0A84FF; }
+
+  /* ---------- modale Sheets ---------- */
+  .backdrop {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(23,25,28,.22);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  body.has-sheet .backdrop { display: block; }
+  .modal {
+    display: none;
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 21;
+    background: var(--glass-strong);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--stroke);
+    box-shadow: 0 -8px 40px rgba(23,25,28,.16);
+    padding: 8px 20px calc(var(--sab) + 16px);
+    animation: sheetIn .45s var(--ease-spring);
+  }
+  @keyframes sheetIn { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal.open { display: block; }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: rgba(23,25,28,.18); margin: 2px auto 12px; }
+  .modal h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; margin: 2px 0 2px; }
+  .modal .h-sub { font-size: 13px; color: var(--ink-2); margin-bottom: 14px; }
+
+  .sec-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 14px 0 8px;
+  }
+
+  .spot-card {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 12px;
+    border-radius: 14px;
+    background: rgba(29,185,84,.08);
+    border: 1px solid rgba(29,185,84,.22);
+  }
+  .spot-card .emoji {
+    width: 38px; height: 38px;
+    border-radius: 12px;
+    background: #fff;
+    border: 1px solid var(--stroke);
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    flex: none;
+  }
+  .spot-card b { font-size: 15px; font-weight: 650; display: block; }
+  .spot-card span { font-size: 12px; color: var(--ink-2); }
+  .spot-card .ok-tag { color: var(--ok); font-weight: 600; }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 14px;
+    border-radius: 100px;
+    border: 1.5px solid var(--stroke);
+    background: rgba(23,25,28,.03);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .chip.on {
+    border-color: var(--accent);
+    background: rgba(10,132,255,.08);
+    color: var(--ink);
+  }
+  .chip .ava { width: 22px; height: 22px; font-size: 9.5px; border-width: 1.5px; }
+  .chip svg { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 2.6; fill: none; }
+
+  .note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin: 14px 0 16px;
+  }
+  .note svg { width: 15px; height: 15px; flex: none; stroke: var(--ink-3); stroke-width: 1.9; fill: none; margin-top: 1px; }
+
+  .cta {
+    width: 100%;
+    height: 50px;
+    border-radius: 15px;
+    background: var(--ink);
+    color: var(--app-bg);
+    font-size: 15.5px;
+    font-weight: 650;
+    display: grid;
+    place-items: center;
+    border: 0;
+    cursor: pointer;
+  }
+  .cta.blue { background: var(--accent); color: #fff; }
+  .cta.green { background: var(--ok); color: #fff; }
+  .cta.outline {
+    background: rgba(10,132,255,.07);
+    color: var(--accent);
+    border: 1.5px solid rgba(10,132,255,.4);
+  }
+  .cta + .cta { margin-top: 9px; }
+  .ghost {
+    width: 100%;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .ghost.danger { color: var(--ban); }
+
+  /* ================= ZEIT-BAND (Tape-Picker) ================= */
+  .timepick { margin: 2px 0 4px; }
+  .timepick .readout {
+    text-align: center;
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+  .timepick .readout b {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .timepick .readout .rel {
+    display: block;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    margin-top: 3px;
+    font-weight: 500;
+  }
+  .tape {
+    position: relative;
+    height: 74px;
+    margin: 10px -20px 0;   /* volle Sheet-Breite */
+    overflow: hidden;
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  .tape:active { cursor: grabbing; }
+  /* Kanten-Fade */
+  .tape::before, .tape::after {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 56px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .tape::before { left: 0; background: linear-gradient(90deg, var(--glass-strong), transparent); }
+  .tape::after { right: 0; background: linear-gradient(-90deg, var(--glass-strong), transparent); }
+  /* fixer Cursor in der Mitte */
+  .tape .needle {
+    position: absolute;
+    left: 50%; top: 6px; bottom: 18px;
+    width: 3px;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(10,132,255,.14);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .tape .track {
+    position: absolute;
+    top: 0; bottom: 0; left: 50%;
+    will-change: transform;
+  }
+  .tape .track.animate { transition: transform .45s var(--ease-spring); }
+  .tick {
+    position: absolute;
+    bottom: 26px;
+    width: 1.5px;
+    height: 12px;
+    background: rgba(23,25,28,.18);
+    border-radius: 1px;
+  }
+  .tick.hour { height: 22px; background: rgba(23,25,28,.32); }
+  .tick-label {
+    position: absolute;
+    bottom: 6px;
+    transform: translateX(-50%);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .day-label {
+    position: absolute;
+    top: 2px;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: rgba(10,132,255,.09);
+    padding: 2px 8px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+  /* Referenzzeit-Marker (bei Gegenvorschlag: die bisherige Zeit) */
+  .ref-flag {
+    position: absolute;
+    top: 3px;
+    transition: opacity .25s;
+    transform: translateX(-50%);
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--ink-2);
+    background: rgba(23,25,28,.08);
+    border: 1px solid var(--stroke);
+    padding: 2px 7px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+  .ref-flag::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 100%;
+    transform: translateX(-50%);
+    width: 1.5px; height: 10px;
+    background: rgba(23,25,28,.25);
+  }
+  .anchors { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
+  .anchor {
+    padding: 7px 13px;
+    border-radius: 100px;
+    border: 1px solid var(--stroke);
+    background: rgba(23,25,28,.03);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .anchor:active { background: rgba(10,132,255,.1); color: var(--accent); }
+  .legal-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 550;
+    color: var(--ok);
+    margin-top: 11px;
+  }
+  .legal-line svg { width: 14px; height: 14px; stroke: var(--ok); stroke-width: 2.6; fill: none; }
+
+  /* ---------- Antwort-/Statuszeilen ---------- */
+  .rsvp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    font-size: 13.5px;
+  }
+  .rsvp-row + .rsvp-row { border-top: 1px solid var(--divider); }
+  .rsvp-row .ava { width: 28px; height: 28px; font-size: 11px; }
+  .rsvp-row .who { flex: 1; font-weight: 600; }
+  .rsvp-row .st { font-size: 12.5px; font-weight: 600; }
+  .rsvp-row .st.in { color: var(--ok); }
+  .rsvp-row .st.open { color: var(--ink-3); font-weight: 500; }
+  .rsvp-row .st.prop { color: var(--time); }
+
+  /* Zeit-Zeile mit Stift (Host-Detail) */
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 13px;
+    border: 1px solid var(--stroke);
+    background: rgba(23,25,28,.03);
+    margin: 4px 0 2px;
+    cursor: pointer;
+  }
+  .time-row svg.clock { width: 17px; height: 17px; stroke: var(--ink-2); stroke-width: 1.9; fill: none; flex: none; }
+  .time-row b { flex: 1; font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .time-row .edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .time-row .edit svg { width: 14px; height: 14px; stroke: var(--accent); stroke-width: 2; fill: none; }
+
+  /* Toast */
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--sab) + 84px);
+    transform: translateX(-50%) translateY(8px);
+    z-index: 40;
+    background: rgba(23,25,28,.92);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 550;
+    padding: 10px 16px;
+    border-radius: 100px;
+    box-shadow: 0 8px 30px rgba(23,25,28,.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s, transform .3s var(--ease-spring);
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Mockup-Chrome: Rollen-Switcher (nicht Teil der App) ---------- */
+  .role-pill {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 6px;
+    white-space: nowrap;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(23,25,28,.86);
+    color: #fff;
+    border-radius: 100px;
+    padding: 5px 12px 5px 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(23,25,28,.4);
+  }
+  .role-pill .ava { width: 20px; height: 20px; font-size: 8.5px; border-width: 1.5px; }
+  .role-pill .swap { opacity: .55; font-size: 10px; }
+  .role-pill.pulse { animation: pillPulse 1.6s ease-in-out infinite; }
+  @keyframes pillPulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(23,25,28,.4); }
+    50% { box-shadow: 0 4px 20px rgba(23,25,28,.4), 0 0 0 7px rgba(10,132,255,.25); }
+  }
+  body[data-chrome="0"] .role-pill { display: none; }
+
+  /* ---------- Karte: Spots, Puck ---------- */
+  .puck { position: relative; width: 22px; height: 22px; }
+  .puck .core {
+    position: absolute; inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2.5px solid #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  }
+  .puck .halo {
+    position: absolute; inset: -14px;
+    border-radius: 50%;
+    background: rgba(10,132,255,.15);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(.6); opacity: .9; }
+    70% { transform: scale(1.15); opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .spot { position: relative; width: 40px; height: 40px; cursor: pointer; }
+  .spot .badge {
+    width: 40px; height: 40px;
+    border-radius: 50% 50% 50% 6px;
+    background: var(--glass-strong);
+    border: 2px solid var(--ok);
+    box-shadow: 0 3px 12px rgba(23,25,28,.25);
+    display: grid;
+    place-items: center;
+    font-size: 19px;
+  }
+  .spot .tag {
+    position: absolute;
+    top: 44px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 650;
+    background: var(--glass-strong);
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    padding: 3px 8px;
+    box-shadow: 0 2px 10px rgba(23,25,28,.12);
+  }
+  .spot .tag span { color: var(--ink-2); font-weight: 480; }
+  .spot.session .badge {
+    border-color: var(--accent);
+    box-shadow: 0 3px 12px rgba(23,25,28,.25), 0 0 0 6px rgba(10,132,255,.18);
+  }
+  .spot .time-pill {
+    position: absolute;
+    top: -12px; left: 50%;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    border-radius: 100px;
+    padding: 2px 8px;
+    box-shadow: 0 2px 8px rgba(23,25,28,.3);
+    display: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .spot.session .time-pill { display: block; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="statusbar">
+  <span>9:41</span>
+  <svg viewBox="0 0 62 12"><path d="M1 8h3v4H1zM6 6h3v6H6zM11 3.5h3V12h-3zM16 1h3v11h-3z"/><rect x="26" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/><rect x="28" y="3" width="15" height="6" rx="1.5"/><path d="M49.5 4.5v3c1 0 1.5-.7 1.5-1.5s-.5-1.5-1.5-1.5z" opacity=".4"/></svg>
+</div>
+
+<div class="search glassfx">
+  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+  Ort oder Adresse suchen
+</div>
+
+<!-- Push (Tara-Sicht) -->
+<div class="push" id="push">
+  <div class="appico"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z"/><circle cx="12" cy="10.5" r="2.4"/></svg></div>
+  <div class="body">
+    <div class="app">GreenZones</div>
+    <b id="push-title">Leon lädt dich ein</b>
+    <span id="push-sub">Unsere Bank · heute 20:00</span>
+  </div>
+  <div class="when">Jetzt</div>
+</div>
+
+<div class="bar glassfx" id="statusbar-bottom">
+  <div class="dot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+  <div class="txt">
+    <b>Hier erlaubt</b>
+    <span>Verbotszone 190 m · Fußgängerzone 45 m</span>
+  </div>
+  <div class="chev"><svg viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></svg></div>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- ===== Sheet: Spot-Detail (Host, Einstieg) ===== -->
+<div class="modal" id="sheet-spot">
+  <div class="grab"></div>
+  <h2>Unsere Bank</h2>
+  <div class="h-sub">Geteilt mit Marcel, Tara</div>
+  <div class="spot-card">
+    <div class="emoji">🪑</div>
+    <div>
+      <b>Unsere Bank</b>
+      <span><span class="ok-tag">Erlaubt</span> · Calenberger Neustadt · 1,8 km von dir</span>
+    </div>
+  </div>
+  <button class="cta blue" style="margin-top:16px" data-go="invite">Einladen</button>
+  <button class="ghost" data-go="close">Schließen</button>
+</div>
+
+<!-- ===== Sheet: Einladen mit Zeit-Band (Host) ===== -->
+<div class="modal" id="sheet-invite">
+  <div class="grab"></div>
+  <h2>Einladen</h2>
+  <div class="h-sub">Verabrede dich an eurem Spot — egal, wo du gerade bist.</div>
+  <div class="spot-card">
+    <div class="emoji">🪑</div>
+    <div>
+      <b>Unsere Bank</b>
+      <span><span class="ok-tag">Erlaubt</span> · Calenberger Neustadt · 1,8 km von dir</span>
+    </div>
+  </div>
+  <div class="sec-label">Wann</div>
+  <div class="timepick" id="tp-invite"></div>
+  <div class="sec-label">Wer</div>
+  <div class="chips">
+    <div class="chip on"><span class="ava m">M</span> Marcel <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+    <div class="chip on"><span class="ava t">T</span> Tara <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+  </div>
+  <div class="note" style="margin:12px 0 12px">
+    <svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 0 1 13 0c0 4.7-6.5 10-6.5 10z"/><circle cx="12" cy="10.5" r="2.4"/></svg>
+    Geteilt wird der Spot — nie dein Live-Standort.
+  </div>
+  <button class="cta blue" id="cta-send" data-go="send">Für 20:00 einladen</button>
+  <button class="ghost" data-go="close">Abbrechen</button>
+</div>
+
+<!-- ===== Sheet: Einladung erhalten (Tara) ===== -->
+<div class="modal" id="sheet-received">
+  <div class="grab"></div>
+  <h2 id="rcv-title">Unsere Bank · 20:00</h2>
+  <div class="h-sub">Leon lädt dich ein — heute Abend.</div>
+  <div class="spot-card">
+    <div class="emoji">🪑</div>
+    <div>
+      <b>Unsere Bank</b>
+      <span><span class="ok-tag">Erlaubt</span> · Calenberger Neustadt · 850 m von dir</span>
+    </div>
+  </div>
+  <div class="rsvp-row" style="margin-top:6px">
+    <span class="ava m">M</span>
+    <span class="who">Marcel</span>
+    <span class="st in">dabei ✓</span>
+  </div>
+  <button class="cta green" data-go="accept" style="margin-top:8px">Bin dabei</button>
+  <button class="cta outline" data-go="mytime">Ich komme um …</button>
+  <button class="ghost" data-go="decline">Kann nicht</button>
+</div>
+
+<!-- ===== Sheet: eigene Ankunftszeit mit Zeit-Band (Tara) ===== -->
+<div class="modal" id="sheet-mytime">
+  <div class="grab"></div>
+  <h2>Wann bist du da?</h2>
+  <div class="h-sub">Leon ist ab 20:00 da — sag der Runde einfach deine Zeit.</div>
+  <div class="timepick" id="tp-mytime"></div>
+  <div class="note" style="margin:12px 0 12px">
+    <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg>
+    Gilt als Zusage — für niemanden sonst ändert sich etwas.
+  </div>
+  <button class="cta blue" id="cta-mytime" data-go="send-mytime">Komme um 21:00</button>
+  <button class="ghost" data-go="back-received">Zurück</button>
+</div>
+
+<!-- ===== Sheet: Einladungs-Detail (Host) — Zeit ändern, Absagen ===== -->
+<div class="modal" id="sheet-manage">
+  <div class="grab"></div>
+  <h2 id="mng-title">Unsere Bank · 20:00</h2>
+  <div class="h-sub">Deine Einladung — heute Abend.</div>
+  <div class="sec-label" style="margin-top:6px">Deine Zeit</div>
+  <div class="time-row" data-go="edit-time">
+    <svg class="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+    <b id="mng-time">Heute · 20:00</b>
+    <span class="edit"><svg viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/></svg> Ändern</span>
+  </div>
+  <div class="sec-label">Wer kommt</div>
+  <div class="rsvp-row">
+    <span class="ava m">M</span>
+    <span class="who">Marcel</span>
+    <span class="st in" id="mng-marcel">dabei ✓</span>
+  </div>
+  <div class="rsvp-row">
+    <span class="ava t">T</span>
+    <span class="who">Tara</span>
+    <span class="st open" id="mng-tara">offen</span>
+  </div>
+  <button class="ghost danger" data-go="cancel-invite" style="margin-top:8px">Einladung absagen</button>
+</div>
+
+<!-- ===== Sheet: Zeit ändern mit Zeit-Band (Host, nachträglich) ===== -->
+<div class="modal" id="sheet-edit">
+  <div class="grab"></div>
+  <h2>Zeit ändern</h2>
+  <div class="h-sub">Alle Eingeladenen bekommen die neue Zeit per Push.</div>
+  <div class="timepick" id="tp-edit"></div>
+  <div class="note" style="margin:12px 0 12px">
+    <svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg>
+    Zusagen bleiben bestehen — wer nicht mehr kann, meldet sich neu.
+  </div>
+  <button class="cta blue" id="cta-edit" data-go="send-edit">Neue Zeit senden</button>
+  <button class="ghost" data-go="back-manage">Zurück</button>
+</div>
+
+<!-- ===== Sheet: Zusage bestätigt (Tara, Ende) ===== -->
+<div class="modal" id="sheet-updated">
+  <div class="grab"></div>
+  <h2 id="upd-title">Unsere Bank</h2>
+  <div class="h-sub" id="upd-sub">Deine Zeit ist für alle sichtbar.</div>
+  <div class="spot-card">
+    <div class="emoji">🪑</div>
+    <div>
+      <b>Unsere Bank</b>
+      <span><span class="ok-tag">Erlaubt</span> · Calenberger Neustadt · 850 m von dir</span>
+    </div>
+  </div>
+  <div class="rsvp-row" style="margin-top:6px">
+    <span class="ava l">L</span>
+    <span class="who">Leon</span>
+    <span class="st in" id="upd-leon">ab 20:00 · Gastgeber</span>
+  </div>
+  <div class="rsvp-row">
+    <span class="ava m">M</span>
+    <span class="who">Marcel</span>
+    <span class="st in">dabei ✓</span>
+  </div>
+  <div class="rsvp-row">
+    <span class="ava t">T</span>
+    <span class="who">Du</span>
+    <span class="st in" id="upd-tara">dabei ✓</span>
+  </div>
+  <button class="cta" data-go="close" style="margin-top:10px">Alles klar</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Mockup-Chrome: Rollenwechsel (kein App-UI) -->
+<div class="role-pill" id="role-pill">
+  <span class="ava l" id="role-ava">L</span>
+  <span id="role-name">Leon (Gastgeber)</span>
+  <span class="swap">⇄</span>
+</div>
+
+<script>
+/* ================= Zeit-Modell =================
+   Mockup-„Jetzt" = 9:41 (Statusbar). Minuten relativ zu jetzt.
+   Band: 0 … +36 h, Snap 15 min, „Jetzt"-Rastzone < 8 min. */
+const NOW = { h: 9, m: 41 };
+const PX_PER_MIN = 48 / 60;
+const RANGE_MIN = 36 * 60;
+const SNAP = 15;
+
+function minToClock(min) {
+  const abs = NOW.h * 60 + NOW.m + min;
+  const day = Math.floor(abs / 1440);
+  const h = Math.floor((abs % 1440) / 60);
+  const m = abs % 60;
+  return { day, h, m, label: `${h}:${String(m).padStart(2, "0")}` };
+}
+function dayWord(day) { return day === 0 ? "Heute" : day === 1 ? "Morgen" : "Übermorgen"; }
+function relWord(min) {
+  if (min < 1) return "direkt los";
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h === 0) return `in ${m} Min`;
+  if (m === 0) return `in ${h} Std`;
+  return `in ${h} Std ${m} Min`;
+}
+/* Uhrzeit (h:mm am Tag day) → Minuten ab jetzt */
+function clockToMin(day, h, m) { return day * 1440 + h * 60 + m - (NOW.h * 60 + NOW.m); }
+
+/* ================= Tape-Picker-Factory ================= */
+function makeTape(rootId, opts) {
+  const root = document.getElementById(rootId);
+  const refMin = opts.refMin ?? null; // bisherige Zeit als Marker im Band
+  root.innerHTML = `
+    <div class="readout"><b></b><span class="rel"></span></div>
+    <div class="tape">
+      <div class="track"></div>
+      <div class="needle"></div>
+    </div>
+    <div class="anchors">
+      <div class="anchor" data-min="0">Jetzt</div>
+      <div class="anchor" data-clock="0,20,0">Heute Abend</div>
+      <div class="anchor" data-clock="1,20,0">Morgen Abend</div>
+    </div>
+    <div class="legal-line">
+      <svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg>
+      <span></span>
+    </div>`;
+  const track = root.querySelector(".track");
+  const readB = root.querySelector(".readout b");
+  const readRel = root.querySelector(".readout .rel");
+  const legal = root.querySelector(".legal-line span");
+  const tape = root.querySelector(".tape");
+
+  // Ticks an absoluten Uhrzeiten (…:00/:15/:30/:45), nicht an „jetzt + k·15"
+  let html = "";
+  const startAbs = NOW.h * 60 + NOW.m;
+  const firstTick = Math.ceil(startAbs / SNAP) * SNAP - startAbs;
+  for (let min = firstTick; min <= RANGE_MIN; min += SNAP) {
+    const abs = startAbs + min;
+    const x = min * PX_PER_MIN;
+    const isHour = abs % 60 === 0;
+    html += `<div class="tick${isHour ? " hour" : ""}" style="left:${x}px"></div>`;
+    if (isHour) {
+      const c = minToClock(min);
+      html += `<div class="tick-label" style="left:${x}px">${c.h}</div>`;
+      if (c.h === 0) html += `<div class="day-label" style="left:${x}px">${dayWord(c.day)}</div>`;
+    }
+  }
+  let refFlag = null;
+  if (refMin !== null) {
+    const rc = minToClock(refMin);
+    html += `<div class="ref-flag" style="left:${refMin * PX_PER_MIN}px">${opts.refLabel ?? "bisher"} ${rc.label}</div>`;
+  }
+  track.innerHTML = html;
+  refFlag = track.querySelector(".ref-flag");
+
+  let cur = opts.startMin ?? 0;
+  function render(animate) {
+    track.classList.toggle("animate", !!animate);
+    track.style.transform = `translateX(${-cur * PX_PER_MIN}px)`;
+    const c = minToClock(cur);
+    if (cur < 8) {
+      readB.textContent = "Jetzt";
+      readRel.textContent = "direkt los";
+    } else {
+      readB.textContent = `${dayWord(c.day)} · ${c.label}`;
+      readRel.textContent = relWord(cur);
+    }
+    legal.textContent = cur < 8 ? "Am Spot jetzt erlaubt" : `Am Spot um ${c.label} erlaubt`;
+    // „bisher"-Flagge erst zeigen, wenn die Zeit vom Bisher-Wert wegbewegt wurde
+    if (refFlag) refFlag.style.opacity = Math.abs(cur - refMin) < SNAP ? "0" : "1";
+    opts.onChange?.(cur);
+  }
+
+  let dragging = false, startX = 0, startCur = 0;
+  tape.addEventListener("pointerdown", e => {
+    dragging = true; startX = e.clientX; startCur = cur;
+    tape.setPointerCapture(e.pointerId);
+    track.classList.remove("animate");
+  });
+  tape.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    cur = Math.max(0, Math.min(RANGE_MIN, startCur - (e.clientX - startX) / PX_PER_MIN));
+    render(false);
+  });
+  tape.addEventListener("pointerup", () => {
+    dragging = false;
+    // Snap auf runde Uhrzeit (absolut), nicht auf „jetzt + k·15"
+    cur = cur < 8 ? 0 : Math.max(0, Math.round((startAbs + cur) / SNAP) * SNAP - startAbs);
+    render(true);
+  });
+  root.querySelectorAll(".anchor").forEach(a => {
+    a.addEventListener("click", () => {
+      cur = a.dataset.min !== undefined
+        ? Number(a.dataset.min)
+        : clockToMin(...a.dataset.clock.split(",").map(Number));
+      render(true);
+    });
+  });
+
+  render(false);
+  return {
+    get: () => cur,
+    set: (min, animate) => { cur = min; render(animate); },
+  };
+}
+
+/* ================= Story-State ================= */
+const $ = id => document.getElementById(id);
+const state = {
+  view: "leon",          // leon | tara
+  inviteTime: null,      // Host-Ankerzeit in Minuten ab jetzt (gesetzt beim Senden)
+  phase: "idle",         // idle | sent | answered
+  taraStatus: "open",    // open | in | late | out
+  taraTime: null,        // Taras eigene Ankunftszeit (bei „Ich komme um …")
+  hostSawAnswer: false,
+};
+const T2000 = clockToMin(0, 20, 0);
+const T2100 = clockToMin(0, 21, 0);
+
+const tpInvite = makeTape("tp-invite", {
+  startMin: 0,
+  onChange: min => {
+    const c = minToClock(min);
+    $("cta-send").textContent = min < 8 ? "Jetzt einladen" : `Für ${c.label} einladen`;
+  },
+});
+const tpMytime = makeTape("tp-mytime", {
+  startMin: T2100, refMin: T2000, refLabel: "Leon ab",
+  onChange: min => {
+    $("cta-mytime").textContent = `Komme um ${minToClock(min).label}`;
+  },
+});
+const tpEdit = makeTape("tp-edit", {
+  startMin: T2000, refMin: T2000,
+  onChange: min => {
+    const c = minToClock(min);
+    $("cta-edit").textContent = "Neue Zeit senden" + (min === (state.inviteTime ?? T2000) ? "" : ` — ${c.label}`);
+  },
+});
+
+let sheets = ["sheet-spot", "sheet-invite", "sheet-received", "sheet-mytime", "sheet-manage", "sheet-edit", "sheet-updated"];
+function openSheet(id) {
+  sheets.forEach(s => $(s).classList.toggle("open", s === id));
+  document.body.classList.toggle("has-sheet", !!id);
+}
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function pulsePill(on) { $("role-pill").classList.toggle("pulse", on); }
+
+function setView(v) {
+  state.view = v;
+  $("toast").classList.remove("show"); // Toast der alten Sicht gehört nicht in die neue
+  $("role-ava").textContent = v === "leon" ? "L" : "T";
+  $("role-ava").className = "ava " + (v === "leon" ? "l" : "t");
+  $("role-name").textContent = v === "leon" ? "Leon (Gastgeber)" : "Tara (eingeladen)";
+  document.body.classList.remove("has-push");
+  openSheet(null);
+  pulsePill(false);
+  if (v === "tara") {
+    if (state.phase === "sent" && state.taraStatus === "open") {
+      const c = minToClock(state.inviteTime);
+      $("push-title").textContent = "Leon lädt dich ein";
+      $("push-sub").textContent = `Unsere Bank · ${dayWord(c.day).toLowerCase()} ${c.label}`;
+      document.body.classList.add("has-push");
+    } else if (state.taraStatus === "in" || state.taraStatus === "late") {
+      openSheet("sheet-updated");
+    }
+  } else {
+    // Host: Antwort kommt einfach als Push an — kein Entscheidungs-Screen
+    if (state.phase === "answered" && !state.hostSawAnswer) {
+      $("push-title").textContent = state.taraStatus === "late"
+        ? `Tara kommt um ${minToClock(state.taraTime).label}`
+        : state.taraStatus === "in" ? "Tara ist dabei" : "Tara kann nicht";
+      $("push-sub").textContent = "Unsere Bank · heute";
+      document.body.classList.add("has-push");
+    }
+  }
+  if (window.setPuck) window.setPuck(v);
+}
+function syncManage() {
+  const c = minToClock(state.inviteTime);
+  $("mng-title").textContent = `Unsere Bank · ${c.label}`;
+  $("mng-time").textContent = `${dayWord(c.day)} · ${c.label}`;
+  $("upd-leon").textContent = `ab ${c.label} · Gastgeber`;
+  if (window.setSessionTime) window.setSessionTime(c.label);
+}
+function syncTara() {
+  const map = {
+    open: ["offen", "st open"],
+    in: ["dabei ✓", "st in"],
+    late: [`kommt um ${state.taraTime !== null ? minToClock(state.taraTime).label : ""} ✓`, "st in"],
+    out: ["kann nicht", "st open"],
+  };
+  const [txt, cls] = map[state.taraStatus];
+  $("mng-tara").textContent = txt;
+  $("mng-tara").className = cls;
+  $("upd-tara").textContent = state.taraStatus === "late" ? `kommst um ${minToClock(state.taraTime).label} ✓` : "dabei ✓";
+}
+
+document.addEventListener("click", e => {
+  const go = e.target.closest("[data-go]")?.dataset.go;
+  if (!go) return;
+  switch (go) {
+    case "close": openSheet(null); break;
+    case "invite": openSheet("sheet-invite"); break;
+    case "send": {
+      state.inviteTime = tpInvite.get();
+      state.phase = "sent";
+      syncManage();
+      openSheet(null);
+      const c = minToClock(state.inviteTime);
+      toast(`Einladung für ${c.label} gesendet · Push an Marcel, Tara`);
+      pulsePill(true);
+      break;
+    }
+    case "accept":
+      state.phase = "answered";
+      state.taraStatus = "in";
+      syncTara();
+      openSheet("sheet-updated");
+      $("upd-title").textContent = `Unsere Bank · ${minToClock(state.inviteTime).label}`;
+      $("upd-sub").textContent = "Du bist dabei — alle sehen deine Zusage.";
+      pulsePill(true);
+      break;
+    case "decline":
+      state.phase = "answered";
+      state.taraStatus = "out";
+      syncTara();
+      openSheet(null);
+      toast("Absage gesendet — Leon und Marcel sehen sie.");
+      pulsePill(true);
+      break;
+    case "mytime":
+      tpMytime.set(T2100, false); // Demo: Tara schafft erst 21:00
+      openSheet("sheet-mytime");
+      break;
+    case "back-received": openSheet("sheet-received"); break;
+    case "send-mytime": {
+      state.taraTime = tpMytime.get();
+      state.phase = "answered";
+      state.taraStatus = "late";
+      syncTara();
+      const c = minToClock(state.taraTime);
+      openSheet("sheet-updated");
+      $("upd-title").textContent = "Unsere Bank";
+      $("upd-sub").textContent = `Zugesagt — du kommst um ${c.label}. Für niemanden sonst ändert sich etwas.`;
+      pulsePill(true);
+      break;
+    }
+    case "edit-time":
+      tpEdit.set(state.inviteTime ?? T2000, false);
+      openSheet("sheet-edit");
+      break;
+    case "back-manage": openSheet("sheet-manage"); break;
+    case "send-edit": {
+      state.inviteTime = tpEdit.get();
+      syncManage();
+      openSheet("sheet-manage");
+      toast(`Neue Zeit ${minToClock(state.inviteTime).label} · Push an alle`);
+      break;
+    }
+    case "cancel-invite":
+      state.phase = "idle";
+      openSheet(null);
+      if (window.setSessionTime) window.setSessionTime(null);
+      toast("Einladung abgesagt · alle informiert — der Spot bleibt");
+      break;
+  }
+});
+$("role-pill").addEventListener("click", () => setView(state.view === "leon" ? "tara" : "leon"));
+$("push").addEventListener("click", () => {
+  document.body.classList.remove("has-push");
+  if (state.view === "tara") {
+    const c = minToClock(state.inviteTime ?? T2000);
+    $("rcv-title").textContent = `Unsere Bank · ${c.label}`;
+    openSheet("sheet-received");
+  } else {
+    state.hostSawAnswer = true;
+    syncManage();
+    syncTara();
+    openSheet("sheet-manage");
+  }
+});
+
+/* ================= Karte ================= */
+function circle(lng, lat, radiusM, steps = 64) {
+  const coords = [];
+  const kmPerDegLat = 110.574;
+  const kmPerDegLng = 111.320 * Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    coords.push([
+      lng + (Math.cos(a) * radiusM / 1000) / kmPerDegLng,
+      lat + (Math.sin(a) * radiusM / 1000) / kmPerDegLat,
+    ]);
+  }
+  return coords;
+}
+const feat = (geom, props = {}) => ({ type: "Feature", properties: props, geometry: geom });
+const poly = coords => ({ type: "Polygon", coordinates: [coords] });
+const banZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly(circle(9.7318, 52.3730, 100)), { name: "Spielplatz Am Ballhof" }),
+    feat(poly(circle(9.7300, 52.3773, 100)), { name: "Grundschule Calenberger Neustadt" }),
+    feat(poly(circle(9.7472, 52.3765, 100)), { name: "Kita Oststadt" }),
+    feat(poly(circle(9.7450, 52.3690, 100)), { name: "Sportplatz Südstadt" }),
+    feat(poly(circle(9.7370, 52.3672, 100)), { name: "Spielplatz Maschpark" }),
+    feat(poly(circle(9.7330, 52.3700, 100)), { name: "Kita Calenberger Neustadt" }),
+    feat(poly(circle(9.7455, 52.3742, 100)), { name: "Jugendzentrum Mitte" }),
+  ],
+};
+const timeZones = {
+  type: "FeatureCollection",
+  features: [
+    feat(poly([
+      [9.7328, 52.3756], [9.7388, 52.3748], [9.7437, 52.3725],
+      [9.7433, 52.3719], [9.7386, 52.3742], [9.7330, 52.3750],
+      [9.7328, 52.3756],
+    ]), { name: "Fußgängerzone Georgstraße", hours: "7–20 Uhr" }),
+    feat(poly([
+      [9.7386, 52.3748], [9.7404, 52.3764], [9.7412, 52.3762],
+      [9.7394, 52.3746], [9.7386, 52.3748],
+    ]), { name: "Fußgängerzone Bahnhofstraße", hours: "7–20 Uhr" }),
+  ],
+};
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/positron",
+  center: [9.7350, 52.3720],
+  zoom: 14.0,
+  attributionControl: { compact: true },
+});
+
+map.on("load", () => {
+  map.addSource("ban", { type: "geojson", data: banZones });
+  map.addSource("time", { type: "geojson", data: timeZones });
+  map.addLayer({ id: "ban-fill", type: "fill", source: "ban", paint: { "fill-color": "#E5484D", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "ban-line", type: "line", source: "ban", paint: { "line-color": "#E5484D", "line-width": 1.6, "line-opacity": 0.75 } });
+  map.addLayer({ id: "time-fill", type: "fill", source: "time", paint: { "fill-color": "#F76B15", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "time-line", type: "line", source: "time", paint: { "line-color": "#F76B15", "line-width": 1.6, "line-dasharray": [2.2, 1.6], "line-opacity": 0.85 } });
+
+  // Puck: Leon zu Hause (Oststadt, remote), Tara näher am Spot (Altstadt)
+  const el = document.createElement("div");
+  el.className = "puck";
+  el.innerHTML = '<div class="halo"></div><div class="core"></div>';
+  const puckMarker = new maplibregl.Marker({ element: el }).setLngLat([9.7492, 52.3788]).addTo(map);
+  window.setPuck = v => puckMarker.setLngLat(v === "leon" ? [9.7492, 52.3788] : [9.7362, 52.3720]);
+
+  const bank = document.createElement("div");
+  bank.className = "spot";
+  bank.innerHTML = '<div class="time-pill">20:00</div><div class="badge">🪑</div><div class="tag">Unsere Bank · <span>mit Marcel, Tara</span></div>';
+  new maplibregl.Marker({ element: bank, anchor: "center" }).setLngLat([9.7308, 52.3712]).addTo(map);
+  bank.querySelector(".badge").addEventListener("click", () => {
+    if (state.view === "leon") {
+      if (state.phase === "idle") openSheet("sheet-spot");
+      else { state.hostSawAnswer = true; document.body.classList.remove("has-push"); syncManage(); syncTara(); openSheet("sheet-manage"); }
+    } else {
+      if (state.taraStatus === "in" || state.taraStatus === "late") openSheet("sheet-updated");
+      else if (state.phase !== "idle") openSheet("sheet-received");
+    }
+  });
+  window.setSessionTime = label => {
+    bank.classList.toggle("session", !!label);
+    if (label) {
+      bank.querySelector(".time-pill").textContent = "ab " + label;
+      bank.querySelector(".tag").innerHTML = 'Unsere Bank · <span>ab ' + label + "</span>";
+    } else {
+      bank.querySelector(".tag").innerHTML = 'Unsere Bank · <span>mit Marcel, Tara</span>';
+    }
+  };
+
+  const see = document.createElement("div");
+  see.className = "spot";
+  see.innerHTML = '<div class="badge">🌳</div><div class="tag">Maschsee-Ecke · <span>mit Marcel</span></div>';
+  new maplibregl.Marker({ element: see, anchor: "center" }).setLngLat([9.7378, 52.3672]).addTo(map);
+
+  map.once("idle", () => { window.__MAP_READY__ = true; });
+});
+
+/* ================= Screenshot-Szenarien (?s=…) =================
+   picker · picker-idle · push · received · mytime · answered-host · manage · edit · updated */
+const S = new URLSearchParams(location.search).get("s");
+function preset() {
+  switch (S) {
+    case "picker":
+      tpInvite.set(T2000, false);
+      openSheet("sheet-invite");
+      break;
+    case "picker-idle":
+      openSheet("sheet-invite");
+      break;
+    case "push":
+      state.phase = "sent"; state.inviteTime = T2000;
+      setView("tara");
+      break;
+    case "received":
+      state.phase = "sent"; state.inviteTime = T2000;
+      setView("tara");
+      document.body.classList.remove("has-push");
+      openSheet("sheet-received");
+      break;
+    case "mytime":
+      state.phase = "sent"; state.inviteTime = T2000;
+      setView("tara");
+      document.body.classList.remove("has-push");
+      tpMytime.set(T2100, false);
+      openSheet("sheet-mytime");
+      break;
+    case "answered-host":
+      state.phase = "answered"; state.inviteTime = T2000;
+      state.taraStatus = "late"; state.taraTime = T2100;
+      setView("leon");
+      break;
+    case "manage":
+      state.phase = "answered"; state.inviteTime = T2000;
+      state.taraStatus = "late"; state.taraTime = T2100; state.hostSawAnswer = true;
+      syncManage(); syncTara();
+      setView("leon");
+      openSheet("sheet-manage");
+      break;
+    case "edit":
+      state.phase = "answered"; state.inviteTime = T2000;
+      state.taraStatus = "late"; state.taraTime = T2100;
+      tpEdit.set(T2000, false);
+      openSheet("sheet-edit");
+      break;
+    case "updated":
+      state.phase = "answered"; state.inviteTime = T2000;
+      state.taraStatus = "late"; state.taraTime = T2100;
+      syncManage(); syncTara();
+      $("upd-title").textContent = "Unsere Bank";
+      $("upd-sub").textContent = "Zugesagt — du kommst um 21:00. Für niemanden sonst ändert sich etwas.";
+      setView("tara");
+      break;
+  }
+  if (S && ["received", "mytime", "answered-host", "manage", "edit", "updated"].includes(S)) {
+    const c = minToClock(state.inviteTime);
+    if (window.setSessionTime) window.setSessionTime(c.label);
+  }
+}
+if (S) {
+  // Karte muss stehen, damit setPuck/setSessionTime existieren
+  const wait = setInterval(() => {
+    if (window.setPuck && window.setSessionTime) { clearInterval(wait); preset(); }
+  }, 60);
+} else {
+  setView("leon");
+}
+</script>
+</body>
+</html>
