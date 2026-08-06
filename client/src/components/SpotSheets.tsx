@@ -25,6 +25,7 @@ import { hapticTap } from "../lib/native";
 import { cloudMessage } from "../lib/cloudkit";
 import {
   SELF_ID,
+  avatarGlyph,
   friendLabel,
   spotSync,
   useActiveInvitation,
@@ -40,6 +41,12 @@ import { MIN_MS, NOW_ZONE_MIN, dayWord, fmtClock, spotAllowedAt } from "../lib/s
 import "./spots.css";
 
 const EMOJIS = ["🪑", "🌳", "🌊", "🔥", "⭐️", "🏕️"];
+
+/** Zeichen fürs eigene Profil — Charakter statt Ort, deshalb ein eigenes Set. */
+const PROFILE_EMOJIS = [
+  "🌿", "🦊", "🐙", "🎧", "🌙", "⚡️", "🍀", "🔥",
+  "🌊", "🐝", "🎸", "🍄", "☕️", "🛹", "🌵",
+];
 
 // --------------------------------------------------------------- Bausteine
 
@@ -110,10 +117,37 @@ function SpotCard({
   );
 }
 
-function Avatar({ name, color }: { name: string; color: string }) {
+function PersonIcon() {
   return (
-    <span className="sp-ava" style={{ background: color }} aria-hidden="true">
-      {name.slice(0, 1).toUpperCase()}
+    <svg className="sp-ava-person" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20.5c1.2-4 4-6 7.5-6s6.3 2 7.5 6" />
+    </svg>
+  );
+}
+
+/**
+ * Avatar-Kreis: gewähltes Zeichen, sonst Initiale des Namens. Ohne beides
+ * bleibt er leer und trägt das Personen-Symbol — ein Buchstabe würde einen
+ * Namen behaupten, den es noch nicht gibt.
+ */
+function Avatar({
+  person,
+  color,
+  size,
+}: {
+  person: { name: string; emoji?: string };
+  color: string;
+  size?: "lg";
+}) {
+  const glyph = avatarGlyph(person);
+  const emoji = (person.emoji ?? "").trim() !== "";
+  const cls = ["sp-ava", size === "lg" ? "lg" : "", emoji ? "emo" : "", glyph === "" ? "blank" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <span className={cls} style={glyph === "" ? undefined : { background: color }} aria-hidden="true">
+      {glyph === "" ? <PersonIcon /> : glyph}
     </span>
   );
 }
@@ -149,6 +183,8 @@ function CloudHint() {
 interface RsvpEntry {
   key: string;
   name: string;
+  /** Zeichen aus dem Profil des Gegenübers; fehlt = Initiale. */
+  emoji?: string;
   color: string;
   text: string;
   tone: "in" | "open";
@@ -178,6 +214,7 @@ function rsvpEntries(inv: Invitation, friends: Friend[], participantIds: string[
     return {
       key: id,
       name: friend ? friendLabel(friend) : "Freund",
+      emoji: friend?.emoji,
       color: friend?.color ?? "var(--ink-3)",
       ...replyState(reply, false),
     };
@@ -190,6 +227,7 @@ function rsvpEntries(inv: Invitation, friends: Friend[], participantIds: string[
     rows.push({
       key: `host-${inv.hostId}`,
       name: host ? friendLabel(host) : "Gastgeber",
+      emoji: host?.emoji,
       color: host?.color ?? "var(--accent)",
       text: `ab ${fmtClock(inv.time)} · Gastgeber`,
       tone: "in",
@@ -210,10 +248,10 @@ function rsvpEntries(inv: Invitation, friends: Friend[], participantIds: string[
   return rows;
 }
 
-function RsvpRow({ name, color, text, tone }: Omit<RsvpEntry, "key">) {
+function RsvpRow({ name, emoji, color, text, tone }: Omit<RsvpEntry, "key">) {
   return (
     <div className="sp-rsvp">
-      <Avatar name={name} color={color} />
+      <Avatar person={{ name, emoji }} color={color} />
       <span className="sp-who">{name}</span>
       <span className={`sp-st ${tone}`}>{text}</span>
     </div>
@@ -521,7 +559,7 @@ function FriendChip({
         onToggle();
       }}
     >
-      <Avatar name={friendLabel(friend)} color={friend.color} />
+      <Avatar person={friend} color={friend.color} />
       {friendLabel(friend)}
       {on && (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -545,7 +583,7 @@ function ParticipantChips({ ids, friends }: { ids: string[]; friends: Friend[] }
         const name = friend ? friendLabel(friend) : "Freund";
         return (
           <span key={id} className="sp-chip on">
-            <Avatar name={name} color={friend?.color ?? "var(--ink-3)"} />
+            <Avatar person={{ name, emoji: friend?.emoji }} color={friend?.color ?? "var(--ink-3)"} />
             {name}
           </span>
         );
@@ -973,6 +1011,189 @@ function sharedSpotsLine(names: string[]): string {
   return `${names.length} ${word} · ${names.join(", ")}`;
 }
 
+/** Rolle des Profil-Editors — dieselbe Fläche, drei Anlässe. */
+type ProfileIntent =
+  /** Aus der Freundesliste heraus: einrichten oder ändern. */
+  | { kind: "edit" }
+  /** Vorstufe zum Einladungslink: ohne Namen sieht der Empfänger nichts von dir. */
+  | { kind: "invite" }
+  /** Direkt nach einem Beitritt über einen Link. */
+  | { kind: "welcome"; hostName: string | null };
+
+/**
+ * Profil = Anzeigename + optionales Zeichen (mockup/profile.html).
+ *
+ * Beides ist frei wählbar und liegt in den Friendship-Zonen der Freunde, mit
+ * denen geteilt wurde — kein Konto, kein Verzeichnis, kein Server. Das Zeichen
+ * ist bewusst ein Emoji und kein Foto: es kostet keinen CKAsset-Transfer in
+ * einer geteilten Zone und verlangt keinen Kamera-Zugriff.
+ */
+function ProfileEditor({
+  intent,
+  onNotice,
+  onDone,
+  onCancel,
+}: {
+  intent: ProfileIntent;
+  onNotice: (text: string) => void;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const sync = useSyncState();
+  const [name, setName] = useState(sync.displayName);
+  const [emoji, setEmoji] = useState(sync.emoji);
+  const [busy, setBusy] = useState(false);
+
+  const trimmed = name.trim();
+  const welcome = intent.kind === "welcome";
+  const invite = intent.kind === "invite";
+
+  const save = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      if (invite) {
+        const url = await spotSync.inviteFriend(trimmed, emoji);
+        onDone();
+        try {
+          await Share.share({
+            title: "GreenZones",
+            text: `${trimmed} teilt seine Spots mit dir.`,
+            url,
+            dialogTitle: "Freund einladen",
+          });
+        } catch {
+          // Abbruch im Share-Sheet ist keine Störung — der Link bleibt gültig.
+        }
+      } else {
+        await spotSync.setProfile(trimmed, emoji);
+        onDone();
+      }
+    } catch (error) {
+      onNotice(cloudMessage(error));
+    }
+    setBusy(false);
+  };
+
+  const skip = (): void => {
+    hapticTap();
+    if (welcome) void spotSync.skipProfilePrompt();
+    onCancel();
+  };
+
+  return (
+    <>
+      <h2 className="sp-h2">
+        {welcome
+          ? intent.hostName
+            ? `Du bist mit ${intent.hostName} verbunden`
+            : "Du bist verbunden"
+          : "Dein Profil"}
+      </h2>
+      <div className="sp-hsub">
+        {welcome
+          ? "Ihr teilt ab jetzt Spots und Einladungen. Sag noch, wer du bist."
+          : "Nur deine Freunde sehen das — es liegt in eurem gemeinsamen iCloud-Bereich."}
+      </div>
+
+      <div className="sp-profile-head">
+        <Avatar person={{ name: trimmed, emoji }} color="var(--accent)" size="lg" />
+        <div className="sp-profile-hint">
+          {trimmed === "" ? "Name eingeben — Zeichen ist freiwillig" : "So sehen dich deine Freunde"}
+        </div>
+      </div>
+
+      <div className="sp-sec">Name</div>
+      <div className="sp-field">
+        <input
+          type="text"
+          value={name}
+          placeholder={welcome ? "Wie sollen sie dich sehen?" : "Wie sollen dich deine Freunde nennen?"}
+          aria-label="Dein Anzeigename"
+          maxLength={24}
+          onChange={(e) => setName(e.target.value)}
+          autoCorrect="off"
+          autoComplete="off"
+          enterKeyHint="done"
+        />
+      </div>
+
+      <div className="sp-sec">Zeichen</div>
+      <div className="sp-glyphs">
+        {PROFILE_EMOJIS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            className={e === emoji ? "sp-glyph on" : "sp-glyph"}
+            aria-pressed={e === emoji}
+            aria-label={`Zeichen ${e}`}
+            onClick={() => {
+              hapticTap();
+              setEmoji(e);
+            }}
+          >
+            {e}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={emoji === "" ? "sp-glyph none on" : "sp-glyph none"}
+          aria-pressed={emoji === ""}
+          onClick={() => {
+            hapticTap();
+            setEmoji("");
+          }}
+        >
+          Ohne
+        </button>
+      </div>
+
+      <div className="sp-note">
+        {welcome
+          ? "Ohne Namen erscheinst du als „Freund“. Kannst du jederzeit nachholen."
+          : "Kein Konto, kein Server: Name und Zeichen gehen nur an die Freunde, mit denen du geteilt hast."}
+      </div>
+
+      <button
+        type="button"
+        className="sp-cta blue"
+        disabled={busy || trimmed === ""}
+        onClick={() => void save()}
+      >
+        {invite ? "Weiter — Link teilen" : "Speichern"}
+      </button>
+      <button type="button" className="sp-ghost" onClick={skip}>
+        {welcome ? "Überspringen" : "Abbrechen"}
+      </button>
+    </>
+  );
+}
+
+/**
+ * Der Profil-Schritt direkt nach einem Beitritt. Er hängt am Zustand „Freunde
+ * da, eigenes Profil leer", nicht am Accept-Ereignis: nach einem Kaltstart über
+ * den Share-Link ist das Ereignis längst vorbei, der Zustand aber noch da.
+ */
+export function ProfilePromptSheet({
+  onNotice,
+  onClose,
+}: {
+  onNotice: (text: string) => void;
+  onClose: () => void;
+}) {
+  const friends = useFriends();
+  const host = friends.length === 1 ? friendLabel(friends[0]) : null;
+  return (
+    <Sheet onClose={onClose}>
+      <ProfileEditor
+        intent={{ kind: "welcome", hostName: host === "Freund" ? null : host }}
+        onNotice={onNotice}
+        onDone={onClose}
+        onCancel={onClose}
+      />
+    </Sheet>
+  );
+}
+
 interface FriendsSheetProps {
   /** Direkt im Einladen-Schritt öffnen (Absprung aus dem Spot-Detail ohne Freunde). */
   autoInvite?: boolean;
@@ -982,96 +1203,39 @@ interface FriendsSheetProps {
 }
 
 /**
- * Freundesliste nach mockup/community.html (Szenario „friends").
+ * Freundesliste nach mockup/community.html (Szenario „friends"), mit dem
+ * eigenen Profil als erster Zeile (mockup/profile.html, Variante A).
  *
- * Freunde entstehen ausschließlich über einen Einladungslink: kein
- * Verzeichnis, keine Kontakte, keine Handynummer. Der eigene Anzeigename wird
- * genau einmal erfragt und liegt lokal — er ist frei wählbar und für den Link
- * das Einzige, was der Empfänger von dir sieht.
+ * Freunde entstehen ausschließlich über einen Einladungslink: kein Verzeichnis,
+ * keine Kontakte, keine Handynummer. Das eigene Profil wohnt dauerhaft hier —
+ * wer über einen Link beigetreten ist, hat noch keins und findet an dieser
+ * Stelle den Weg dorthin, ohne dafür selbst einladen zu müssen.
  */
 export function FriendsSheet({ autoInvite = false, onNotice, onClose }: FriendsSheetProps) {
   const friends = useFriends();
   const spots = useSpots();
   const sync = useSyncState();
-  // autoInvite landet im Namens-Schritt (kein Auto-Cloud-Write beim Mount).
-  const [ask, setAsk] = useState<"invite" | "rename" | null>(autoInvite ? "invite" : null);
-  const [name, setName] = useState(sync.displayName);
-  const [busy, setBusy] = useState(false);
+  // autoInvite landet im Profil-Schritt (kein Auto-Cloud-Write beim Mount).
+  const [intent, setIntent] = useState<ProfileIntent | null>(autoInvite ? { kind: "invite" } : null);
 
   const shared = spots.filter((s) => s.zoneName !== undefined || s.sharePending === true);
   const spotNames = (friendId: string): string[] =>
     shared.filter((s) => (s.participantIds ?? []).includes(friendId)).map((s) => s.name);
 
-  const invite = async (displayName: string): Promise<void> => {
-    setBusy(true);
-    let url: string;
-    try {
-      url = await spotSync.inviteFriend(displayName);
-    } catch (error) {
-      setBusy(false);
-      onNotice(cloudMessage(error));
-      return;
-    }
-    setBusy(false);
-    setAsk(null);
-    try {
-      await Share.share({
-        title: "GreenZones",
-        text: `${displayName} teilt seine Spots mit dir.`,
-        url,
-        dialogTitle: "Freund einladen",
-      });
-    } catch {
-      // Abbruch im Share-Sheet ist keine Störung — der Link bleibt gültig.
-    }
-  };
-
-  const rename = async (displayName: string): Promise<void> => {
-    setBusy(true);
-    try {
-      await spotSync.setDisplayName(displayName);
-      setAsk(null);
-    } catch (error) {
-      onNotice(cloudMessage(error));
-    }
-    setBusy(false);
-  };
-
-  if (ask !== null) {
-    const forInvite = ask === "invite";
+  if (intent !== null) {
     return (
       <Sheet onClose={onClose}>
-        <h2 className="sp-h2">Dein Name</h2>
-        <div className="sp-hsub">
-          So stehst du in der Freundesliste der anderen. Frei wählbar — kein Konto, kein Klarname.
-        </div>
-        <div className="sp-field">
-          <span className="sp-field-emoji">🙂</span>
-          <input
-            type="text"
-            value={name}
-            placeholder="Leon"
-            aria-label="Dein Anzeigename"
-            onChange={(e) => setName(e.target.value)}
-            autoCorrect="off"
-            autoComplete="off"
-            enterKeyHint="done"
-          />
-        </div>
-        <button
-          type="button"
-          className="sp-cta blue"
-          disabled={busy || !name.trim()}
-          onClick={() => void (forInvite ? invite(name.trim()) : rename(name.trim()))}
-        >
-          {forInvite ? "Weiter — Link teilen" : "Name speichern"}
-        </button>
-        <button type="button" className="sp-ghost" onClick={() => setAsk(null)}>
-          Zurück
-        </button>
+        <ProfileEditor
+          intent={intent}
+          onNotice={onNotice}
+          onDone={() => setIntent(null)}
+          onCancel={() => setIntent(null)}
+        />
       </Sheet>
     );
   }
+
+  const hasProfile = sync.displayName !== "";
 
   return (
     <Sheet onClose={onClose}>
@@ -1084,9 +1248,32 @@ export function FriendsSheet({ autoInvite = false, onNotice, onClose }: FriendsS
             }`}
       </div>
 
+      <button
+        type="button"
+        className={hasProfile ? "sp-self" : "sp-self todo"}
+        onClick={() => {
+          hapticTap();
+          setIntent({ kind: "edit" });
+        }}
+      >
+        <Avatar person={{ name: sync.displayName, emoji: sync.emoji }} color="var(--accent)" />
+        <span className="sp-self-who">
+          <b>{hasProfile ? sync.displayName : "Profil einrichten"}</b>
+          <span>
+            {hasProfile
+              ? "So sehen dich deine Freunde"
+              : friends.length === 1
+                ? `${friendLabel(friends[0])} sieht dich sonst nur als „Freund“`
+                : "Sonst stehst du bei den anderen nur als „Freund“"}
+          </span>
+        </span>
+        <span className="sp-self-edit">{hasProfile ? "Ändern" : "›"}</span>
+      </button>
+
+      {friends.length > 0 && <div className="sp-sec">Deine Freunde</div>}
       {friends.map((f) => (
         <div className="sp-member" key={f.id}>
-          <Avatar name={friendLabel(f)} color={f.color} />
+          <Avatar person={f} color={f.color} />
           <div className="sp-member-who">
             <b>{friendLabel(f)}</b>
             <span>{sharedSpotsLine(spotNames(f.id))}</span>
@@ -1094,40 +1281,12 @@ export function FriendsSheet({ autoInvite = false, onNotice, onClose }: FriendsS
         </div>
       ))}
 
-      {sync.displayName !== "" && (
-        <>
-          <div className="sp-sec">Dein Name</div>
-          <button
-            type="button"
-            className="sp-timerow"
-            onClick={() => {
-              hapticTap();
-              setName(sync.displayName);
-              setAsk("rename");
-            }}
-          >
-            <b>{sync.displayName}</b>
-            <span className="sp-edit">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z" />
-              </svg>
-              Ändern
-            </span>
-          </button>
-        </>
-      )}
-
       <button
         type="button"
         className="sp-invite-btn"
-        disabled={busy}
         onClick={() => {
           hapticTap();
-          if (sync.displayName === "") {
-            setAsk("invite");
-            return;
-          }
-          void invite(sync.displayName);
+          setIntent({ kind: "invite" });
         }}
       >
         <IconShare />

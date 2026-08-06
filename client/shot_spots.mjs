@@ -1,6 +1,8 @@
 import { chromium } from "playwright";
 
-// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|solo|invite|sent|manage|reply|friends> [dark]
+// usage: node shot_spots.mjs <url> <out.png> <map|newspot|pick|detail|solo|invite|sent|manage|reply|friends|profile|profile-empty|welcome> [dark]
+// profile = Editor aus der Freundesliste · profile-empty = Liste ohne eigenes Profil
+// welcome = der Profil-Schritt nach einem Beitritt (Freunde da, eigener Name leer)
 // solo = Leons Erstnutzer-Fall: 0 Freunde, lokaler Spot → Detail muss in den
 // Freund-einladen-Flow führen (keine Sackgasse).
 // Screenshots des Community-Features. Der Bestand kommt als Fixture in den
@@ -46,8 +48,9 @@ await page.addInitScript((s) => {
       zoneName: "spot-s1", participantIds: ["f1", "f2"], shareURL: "https://www.icloud.com/share/s1" },
     { id: "s2", name: "Maschsee-Ecke", emoji: "🌳", lng: 9.7408, lat: 52.3693, createdAt: now - 43200000 },
   ];
+  // Marcel hat ein Zeichen, Tara nicht — beide Avatar-Fälle stehen so im Bild.
   const friends = [
-    { id: "f1", name: "Marcel", color: "#7C5CFF", friendshipZone: "friend-f1" },
+    { id: "f1", name: "Marcel", emoji: "🎧", color: "#7C5CFF", friendshipZone: "friend-f1" },
     { id: "f2", name: "Tara", color: "#0A9B8E", friendshipZone: "friend-f2" },
   ];
   const invitation = (extra) => [
@@ -68,6 +71,15 @@ await page.addInitScript((s) => {
   if (s === "reply") invites = invitation({ hostId: "f1", replies: [{ participantId: "f2", status: "in" }] });
 
   localStorage.setItem("gz_onboarded", "1");
+  // Das eigene Profil ist der Prüfling: „welcome" und „profile-empty" laufen
+  // bewusst OHNE Namen, damit der leere Zustand echt ist und nicht gestellt.
+  if (s !== "welcome" && s !== "profile-empty") {
+    localStorage.setItem("CapacitorStorage.gz_display_name", "Leon");
+    localStorage.setItem("CapacitorStorage.gz_profile_emoji", "🌿");
+  }
+  // „profile-empty" ist der Zustand NACH dem Überspringen: der Schritt ruht,
+  // die Liste trägt den offenen Hinweis. Ohne das Flag läge der Schritt davor.
+  if (s === "profile-empty") localStorage.setItem("CapacitorStorage.gz_profile_asked", "1");
   if (s === "solo") {
     localStorage.setItem("CapacitorStorage.gz_spots", JSON.stringify([spots[1]]));
     localStorage.setItem("CapacitorStorage.gz_invites", "[]");
@@ -112,9 +124,17 @@ if (scenario === "newspot" || scenario === "pick") {
     await page.click(".detail .sp-cta.blue");
     await page.waitForTimeout(900);
   }
-} else if (scenario === "friends") {
+} else if (scenario === "friends" || scenario === "profile-empty" || scenario === "profile") {
   await page.click('.fab[aria-label="Freunde"]');
   await page.waitForTimeout(700);
+  if (scenario === "profile") {
+    await page.click(".sp-self");
+    await page.waitForTimeout(600);
+  }
+} else if (scenario === "welcome") {
+  // Kein Klick: der Schritt kommt von selbst, sobald Freunde da sind und das
+  // eigene Profil fehlt. Genau das soll das Bild belegen.
+  await page.waitForTimeout(900);
 }
 
 await page.screenshot({ path: out });

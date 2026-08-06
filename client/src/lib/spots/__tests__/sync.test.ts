@@ -76,7 +76,7 @@ function cloudInvitation(p: Partial<CloudInvitation> & { id: string; spotZone: s
 }
 
 function cloudFriend(p: Partial<CloudFriend> & { userID: string }): CloudFriend {
-  return { name: "Tara", friendshipZone: `friend-${p.userID}`, isOwner: true, ...p };
+  return { name: "Tara", emoji: "", friendshipZone: `friend-${p.userID}`, isOwner: true, ...p };
 }
 
 function snapshot(p: Partial<CloudSnapshot> = {}): CloudSnapshot {
@@ -128,8 +128,8 @@ class FakePlugin implements CloudKitSyncPlugin {
     this.guard("acceptShare");
   }
 
-  async setDisplayName(): Promise<void> {
-    this.guard("setDisplayName");
+  async setProfile(): Promise<void> {
+    this.guard("setProfile");
   }
 
   async createSpotShare(opts: { id: string }): Promise<{ zoneName: string; shareURL: string }> {
@@ -362,13 +362,62 @@ describe("mergeSnapshot", () => {
 // ---------------------------------------------------------------- Engine
 
 describe("SpotSync", () => {
+  it("fragt nach dem eigenen Profil, sobald es Freunde gibt und noch kein Name da ist", async () => {
+    const h = await harness();
+    // Ohne Freunde gibt es nichts zu erklären — die Frage wäre grundlos.
+    expect(h.sync.getState().profilePrompt).toBe(false);
+
+    h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
+    await h.sync.refresh();
+    expect(h.sync.getState().profilePrompt).toBe(true);
+
+    await h.sync.setProfile("Leon", "🌿");
+    expect(h.sync.getState()).toMatchObject({
+      displayName: "Leon",
+      emoji: "🌿",
+      profilePrompt: false,
+    });
+    // Mit bestehenden Freundschaften muss das Profil in deren Zonen nachgezogen werden.
+    expect(h.plugin.calls).toContain("setProfile");
+  });
+
+  it("hält die Profil-Frage nach dem Überspringen auch über weitere Syncs ruhig", async () => {
+    const h = await harness();
+    h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
+    await h.sync.refresh();
+    expect(h.sync.getState().profilePrompt).toBe(true);
+
+    await h.sync.skipProfilePrompt();
+    expect(h.sync.getState().profilePrompt).toBe(false);
+
+    // Jeder weitere Sync bewertet den Prompt neu — „übersprungen" muss das überleben,
+    // sonst kommt die Frage bei jedem Push zurück.
+    await h.sync.refresh();
+    expect(h.sync.getState().profilePrompt).toBe(false);
+  });
+
+  it("nimmt ein leeres Zeichen als Wahl an, nicht als fehlenden Wert", async () => {
+    const h = await harness();
+    h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
+    await h.sync.refresh();
+    await h.sync.setProfile("Leon", "🌿");
+    await h.sync.setProfile("Leon", "");
+    expect(h.sync.getState().emoji).toBe("");
+  });
+
   it("schreibt die Freunde aus dem Snapshot in den FriendStore", async () => {
     const h = await harness();
     h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
     await h.sync.refresh();
 
     expect(h.friends.getFriends()).toEqual([
-      { id: TARA, name: "Tara", color: expect.any(String), friendshipZone: `friend-${TARA}` },
+      {
+        id: TARA,
+        name: "Tara",
+        emoji: "",
+        color: expect.any(String),
+        friendshipZone: `friend-${TARA}`,
+      },
     ]);
     const reader = new FriendStore();
     await reader.ready;

@@ -69,7 +69,7 @@ const web: CloudKitSyncPlugin = {
   acceptShare() {
     return Promise.reject(cloudError("noAccount", NO_CLOUD));
   },
-  setDisplayName() {
+  setProfile() {
     return Promise.reject(cloudError("noAccount", NO_CLOUD));
   },
   createSpotShare() {

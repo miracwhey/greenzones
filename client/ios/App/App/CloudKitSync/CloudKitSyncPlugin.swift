@@ -13,7 +13,7 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "fetchAll", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createFriendInvite", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "acceptShare", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setDisplayName", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setProfile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createSpotShare", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "offerSpotToFriends", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "deleteSpot", returnType: CAPPluginReturnPromise),
@@ -58,8 +58,9 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func createFriendInvite(_ call: CAPPluginCall) {
         let displayName = call.getString("displayName") ?? ""
+        let emoji = call.getString("emoji") ?? ""
         run(call) {
-            ["url": try await CloudKitService.shared.createFriendInvite(displayName: displayName)]
+            ["url": try await CloudKitService.shared.createFriendInvite(displayName: displayName, emoji: emoji)]
         }
     }
 
@@ -68,16 +69,18 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
             return reject(call, SyncError(.notFound, "Dieser Einladungslink ist unvollständig."))
         }
         let displayName = call.getString("displayName") ?? ""
+        let emoji = call.getString("emoji") ?? ""
         run(call) {
-            try await CloudKitService.shared.acceptShare(urlString: url, displayName: displayName)
+            try await CloudKitService.shared.acceptShare(urlString: url, displayName: displayName, emoji: emoji)
             return [:]
         }
     }
 
-    @objc func setDisplayName(_ call: CAPPluginCall) {
+    @objc func setProfile(_ call: CAPPluginCall) {
         let name = call.getString("name") ?? ""
+        let emoji = call.getString("emoji") ?? ""
         run(call) {
-            try await CloudKitService.shared.setDisplayName(name)
+            try await CloudKitService.shared.setProfile(name: name, emoji: emoji)
             return [:]
         }
     }

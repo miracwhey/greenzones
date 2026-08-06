@@ -31,6 +31,8 @@ export interface Spot {
 export interface Friend {
   id: string;
   name: string;
+  /** Selbst gewähltes Zeichen; fehlt/leer = keins, dann trägt der Avatar die Initiale. */
+  emoji?: string;
   /** Avatar-Farbe (CSS-Farbe), lokal vergeben. */
   color: string;
   /** Friendship-Zone `friend-<uuid>` — Zustellweg für Spot-Angebote. */
@@ -64,6 +66,17 @@ export const SELF_ID = "me";
 /** Anzeigename eines Freundes — ein noch leeres Profil ist ein Zustand, kein Fehler. */
 export function friendLabel(friend: Friend): string {
   return friend.name.trim() || "Freund";
+}
+
+/**
+ * Was im Avatar-Kreis steht: das gewählte Zeichen, sonst die Initiale des
+ * Namens. Ohne beides bleibt der Kreis leer — dann trägt ihn das Personen-
+ * Symbol, denn ein „F" von „Freund" behauptete einen Namen, den es nicht gibt.
+ */
+export function avatarGlyph(person: { name: string; emoji?: string }): string {
+  const emoji = (person.emoji ?? "").trim();
+  if (emoji !== "") return emoji;
+  return person.name.trim().slice(0, 1).toUpperCase();
 }
 
 /** Einladung nach ihrem Zeitpunkt natürlich auslaufen lassen (Konzept: „Client blendet Vergangenes aus"). */

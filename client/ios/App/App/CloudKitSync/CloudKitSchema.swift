@@ -33,6 +33,7 @@ enum CKSchema {
     /// EIN Speicherort für beide Welten: derselbe UserDefaults-Eintrag, den der TS-Layer über
     /// Capacitor Preferences unter "gz_display_name" schreibt (Prefix "CapacitorStorage.").
     static let displayNameDefaultsKey = "CapacitorStorage.gz_display_name"
+    static let profileEmojiDefaultsKey = "CapacitorStorage.gz_profile_emoji"
 }
 
 /// Fehler-Codes des Plugin-Contracts. Die TS-Seite mappt sie auf Nutzertext.

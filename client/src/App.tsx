@@ -5,7 +5,13 @@ import StatusBar from "./components/StatusBar";
 import SearchBar from "./components/SearchBar";
 import Onboarding from "./components/Onboarding";
 import InfoSheet from "./components/InfoSheet";
-import { FriendsSheet, InviteSheet, NewSpotSheet, SpotDetailSheet } from "./components/SpotSheets";
+import {
+  FriendsSheet,
+  InviteSheet,
+  NewSpotSheet,
+  ProfilePromptSheet,
+  SpotDetailSheet,
+} from "./components/SpotSheets";
 import { Geolocation } from "@capacitor/geolocation";
 import { useLocation } from "./lib/location";
 import { ZoneEngine, type ZoneStatus } from "./lib/zones";
@@ -13,7 +19,14 @@ import { pedestrianBanActive } from "./lib/time";
 import { distanceM, type LngLat } from "./lib/geo";
 import { hapticTap, initNative } from "./lib/native";
 import { SearchController, WorkerOfflineIndex, type Result } from "./lib/search";
-import { inviteStore, invitationActive, spotSync, useSpots, type Invitation } from "./lib/spots";
+import {
+  inviteStore,
+  invitationActive,
+  spotSync,
+  useSpots,
+  useSyncState,
+  type Invitation,
+} from "./lib/spots";
 import "./App.css";
 
 const FALLBACK_CENTER: LngLat = { lng: 9.7386, lat: 52.3728 };
@@ -51,6 +64,7 @@ export default function App() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const sync = useSyncState();
   const [toast, setToast] = useState<{ text: string; on: boolean }>({ text: "", on: false });
 
   const location = useLocation(onboarded);
@@ -328,7 +342,18 @@ export default function App() {
       )}
 
       {sheet?.kind === "friends" && (
-        <FriendsSheet onNotice={showToast} onClose={() => setSheet(null)} />
+        <FriendsSheet
+          autoInvite={sheet.autoInvite}
+          onNotice={showToast}
+          onClose={() => setSheet(null)}
+        />
+      )}
+
+      {/* Nach einem Beitritt über einen Link: Profil nachtragen. Tritt zurück,
+          solange ein anderes Sheet offen ist — sonst überdeckt er eine
+          Handlung, die der Nutzer gerade selbst begonnen hat. */}
+      {sheet === null && sync.profilePrompt && (
+        <ProfilePromptSheet onNotice={showToast} onClose={() => void spotSync.skipProfilePrompt()} />
       )}
 
       <div

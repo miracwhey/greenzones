@@ -128,9 +128,9 @@ final class CloudKitService {
 
     // MARK: - Freundschaften
 
-    func createFriendInvite(displayName: String) async throws -> String {
+    func createFriendInvite(displayName: String, emoji: String) async throws -> String {
         let myID = try await requireAccount()
-        rememberDisplayName(displayName)
+        rememberProfile(name: displayName, emoji: emoji)
 
         let zoneID = CKRecordZone.ID(zoneName: CKSchema.friendZonePrefix + UUID().uuidString.lowercased(),
                                      ownerName: CKCurrentUserDefaultName)
@@ -148,6 +148,7 @@ final class CloudKitService {
         let profile = CKRecord(recordType: CKSchema.typeProfile,
                                recordID: CKRecord.ID(recordName: CKSchema.profileRecordPrefix + myID, zoneID: zoneID))
         profile["name"] = displayName
+        profile["emoji"] = emoji
         _ = try await privateDB.modifyRecords(saving: [friendship, profile], deleting: [],
                                               savePolicy: .allKeys, atomically: true)
 
@@ -157,20 +158,21 @@ final class CloudKitService {
         return url
     }
 
-    func acceptShare(urlString: String, displayName: String) async throws {
+    func acceptShare(urlString: String, displayName: String, emoji: String) async throws {
         let myID = try await requireAccount()
-        rememberDisplayName(displayName)
+        rememberProfile(name: displayName, emoji: emoji)
         guard let url = URL(string: urlString) else {
             throw SyncError(.notFound, "Dieser Einladungslink ist unvollständig.")
         }
         let metadata = try await shareMetadata(for: url)
         try await accept(metadata: metadata)
-        try await writeOwnProfileIfFriendshipZone(metadata: metadata, displayName: displayName, myID: myID)
+        try await writeOwnProfileIfFriendshipZone(metadata: metadata, displayName: displayName,
+                                                  emoji: emoji, myID: myID)
     }
 
-    func setDisplayName(_ name: String) async throws {
+    func setProfile(name: String, emoji: String) async throws {
         let myID = try await requireAccount()
-        rememberDisplayName(name)
+        rememberProfile(name: name, emoji: emoji)
 
         for isMine in [true, false] {
             let database = isMine ? privateDB : sharedDB
@@ -181,6 +183,7 @@ final class CloudKitService {
                                           recordID: CKRecord.ID(recordName: CKSchema.profileRecordPrefix + myID,
                                                                 zoneID: zone.zoneID))
                     record["name"] = name
+                    record["emoji"] = emoji
                     return record
                 }
             guard !records.isEmpty else { continue }
@@ -342,10 +345,14 @@ final class CloudKitService {
             do {
                 try await self.accept(metadata: metadata)
                 let myID = try await self.container.userRecordID().recordName
+                // Ohne Namen wird kein Profil geschrieben: ein leerer Record sagt dem
+                // Gegenüber nichts. Die App fragt nach dem Beitritt danach und setProfile
+                // trägt ihn dann in alle Freundschafts-Zonen nach.
                 let displayName = self.storedDisplayName()
                 if !displayName.isEmpty {
                     try await self.writeOwnProfileIfFriendshipZone(metadata: metadata,
                                                                   displayName: displayName,
+                                                                  emoji: self.storedEmoji(),
                                                                   myID: myID)
                 }
             } catch {
@@ -455,6 +462,7 @@ final class CloudKitService {
 
     private func writeOwnProfileIfFriendshipZone(metadata: CKShare.Metadata,
                                                  displayName: String,
+                                                 emoji: String,
                                                  myID: String) async throws {
         let zoneID = metadata.share.recordID.zoneID
         guard zoneID.zoneName.hasPrefix(CKSchema.friendZonePrefix) else { return }
@@ -462,6 +470,7 @@ final class CloudKitService {
         let profile = CKRecord(recordType: CKSchema.typeProfile,
                                recordID: CKRecord.ID(recordName: CKSchema.profileRecordPrefix + myID, zoneID: zoneID))
         profile["name"] = displayName
+        profile["emoji"] = emoji
         _ = try await sharedDB.modifyRecords(saving: [profile], deleting: [],
                                              savePolicy: .allKeys, atomically: true)
     }
@@ -521,6 +530,7 @@ final class CloudKitService {
         return [
             "userID": friendID,
             "name": profile?["name"] as? String ?? "",
+            "emoji": profile?["emoji"] as? String ?? "",
             "friendshipZone": entry.zone.zoneID.zoneName,
             "isOwner": entry.isMine
         ]
@@ -581,14 +591,21 @@ final class CloudKitService {
         return name
     }
 
-    // MARK: - Anzeigename
+    // MARK: - Profil (Name + Zeichen)
 
-    private func rememberDisplayName(_ name: String) {
-        guard !name.isEmpty else { return }
-        UserDefaults.standard.set(name, forKey: CKSchema.displayNameDefaultsKey)
+    /// Das Zeichen wird auch leer geschrieben — „Ohne" ist eine Wahl, kein fehlender Wert.
+    private func rememberProfile(name: String, emoji: String) {
+        if !name.isEmpty {
+            UserDefaults.standard.set(name, forKey: CKSchema.displayNameDefaultsKey)
+        }
+        UserDefaults.standard.set(emoji, forKey: CKSchema.profileEmojiDefaultsKey)
     }
 
     private func storedDisplayName() -> String {
         UserDefaults.standard.string(forKey: CKSchema.displayNameDefaultsKey) ?? ""
+    }
+
+    private func storedEmoji() -> String {
+        UserDefaults.standard.string(forKey: CKSchema.profileEmojiDefaultsKey) ?? ""
     }
 }

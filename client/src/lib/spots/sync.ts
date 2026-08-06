@@ -33,6 +33,9 @@ import type { Friend, Invitation, Reply, Spot } from "./types";
 import { SELF_ID } from "./types";
 
 export const DISPLAY_NAME_KEY = "gz_display_name";
+export const PROFILE_EMOJI_KEY = "gz_profile_emoji";
+/** „Profil einrichten" nach einem Beitritt wurde gezeigt und beantwortet oder übersprungen. */
+export const PROFILE_ASKED_KEY = "gz_profile_asked";
 
 /** Avatar-Farben aus dem Mockup — deterministisch aus der userID, damit ein Merge nichts umfärbt. */
 const FRIEND_COLORS = ["#7C5CFF", "#0A9B8E", "#0A84FF", "#F76B15", "#12A150", "#E5484D"];
@@ -124,6 +127,7 @@ export function mergeSnapshot(snapshot: CloudSnapshot, current: LocalState): Loc
     .map((f) => ({
       id: f.userID,
       name: f.name,
+      emoji: f.emoji,
       color: friendColor(f.userID),
       friendshipZone: f.friendshipZone,
     }))
@@ -188,6 +192,15 @@ export interface SyncState {
   loaded: boolean;
   /** Eigener Anzeigename (lokal persistiert); "" = noch nie gesetzt. */
   displayName: string;
+  /** Eigenes Zeichen; "" = keins gewählt (eine gültige Wahl, kein fehlender Wert). */
+  emoji: string;
+  /**
+   * Es gibt Freunde, aber noch kein eigenes Profil, und der Nutzer wurde nach
+   * dem Beitritt noch nicht gefragt. Zustandsbasiert statt an das Accept-Event
+   * gehängt: nach einem Kaltstart über den Share-Link ist das Event längst
+   * verpufft, der Zustand aber noch da.
+   */
+  profilePrompt: boolean;
   /** Letzte Meldung an den Nutzer (blameless) oder null. */
   error: string | null;
   /** Spot-Shares, die noch in der Outbox liegen. */
@@ -198,6 +211,8 @@ const INITIAL: SyncState = {
   status: "unknown",
   loaded: false,
   displayName: "",
+  emoji: "",
+  profilePrompt: false,
   error: null,
   pendingShares: 0,
 };
@@ -233,6 +248,8 @@ export class SpotSync {
   private queued = false;
   /** Schwanz der Outbox-Kette. */
   private flushing: Promise<void> = Promise.resolve();
+  /** Profil-Frage nach einem Beitritt wurde beantwortet oder übersprungen. */
+  private profileAsked = false;
 
   constructor(deps: Partial<SyncDeps> = {}) {
     this.deps = {
@@ -271,7 +288,17 @@ export class SpotSync {
     if (this.started) return;
     this.started = true;
     await Promise.all([this.deps.spots.ready, this.deps.friends.ready, this.deps.invites.ready]);
-    this.patch({ displayName: await loadDisplayName() });
+    const [displayName, emoji, asked] = await Promise.all([
+      loadPref(DISPLAY_NAME_KEY),
+      loadPref(PROFILE_EMOJI_KEY),
+      loadPref(PROFILE_ASKED_KEY),
+    ]);
+    this.profileAsked = asked === "1";
+    this.patch({ displayName, emoji });
+    // Am lokalen Bestand bewerten, nicht erst nach einem geglückten Fetch: die
+    // Freunde von gestern liegen längst auf dem Gerät, und ohne Netz käme die
+    // Frage sonst gar nicht.
+    this.evaluateProfilePrompt();
     try {
       const { status } = await this.deps.plugin.getAccountStatus();
       this.patch({ status });
@@ -339,6 +366,7 @@ export class SpotSync {
     await this.deps.friends.replaceAll(merged.friends);
     await this.deps.spots.replaceAll(merged.spots);
     await this.deps.invites.replaceAll(merged.invitations);
+    this.evaluateProfilePrompt();
 
     if (!this.subscribed) {
       try {
@@ -524,21 +552,56 @@ export class SpotSync {
    * deren Profile nachziehen. Der Name ist frei wählbar — kein Login, kein
    * Verzeichnis.
    */
-  async setDisplayName(name: string): Promise<void> {
+  /**
+   * Eigenes Profil festhalten und, sofern es schon Freundschaften gibt, deren
+   * Profile-Records nachziehen. Name und Zeichen sind frei wählbar — kein Login,
+   * kein Verzeichnis. Ein leeres Zeichen ist die Wahl „Ohne", kein Fehlwert:
+   * es wird geschrieben und löscht ein früher gewähltes.
+   */
+  async setProfile(name: string, emoji: string): Promise<void> {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === this.state.displayName) return;
+    if (!trimmed) return;
+    const unchanged = trimmed === this.state.displayName && emoji === this.state.emoji;
+    // Auch unverändert muss die Frage als beantwortet gelten, sonst kommt sie wieder.
+    await this.markProfileAsked();
+    if (unchanged) return;
     await Preferences.set({ key: DISPLAY_NAME_KEY, value: trimmed });
-    this.patch({ displayName: trimmed });
+    await Preferences.set({ key: PROFILE_EMOJI_KEY, value: emoji });
+    this.patch({ displayName: trimmed, emoji });
     if (this.deps.friends.getFriends().length > 0) {
-      await this.deps.plugin.setDisplayName({ name: trimmed });
+      await this.deps.plugin.setProfile({ name: trimmed, emoji });
     }
   }
 
+  /** „Später"/„Überspringen": die Frage ruht, das Profil bleibt über die Freundesliste erreichbar. */
+  async skipProfilePrompt(): Promise<void> {
+    await this.markProfileAsked();
+  }
+
+  private async markProfileAsked(): Promise<void> {
+    this.profileAsked = true;
+    this.patch({ profilePrompt: false });
+    try {
+      await Preferences.set({ key: PROFILE_ASKED_KEY, value: "1" });
+    } catch {
+      // Nicht persistiert heißt: die Frage kommt beim nächsten Start noch einmal.
+      // Lästig, aber harmlos — und besser als ein verschluckter Schreibfehler.
+    }
+  }
+
+  private evaluateProfilePrompt(): void {
+    const hasFriends = this.deps.friends.getFriends().length > 0;
+    this.patch({
+      profilePrompt: hasFriends && this.state.displayName === "" && !this.profileAsked,
+    });
+  }
+
   /** Einladungs-Link für einen neuen Freund; der Aufrufer schickt ihn übers Share-Sheet. */
-  async inviteFriend(displayName: string): Promise<string> {
-    await this.setDisplayName(displayName);
+  async inviteFriend(displayName: string, emoji: string = this.state.emoji): Promise<string> {
+    await this.setProfile(displayName, emoji);
     const { url } = await this.deps.plugin.createFriendInvite({
       displayName: this.state.displayName,
+      emoji: this.state.emoji,
     });
     void this.refresh();
     return url;
@@ -552,9 +615,9 @@ export class SpotSync {
   }
 }
 
-async function loadDisplayName(): Promise<string> {
+async function loadPref(key: string): Promise<string> {
   try {
-    return (await Preferences.get({ key: DISPLAY_NAME_KEY })).value ?? "";
+    return (await Preferences.get({ key })).value ?? "";
   } catch {
     return "";
   }

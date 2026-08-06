@@ -25,7 +25,7 @@ hierarchisches Root-Record-Sharing der Fallback — dann parent-Referenzen auf d
 | Record-Type | recordName | Felder | Schreiber |
 |---|---|---|---|
 | `Friendship` | `friendship` | `createdAt: Date` | Ersteller (einmalig) |
-| `Profile` | `profile-<userRecordID-Name>` | `name: String` | NUR die jeweilige Person (jeder pflegt genau seinen) |
+| `Profile` | `profile-<userRecordID-Name>` | `name: String`, `emoji: String` | NUR die jeweilige Person (jeder pflegt genau seinen) |
 | `SpotOffer` | `offer-<spotZoneName>` | `spotShareURL: String`, `spotName: String`, `spotEmoji: String` | der Anbietende |
 
 - Freundschaft entsteht: A ruft `createFriendInvite` → Zone + `Friendship` + eigenes `Profile` + Share → URL via System-Share-Sheet verschicken. B öffnet Link (oder `acceptShare`) → B schreibt sein `Profile`.
@@ -58,6 +58,7 @@ export type CKAccountStatus =
 export interface CloudFriend {
   userID: string;          // CKRecord.ID.recordName des Gegenübers
   name: string;            // aus dessen Profile-Record; "" wenn (noch) keins da
+  emoji: string;           // gewähltes Zeichen; "" = keins, dann trägt der Avatar die Initiale
   friendshipZone: string;  // Zonen-Name friend-<uuid>
   isOwner: boolean;        // true = ich habe die Freundschaft angelegt
 }
@@ -94,12 +95,12 @@ export interface CloudKitSyncPlugin {
   /** Kompletter Zustand. Verarbeitet dabei offene SpotOffers (Auto-Accept, idempotent). */
   fetchAll(): Promise<CloudSnapshot>;
 
-  /** Legt Friendship-Zone + Share + eigenes Profile an. displayName = eigener Anzeigename. */
-  createFriendInvite(opts: { displayName: string }): Promise<{ url: string }>;
+  /** Legt Friendship-Zone + Share + eigenes Profile an. Profil = eigener Anzeigename + Zeichen. */
+  createFriendInvite(opts: { displayName: string; emoji: string }): Promise<{ url: string }>;
   /** Akzeptiert eine beliebige Share-URL (Friend-Link). Schreibt bei Friendship-Shares das eigene Profile. */
-  acceptShare(opts: { url: string; displayName: string }): Promise<void>;
-  /** Aktualisiert den eigenen Profile-Record in allen Friendship-Zonen. */
-  setDisplayName(opts: { name: string }): Promise<void>;
+  acceptShare(opts: { url: string; displayName: string; emoji: string }): Promise<void>;
+  /** Aktualisiert den eigenen Profile-Record in allen Friendship-Zonen. Leeres emoji löscht das Zeichen. */
+  setProfile(opts: { name: string; emoji: string }): Promise<void>;
 
   /** Legt Spot-Zone + Spot-Record + Share an. id = lokale Spot-UUID (wird Teil des Zonen-Namens spot-<id>). */
   createSpotShare(opts: { id: string; name: string; emoji: string; lng: number; lat: number; createdAt: number }):

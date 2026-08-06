@@ -16,6 +16,8 @@ const state: SyncState = {
   status: "unknown",
   loaded: false,
   displayName: "",
+  emoji: "",
+  profilePrompt: false,
   error: null,
   pendingShares: 0,
 };
@@ -99,13 +101,14 @@ describe("FriendsSheet", () => {
     state.status = "unknown";
   });
 
-  it("autoInvite öffnet direkt den Namens-Schritt — kein Cloud-Write beim Mount", () => {
+  it("autoInvite öffnet direkt den Profil-Schritt — kein Cloud-Write beim Mount", () => {
     friends = [];
     spots = [];
     const html = renderToStaticMarkup(
       <FriendsSheet autoInvite onNotice={() => {}} onClose={() => {}} />,
     );
-    expect(html).toContain("Dein Name");
+    expect(html).toContain("Dein Profil");
+    // Der CTA trennt den Einladen-Anlass vom bloßen Profil-Bearbeiten.
     expect(html).toContain("Weiter — Link teilen");
   });
 });

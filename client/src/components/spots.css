@@ -618,3 +618,128 @@
     background: rgba(58, 62, 70, 0.95);
   }
 }
+
+/* ---------------------------------------------------------------- Profil
+   Name + Zeichen (mockup/profile.html). Der Avatar trägt das gewählte
+   Zeichen, sonst die Initiale; ohne beides bleibt er leer und zeigt das
+   Personen-Symbol — ein Buchstabe behauptete sonst einen Namen. */
+
+.sp-ava.emo {
+  /* Emojis brauchen mehr Fläche als eine Versalie und keine eigene Farbe. */
+  font-size: 16px;
+  line-height: 1;
+}
+.sp-ava.blank {
+  background: rgba(23, 25, 28, 0.05);
+  border: 1.5px dashed rgba(23, 25, 28, 0.22);
+}
+.sp-ava-person {
+  width: 46%;
+  height: 46%;
+  stroke: var(--ink-3);
+  stroke-width: 1.7;
+  fill: none;
+}
+.sp-ava.lg {
+  width: 104px;
+  height: 104px;
+  font-size: 38px;
+  border-width: 3px;
+}
+.sp-ava.lg.emo {
+  font-size: 52px;
+}
+.sp-member .sp-ava.emo {
+  font-size: 20px;
+}
+.sp-chip .sp-ava.emo {
+  font-size: 12px;
+}
+
+.sp-profile-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin: 4px 0 2px;
+}
+.sp-profile-hint {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+/* Zeichen-Raster — gleiche Bauart wie die Spot-Emojis, nur mehr Auswahl. */
+.sp-glyphs {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 7px;
+}
+.sp-glyph {
+  aspect-ratio: 1;
+  border-radius: 11px;
+  border: 1.5px solid var(--stroke);
+  background: rgba(23, 25, 28, 0.03);
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  line-height: 1;
+  padding: 0;
+}
+.sp-glyph.on {
+  border-color: var(--accent);
+  background: rgba(10, 132, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.12);
+}
+.sp-glyph.none {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* Eigene Profilzeile über der Freundesliste (Variante A). */
+.sp-self {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 15px;
+  background: rgba(23, 25, 28, 0.035);
+  border: 1px solid var(--stroke);
+  text-align: left;
+}
+.sp-self.todo {
+  background: rgba(10, 132, 255, 0.07);
+  border: 1.5px dashed rgba(10, 132, 255, 0.4);
+}
+.sp-self .sp-ava {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+}
+.sp-self .sp-ava.emo {
+  font-size: 23px;
+}
+.sp-self-who {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.28;
+}
+.sp-self-who b {
+  font-size: 15px;
+  font-weight: 650;
+  display: block;
+}
+.sp-self-who span {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.sp-self.todo .sp-self-who b {
+  color: var(--accent);
+}
+.sp-self-edit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: none;
+}

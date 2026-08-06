@@ -25,9 +25,9 @@ describe("CloudKitSync — Web-Stub", () => {
 
   it("weist jeden Schreibversuch mit code noAccount ab", async () => {
     const writes: Promise<unknown>[] = [
-      CloudKitSync.createFriendInvite({ displayName: "Leon" }),
-      CloudKitSync.acceptShare({ url: "https://www.icloud.com/share/x", displayName: "Leon" }),
-      CloudKitSync.setDisplayName({ name: "Leon" }),
+      CloudKitSync.createFriendInvite({ displayName: "Leon", emoji: "🌿" }),
+      CloudKitSync.acceptShare({ url: "https://www.icloud.com/share/x", displayName: "Leon", emoji: "" }),
+      CloudKitSync.setProfile({ name: "Leon", emoji: "🌿" }),
       CloudKitSync.createSpotShare({
         id: "s1",
         name: "Unsere Bank",
