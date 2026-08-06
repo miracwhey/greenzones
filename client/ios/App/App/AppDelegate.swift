@@ -64,7 +64,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    /// Zweiter Zustellweg für Share-Links: greift, wenn iOS den Share nicht über die Scene liefert.
+    /// Nur für den scene-losen Fall. Diese App hat ein UIApplicationSceneManifest, deshalb liefert
+    /// iOS Shares über SceneDelegate (laufend: `userDidAcceptCloudKitShareWith`, kalt:
+    /// `connectionOptions.cloudKitShareMetadata`) — hier landet regulär nichts.
     func application(_ application: UIApplication, userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
         CloudKitService.shared.handleAcceptedShare(cloudKitShareMetadata)
     }

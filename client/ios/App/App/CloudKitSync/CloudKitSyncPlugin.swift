@@ -30,7 +30,9 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.notifyListeners("cloudChanged", data: nil)
+            // retainUntilConsumed: beim Kaltstart über einen Share-Link feuert das Event, bevor die
+            // WebView ihren Listener registriert hat — ohne Puffer ginge genau der Beitritt verloren.
+            self?.notifyListeners("cloudChanged", data: nil, retainUntilConsumed: true)
         }
     }
 

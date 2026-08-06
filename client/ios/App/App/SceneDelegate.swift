@@ -14,6 +14,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+
+        // Kaltstart-Weg für Share-Links: läuft die App nicht, ruft iOS
+        // `userDidAcceptCloudKitShareWith` NICHT — die Metadaten kommen dann ausschließlich hier an.
+        // Genau der Fall „frisch installiert, Link getippt".
+        if let metadata = connectionOptions.cloudKitShareMetadata {
+            CloudKitService.shared.handleAcceptedShare(metadata)
+        }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -24,8 +31,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
 
-    /// Regelweg für Share-Links: der Nutzer tippt die URL, iOS reicht die Metadaten durch,
-    /// annehmen muss die App selbst.
+    /// Weg für Share-Links bei laufender App (Vordergrund oder Hintergrund mit lebender Scene);
+    /// iOS reicht die Metadaten durch, annehmen muss die App selbst.
     func windowScene(_ windowScene: UIWindowScene, userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
         CloudKitService.shared.handleAcceptedShare(cloudKitShareMetadata)
     }
