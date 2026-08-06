@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GreenZones — Mockup Suche + Ziel</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ok: #1DB954;
+    --ban: #E5484D;
+    --time: #F76B15;
+    --ink: #17191C;
+    --ink-2: #5A616B;
+    --glass: rgba(255,255,255,.78);
+    --glass-solid: rgba(255,255,255,.92);
+    --stroke: rgba(23,25,28,.08);
+    --sat: 54px;
+    --sab: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    color: var(--ink);
+    background: #E8EAED;
+    -webkit-font-smoothing: antialiased;
+  }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 9px; opacity: .55; }
+  .maplibregl-ctrl-bottom-right { bottom: 224px; }
+
+  .statusbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: var(--sat);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px 0;
+    z-index: 40;
+    font-size: 15px; font-weight: 650;
+    pointer-events: none;
+  }
+  .statusbar svg { height: 12px; fill: var(--ink); }
+
+  /* ---------- Such-Feld ---------- */
+  .search {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    left: 14px; right: 14px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 4px 16px rgba(23,25,28,.08);
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 12px;
+    z-index: 31;
+    font-size: 14px;
+  }
+  .search svg.lens { width: 16px; height: 16px; stroke: var(--ink-2); stroke-width: 2; fill: none; flex: none; }
+  .search input {
+    flex: 1; border: 0; outline: 0; background: none;
+    font: inherit; color: var(--ink); min-width: 0;
+  }
+  .search input::placeholder { color: var(--ink-2); }
+  .search .clear {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(23,25,28,.14);
+    display: none; place-items: center; flex: none; cursor: pointer;
+  }
+  .search .clear svg { width: 9px; height: 9px; stroke: #fff; stroke-width: 2.6; fill: none; }
+  .search.filled .clear { display: grid; }
+
+  /* ---------- Backdrop hinter offener Suche ---------- */
+  .scrim {
+    position: absolute; inset: 0;
+    background: rgba(23,25,28,.18);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 29;
+    display: none;
+  }
+  body.search-open .scrim { display: block; }
+
+  /* ---------- Ergebnis-Overlay ---------- */
+  .results {
+    position: absolute;
+    top: calc(var(--sat) + 56px);
+    left: 14px; right: 14px;
+    max-height: calc(100% - var(--sat) - 56px - 300px - 12px); /* bis Oberkante Tastatur */
+    border-radius: 16px;
+    background: var(--glass-solid);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 12px 40px rgba(23,25,28,.18);
+    z-index: 30;
+    overflow-y: auto;
+    display: none;
+    padding: 4px 0 6px;
+  }
+  body.search-open .results { display: block; }
+  .sec {
+    font-size: 10.5px; font-weight: 650; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-2);
+    padding: 10px 16px 4px;
+  }
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  .row:active { background: rgba(23,25,28,.05); }
+  .row .ico {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    background: rgba(23,25,28,.06);
+    display: grid; place-items: center;
+  }
+  .row .ico svg { width: 15px; height: 15px; stroke: var(--ink-2); stroke-width: 1.9; fill: none; }
+  .row .body { flex: 1; min-width: 0; line-height: 1.25; }
+  .row .body b { font-size: 14px; font-weight: 600; letter-spacing: -.01em; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .body span { font-size: 12px; color: var(--ink-2); }
+  .row .dist { font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; flex: none; }
+
+  /* Online-Sektion: Ladezeile / Hinweiszeile */
+  .note {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px 12px;
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .note svg { width: 15px; height: 15px; flex: none; stroke: var(--ink-2); stroke-width: 1.9; fill: none; }
+  .spinner {
+    width: 14px; height: 14px; flex: none;
+    border: 2px solid rgba(23,25,28,.15);
+    border-top-color: var(--ink-2);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty-box {
+    padding: 22px 16px 24px;
+    text-align: center;
+  }
+  .empty-box b { font-size: 14px; font-weight: 600; display: block; margin-bottom: 3px; }
+  .empty-box span { font-size: 12.5px; color: var(--ink-2); }
+
+  /* ---------- Status-Pill (GPS + Ziel-Modus) ---------- */
+  .top {
+    position: absolute;
+    top: calc(var(--sat) + 60px);
+    left: 0; right: 0;
+    display: flex; justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .pill {
+    pointer-events: auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 100px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 8px 32px rgba(23,25,28,.14), 0 1px 2px rgba(23,25,28,.08);
+  }
+  .pill .dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--ok);
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 5px rgba(29,185,84,.18);
+    flex: none;
+  }
+  .pill.state-ban .dot { background: var(--ban); box-shadow: 0 0 0 5px rgba(229,72,77,.18); }
+  .pill .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .pill .txt { line-height: 1.15; padding-right: 4px; }
+  .pill .txt b { font-size: 15px; font-weight: 650; letter-spacing: -.01em; display: block; }
+  .pill .txt span { font-size: 12px; color: var(--ink-2); font-weight: 480; }
+  .pill .close {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(23,25,28,.10);
+    display: none; place-items: center; flex: none; cursor: pointer;
+  }
+  .pill .close svg { width: 11px; height: 11px; stroke: var(--ink); stroke-width: 2.4; fill: none; }
+  body.target-mode .pill .close { display: grid; }
+
+  /* ---------- FABs + Sheet ---------- */
+  .fabs {
+    position: absolute; right: 14px; bottom: 248px;
+    display: flex; flex-direction: column; gap: 10px;
+    z-index: 10;
+  }
+  .fab {
+    width: 44px; height: 44px; border-radius: 14px;
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+    box-shadow: 0 6px 24px rgba(23,25,28,.12);
+    display: grid; place-items: center;
+  }
+  .fab svg { width: 20px; height: 20px; stroke: var(--ink); stroke-width: 1.8; fill: none; }
+
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    z-index: 11;
+    background: var(--glass);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--stroke);
+    box-shadow: 0 -8px 40px rgba(23,25,28,.16);
+    padding: 8px 18px calc(var(--sab) + 16px);
+  }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: rgba(23,25,28,.18); margin: 2px auto 12px; }
+  .sheet h2 { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 10px; }
+  .zone-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+  .zone-row + .zone-row { border-top: 1px solid rgba(23,25,28,.06); }
+  .zone-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+  .zone-ico.ban { background: rgba(229,72,77,.12); }
+  .zone-ico.time { background: rgba(247,107,21,.12); }
+  .zone-ico svg { width: 17px; height: 17px; stroke-width: 1.9; fill: none; }
+  .zone-ico.ban svg { stroke: var(--ban); }
+  .zone-ico.time svg { stroke: var(--time); }
+  .zone-body { flex: 1; min-width: 0; line-height: 1.25; }
+  .zone-body b { font-size: 14px; font-weight: 600; letter-spacing: -.01em; display: block; }
+  .zone-body span { font-size: 12px; color: var(--ink-2); }
+  .zone-dist { font-size: 13px; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .badge-live {
+    display: inline-block;
+    font-size: 10.5px; font-weight: 650; color: var(--time);
+    background: rgba(247,107,21,.12);
+    border-radius: 5px; padding: 1.5px 6px;
+    margin-left: 6px; vertical-align: 1px;
+  }
+
+  /* ---------- Ziel-Pin ---------- */
+  .target-pin { width: 30px; height: 40px; position: relative; }
+  .target-pin svg { width: 30px; height: 40px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.35)); }
+
+  /* ---------- User-Puck ---------- */
+  .puck { position: relative; width: 22px; height: 22px; }
+  .puck .core {
+    position: absolute; inset: 3px; border-radius: 50%;
+    background: #0A84FF; border: 2.5px solid #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  }
+  .puck .halo {
+    position: absolute; inset: -14px; border-radius: 50%;
+    background: rgba(10,132,255,.15);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(.6); opacity: .9; }
+    70% { transform: scale(1.15); opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  /* ---------- Fake-iOS-Tastatur ---------- */
+  .kbd {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 300px;
+    background: #D1D4DA;
+    z-index: 32;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 4px calc(var(--sab) + 8px);
+  }
+  body.search-open .kbd { display: flex; }
+  .krow { display: flex; gap: 5.5px; justify-content: center; }
+  .key {
+    flex: 0 0 32px; height: 42px;
+    background: #fff; border-radius: 5.5px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.28);
+    display: grid; place-items: center;
+    font-size: 16.5px;
+  }
+  .key.wide { flex: 0 0 46px; background: #ABB0BC; font-size: 12px; }
+  .key.space { flex: 1 1 auto; max-width: 200px; }
+  .key.ret { flex: 0 0 92px; background: #ABB0BC; font-size: 13px; }
+
+  /* ---------- Demo-Szenario-Chips (nur Mockup, nicht App) ---------- */
+  .demo {
+    position: absolute; left: 0; right: 0;
+    bottom: 4px;
+    display: flex; gap: 6px; justify-content: center;
+    z-index: 50;
+    font-size: 11px;
+  }
+  .chip {
+    padding: 4px 10px; border-radius: 100px;
+    background: rgba(23,25,28,.72); color: #fff;
+    cursor: pointer; font-weight: 600;
+  }
+  .chip.on { background: #0A84FF; }
+  body.hide-demo .demo { display: none; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="scrim" onclick="setScenario('gps')"></div>
+
+<div class="statusbar">
+  <span>9:41</span>
+  <svg viewBox="0 0 62 12"><path d="M1 8h3v4H1zM6 6h3v6H6zM11 3.5h3V12h-3zM16 1h3v11h-3z"/><rect x="26" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/><rect x="28" y="3" width="15" height="6" rx="1.5"/><path d="M49.5 4.5v3c1 0 1.5-.7 1.5-1.5s-.5-1.5-1.5-1.5z" opacity=".4"/></svg>
+</div>
+
+<div class="search" id="searchBox">
+  <svg class="lens" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+  <input id="q" placeholder="Ort oder Adresse suchen" autocomplete="off" autocorrect="off">
+  <div class="clear" onclick="setScenario('gps')"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+</div>
+
+<div class="results" id="results"></div>
+
+<div class="top">
+  <div class="pill" id="pill">
+    <div class="dot" id="pillDot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+    <div class="txt">
+      <b id="pillTitle">Hier erlaubt</b>
+      <span id="pillSub">Nächste Verbotszone in 220 m</span>
+    </div>
+    <div class="close" onclick="setScenario('gps')"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+  </div>
+</div>
+
+<div class="fabs">
+  <div class="fab"><svg viewBox="0 0 24 24"><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></div>
+  <div class="fab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="7.6" r="0.4" fill="currentColor"/></svg></div>
+</div>
+
+<div class="sheet">
+  <div class="grab"></div>
+  <h2 id="sheetTitle">In deiner Nähe</h2>
+  <div id="sheetRows"></div>
+</div>
+
+<div class="kbd">
+  <div class="krow" id="kr1"></div>
+  <div class="krow" id="kr2"></div>
+  <div class="krow">
+    <div class="key wide">⇧</div><div class="krow" id="kr3" style="gap:5.5px"></div><div class="key wide">⌫</div>
+  </div>
+  <div class="krow">
+    <div class="key wide">123</div><div class="key">🙂</div><div class="key space">Leerzeichen</div><div class="key ret">Suchen</div>
+  </div>
+</div>
+
+<div class="demo" id="demoChips"></div>
+
+<script>
+// ---------------- Fixtures (Hannover-Demo) ----------------
+const USER = [9.7362, 52.3720];
+const LINDEN_MITTE = [9.7218, 52.3663];
+
+const PLACES = [
+  { n: "Linden-Mitte", d: "Stadtteil · Hannover", dist: "2,1 km" },
+  { n: "Linden-Nord",  d: "Stadtteil · Hannover", dist: "2,4 km" },
+  { n: "Linden-Süd",   d: "Stadtteil · Hannover", dist: "2,6 km" },
+  { n: "Linden",       d: "Ort · Hessen",         dist: "214 km" },
+];
+const ADDRESSES = [
+  { n: "Lindener Marktplatz", d: "30449 Hannover, Niedersachsen" },
+  { n: "Lindemannallee",      d: "30173 Hannover, Niedersachsen" },
+];
+const RECENTS = [
+  { n: "Maschsee",   d: "See · Hannover" },
+  { n: "Kröpcke",    d: "Platz · Hannover" },
+  { n: "Berlin",     d: "Stadt · Berlin" },
+];
+
+const ICON_PLACE = '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.2-6.5-10a6.5 6.5 0 0 1 13 0c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="10.6" r="2.3"/></svg>';
+const ICON_ADDR  = '<svg viewBox="0 0 24 24"><path d="M4 20h16M6 20V6.5L12 3l6 3.5V20M10 20v-4h4v4"/></svg>';
+const ICON_CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+
+const row = (r, ico) => `
+  <div class="row" onclick="setScenario('target')">
+    <div class="ico">${ico}</div>
+    <div class="body"><b>${r.n}</b><span>${r.d}</span></div>
+    ${r.dist ? `<div class="dist">${r.dist}</div>` : ""}
+  </div>`;
+
+const SECTIONS = {
+  recents: () => `
+    <div class="sec">Zuletzt gesucht</div>
+    ${RECENTS.map(r => row(r, ICON_CLOCK)).join("")}`,
+  placesFound: () => `
+    <div class="sec">Orte</div>
+    ${PLACES.map(r => row(r, ICON_PLACE)).join("")}`,
+  addrLoading: () => `
+    <div class="sec">Adressen &amp; Straßen</div>
+    <div class="note"><div class="spinner"></div>Adressen laden…</div>`,
+  addrFound: () => `
+    <div class="sec">Adressen &amp; Straßen</div>
+    ${ADDRESSES.map(r => row(r, ICON_ADDR)).join("")}`,
+  addrOffline: () => `
+    <div class="sec">Adressen &amp; Straßen</div>
+    <div class="note">
+      <svg viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M4 4l16 16"/><circle cx="12" cy="19.4" r="1" fill="currentColor" stroke="none"/></svg>
+      Kein Internet — Ortssuche funktioniert trotzdem
+    </div>`,
+  empty: () => `
+    <div class="empty-box">
+      <b>Nichts gefunden</b>
+      <span>Prüfe die Schreibweise oder such nach<br>„Straße Stadt", z. B. „Limmerstraße Hannover"</span>
+    </div>`,
+};
+
+// ---------------- Sheet-Inhalte ----------------
+const SHEET_GPS = `
+  <div class="zone-row">
+    <div class="zone-ico ban"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+    <div class="zone-body"><b>Spielplatz Am Ballhof</b><span>Verbotszone · 100 m Radius · ganztägig</span></div>
+    <div class="zone-dist">220 m</div>
+  </div>
+  <div class="zone-row">
+    <div class="zone-ico time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+    <div class="zone-body"><b>Fußgängerzone Georgstraße<span class="badge-live">JETZT VERBOTEN</span></b><span>Verboten 7–20 Uhr · frei ab 20:00</span></div>
+    <div class="zone-dist">250 m</div>
+  </div>`;
+const SHEET_TARGET = `
+  <div class="zone-row">
+    <div class="zone-ico ban"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="9" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+    <div class="zone-body"><b>Spielplatz Von-Alten-Garten</b><span>Verbotszone · 100 m Radius · ganztägig</span></div>
+    <div class="zone-dist">160 m</div>
+  </div>
+  <div class="zone-row">
+    <div class="zone-ico time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></div>
+    <div class="zone-body"><b>Fußgängerzone Limmerstraße<span class="badge-live">JETZT VERBOTEN</span></b><span>Verboten 7–20 Uhr · frei ab 20:00</span></div>
+    <div class="zone-dist">420 m</div>
+  </div>`;
+
+// ---------------- Szenarien ----------------
+// gps      = Normalzustand (wie heute)
+// idle     = Suche fokussiert, noch nichts getippt → Zuletzt gesucht
+// loading  = "linden" getippt, Orte sofort da, Adressen laden
+// results  = Orte + Adressen komplett
+// offline  = Orte da, Adress-Sektion meldet fehlendes Internet
+// empty    = Query ohne Treffer
+// target   = Ergebnis gewählt → Pin + Ziel-Pill + Sheet "Am Ziel"
+const SCEN = {
+  gps:     { open: false, target: false, q: "" },
+  idle:    { open: true,  target: false, q: "",        body: () => SECTIONS.recents() },
+  loading: { open: true,  target: false, q: "linden",  body: () => SECTIONS.placesFound() + SECTIONS.addrLoading() },
+  results: { open: true,  target: false, q: "linden",  body: () => SECTIONS.placesFound() + SECTIONS.addrFound() },
+  offline: { open: true,  target: false, q: "linden",  body: () => SECTIONS.placesFound() + SECTIONS.addrOffline() },
+  empty:   { open: true,  target: false, q: "xyzabc",  body: () => SECTIONS.empty() },
+  target:  { open: false, target: true,  q: "Linden-Mitte" },
+};
+
+let targetMarker = null;
+let map = null;
+
+function setScenario(name) {
+  const s = SCEN[name] ?? SCEN.gps;
+  document.body.classList.toggle("search-open", s.open);
+  document.body.classList.toggle("target-mode", s.target);
+  document.getElementById("q").value = s.q;
+  document.getElementById("searchBox").classList.toggle("filled", !!s.q);
+  document.getElementById("results").innerHTML = s.body ? s.body() : "";
+
+  // Pill
+  const title = document.getElementById("pillTitle");
+  const sub = document.getElementById("pillSub");
+  if (s.target) {
+    title.textContent = "Am Ziel erlaubt";
+    sub.textContent = "Linden-Mitte · Hannover";
+  } else {
+    title.textContent = "Hier erlaubt";
+    sub.textContent = "Nächste Verbotszone in 220 m";
+  }
+
+  // Sheet
+  document.getElementById("sheetTitle").textContent = s.target ? "Am Ziel" : "In deiner Nähe";
+  document.getElementById("sheetRows").innerHTML = s.target ? SHEET_TARGET : SHEET_GPS;
+
+  // Karte + Pin
+  if (map) {
+    if (s.target) {
+      if (!targetMarker) {
+        const el = document.createElement("div");
+        el.className = "target-pin";
+        el.innerHTML = '<svg viewBox="0 0 30 40"><path d="M15 39C15 39 3 24.5 3 14a12 12 0 0 1 24 0c0 10.5-12 25-12 25z" fill="#17191C" stroke="#fff" stroke-width="2"/><circle cx="15" cy="14" r="4.5" fill="#fff"/></svg>';
+        targetMarker = new maplibregl.Marker({ element: el, anchor: "bottom" });
+      }
+      targetMarker.setLngLat(LINDEN_MITTE).addTo(map);
+      map.jumpTo({ center: [LINDEN_MITTE[0], LINDEN_MITTE[1] - 0.004], zoom: 14.6 });
+    } else {
+      targetMarker?.remove();
+      map.jumpTo({ center: [9.7386, 52.3733], zoom: 14.2 });
+    }
+  }
+
+  document.querySelectorAll(".chip").forEach(c =>
+    c.classList.toggle("on", c.dataset.s === name));
+}
+
+// ---------------- Demo-Chips + Tastatur ----------------
+const chipBar = document.getElementById("demoChips");
+for (const [key, label] of [
+  ["gps", "Start"], ["idle", "Fokus"], ["loading", "Tippt"],
+  ["results", "Treffer"], ["offline", "Offline"], ["empty", "Leer"], ["target", "Ziel"],
+]) {
+  const c = document.createElement("div");
+  c.className = "chip"; c.dataset.s = key; c.textContent = label;
+  c.onclick = () => setScenario(key);
+  chipBar.appendChild(c);
+}
+const KEYS = [["Q","W","E","R","T","Z","U","I","O","P","Ü"],["A","S","D","F","G","H","J","K","L","Ö","Ä"],["Y","X","C","V","B","N","M"]];
+document.getElementById("kr1").innerHTML = KEYS[0].map(k => `<div class="key">${k}</div>`).join("");
+document.getElementById("kr2").innerHTML = KEYS[1].map(k => `<div class="key">${k}</div>`).join("");
+document.getElementById("kr3").innerHTML = KEYS[2].map(k => `<div class="key">${k}</div>`).join("");
+
+// Echtes Tippen im Demo: >=2 Zeichen zeigt Treffer-Szenario
+document.getElementById("q").addEventListener("input", (e) => {
+  const v = e.target.value.trim();
+  if (!document.body.classList.contains("search-open")) return;
+  if (v.length === 0) return setScenario("idle");
+  if (v.length >= 2) return setScenario("linden".startsWith(v.toLowerCase()) || v.toLowerCase().includes("lin") ? "results" : "empty");
+});
+document.getElementById("q").addEventListener("focus", () => {
+  if (!document.body.classList.contains("search-open")) setScenario("idle");
+});
+
+// ---------------- Demo-Zonen (wie index.html) ----------------
+function circle(lng, lat, radiusM, steps = 64) {
+  const coords = [];
+  const kmLat = 110.574, kmLng = 111.320 * Math.cos(lat * Math.PI / 180);
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    coords.push([lng + (Math.cos(a) * radiusM / 1000) / kmLng, lat + (Math.sin(a) * radiusM / 1000) / kmLat]);
+  }
+  return coords;
+}
+const feat = (geom, props = {}) => ({ type: "Feature", properties: props, geometry: geom });
+const poly = coords => ({ type: "Polygon", coordinates: [coords] });
+const banZones = { type: "FeatureCollection", features: [
+  feat(poly(circle(9.7318, 52.3730, 100))), feat(poly(circle(9.7300, 52.3773, 100))),
+  feat(poly(circle(9.7472, 52.3765, 100))), feat(poly(circle(9.7450, 52.3690, 100))),
+  feat(poly(circle(9.7370, 52.3672, 100))), feat(poly(circle(9.7330, 52.3700, 100))),
+  feat(poly(circle(9.7245, 52.3678, 100))), feat(poly(circle(9.7190, 52.3652, 100))),
+  feat(poly(circle(9.7160, 52.3695, 100))),
+]};
+const timeZones = { type: "FeatureCollection", features: [
+  feat(poly([[9.7328,52.3756],[9.7388,52.3748],[9.7437,52.3725],[9.7433,52.3719],[9.7386,52.3742],[9.7330,52.3750],[9.7328,52.3756]])),
+  feat(poly([[9.7386,52.3748],[9.7404,52.3764],[9.7412,52.3762],[9.7394,52.3746],[9.7386,52.3748]])),
+  feat(poly([[9.7130,52.3712],[9.7205,52.3696],[9.7208,52.3690],[9.7133,52.3706],[9.7130,52.3712]])),
+]};
+
+map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/positron",
+  center: [9.7386, 52.3733],
+  zoom: 14.2,
+  attributionControl: { compact: true },
+});
+map.on("load", () => {
+  map.addSource("ban", { type: "geojson", data: banZones });
+  map.addSource("time", { type: "geojson", data: timeZones });
+  map.addLayer({ id: "ban-fill", type: "fill", source: "ban", paint: { "fill-color": "#E5484D", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "ban-line", type: "line", source: "ban", paint: { "line-color": "#E5484D", "line-width": 1.6, "line-opacity": 0.75 } });
+  map.addLayer({ id: "time-fill", type: "fill", source: "time", paint: { "fill-color": "#F76B15", "fill-opacity": 0.16 } });
+  map.addLayer({ id: "time-line", type: "line", source: "time", paint: { "line-color": "#F76B15", "line-width": 1.6, "line-dasharray": [2.2, 1.6], "line-opacity": 0.85 } });
+  const el = document.createElement("div");
+  el.className = "puck";
+  el.innerHTML = '<div class="halo"></div><div class="core"></div>';
+  new maplibregl.Marker({ element: el }).setLngLat(USER).addTo(map);
+
+  // Szenario aus URL (?s=results&chrome=0 für Screenshots)
+  const p = new URLSearchParams(location.search);
+  if (p.get("chrome") === "0") document.body.classList.add("hide-demo");
+  setScenario(p.get("s") ?? "gps");
+
+  map.once("idle", () => { window.__MAP_READY__ = true; });
+});
+</script>
+</body>
+</html>
