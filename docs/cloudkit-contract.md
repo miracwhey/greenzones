@@ -118,8 +118,14 @@ export interface CloudKitSyncPlugin {
   saveReply(opts: { spotZone: string; invitationId: string; status: "in" | "out"; arrivalTime?: number }):
     Promise<void>;
 
-  /** CKDatabaseSubscriptions (private + shared, silent) anlegen + Remote-Push-Registrierung. Idempotent. */
+  /** CKDatabaseSubscriptions (private + shared, sichtbar + mutable-content) anlegen + Remote-Push-Registrierung. Idempotent. */
   registerSubscriptions(): Promise<void>;
+
+  /**
+   * Fragt einmalig nach der Mitteilungs-Erlaubnis (System-Dialog). Der Systemstatus ist
+   * der Zustand: schon entschieden → kein Dialog, nur der aktuelle Wert. Nie ein Reject.
+   */
+  ensureNotificationPermission(): Promise<{ granted: boolean }>;
 
   addListener(eventName: "cloudChanged", listener: () => void): Promise<{ remove: () => Promise<void> }>;
 }
@@ -141,9 +147,15 @@ export interface CloudKitSyncPlugin {
   (Universal Link → `userDidAcceptCloudKitShareWith` in Scene- UND AppDelegate-Variante).
 - TS-Layer refetcht bei: App-Start (nach Store-`ready`), `appStateChange → active` (@capacitor/app),
   `cloudChanged`.
-- Lokale sichtbare Notification bei neuen Invitations/Replies erzeugt der TS-Layer NICHT in v1 —
-  Push-Sichtbarkeit ist Folge-Iteration; v1 beweist den silent-Pfad + Fetch. (`simctl push`-Smoke-Test
-  gegen das Payload-Handling gehört zum Verify.)
+- Sichtbare Pushes (seit Subscription v2 `gz-*-db-v2`): die Subscription trägt einen neutralen
+  `alertBody` als Fallback + `mutable-content`; die App-Extension `NotificationService` fetcht die
+  gz-Zonen der betroffenen DB und ersetzt den Text durch das konkrete Ereignis (Invitation >
+  SpotOffer > Reply > neues Profile; alles andere → `interruptionLevel .passive`). Frisch = jünger
+  als 30 min UND letzter Schreiber ≠ ich. Die v1-IDs (silent-only) räumt `registerSubscriptions`
+  beim nächsten Lauf ab. Der TS-Layer erzeugt weiterhin KEINE lokalen Notifications.
+- Mitteilungs-Erlaubnis: TS-Layer ruft `ensureNotificationPermission` nach jedem Merge mit
+  mindestens einem Freund — der System-Dialog erscheint genau einmal (Status `notDetermined`),
+  danach ist der Systemstatus die Wahrheit. Ohne Erlaubnis läuft alles weiter, nur bannerlos.
 
 ## iOS-Projekt-Anforderungen (Builder A)
 

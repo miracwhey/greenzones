@@ -158,6 +158,11 @@ class FakePlugin implements CloudKitSyncPlugin {
     this.guard("registerSubscriptions");
   }
 
+  async ensureNotificationPermission(): Promise<{ granted: boolean }> {
+    this.guard("ensureNotificationPermission");
+    return { granted: true };
+  }
+
   async addListener(
     _eventName: "cloudChanged",
     listener: () => void,
@@ -469,6 +474,42 @@ describe("SpotSync", () => {
     await h.sync.refresh();
     await h.sync.refresh();
     expect(h.plugin.calls.filter((c) => c === "registerSubscriptions")).toHaveLength(1);
+  });
+
+  it("fragt die Mitteilungs-Erlaubnis erst mit dem ersten Freund an", async () => {
+    const h = await harness();
+    await h.sync.refresh();
+    expect(h.plugin.calls).not.toContain("ensureNotificationPermission");
+
+    h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
+    await h.sync.refresh();
+    expect(h.plugin.calls.filter((c) => c === "ensureNotificationPermission")).toHaveLength(1);
+  });
+
+  it("ein Fehler der Erlaubnis-Anfrage kippt weder Merge noch Folge-Syncs", async () => {
+    const h = await harness();
+    h.plugin.next = snapshot({ friends: [cloudFriend({ userID: TARA })] });
+    h.plugin.fails.set("ensureNotificationPermission", new Error("kaputt"));
+
+    await h.sync.refresh();
+
+    expect(h.friends.getFriends()).toHaveLength(1);
+    expect(h.sync.getState().error).toBeNull();
+  });
+
+  it("fragt die Erlaubnis auch ohne iCloud, wenn lokal Freunde liegen", async () => {
+    // Designpunkt wie beim Profil-Prompt: bewertet wird der lokale Bestand,
+    // nicht ein geglückter Fetch — sonst käme die Frage ohne Netz nie.
+    const h = await harness();
+    await h.friends.replaceAll([
+      { id: TARA, name: "Tara", emoji: "", color: "#7C5CFF", friendshipZone: "friend-t" },
+    ]);
+    h.plugin.accountStatus = "noAccount";
+    h.plugin.next = { status: "noAccount", userID: "", friends: [], spots: [], invitations: [] };
+
+    await h.sync.start();
+
+    expect(h.plugin.calls).toContain("ensureNotificationPermission");
   });
 
   it("cloudChanged und appStateChange lösen einen Refetch aus", async () => {

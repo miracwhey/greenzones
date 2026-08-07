@@ -25,8 +25,12 @@ enum CKSchema {
     static let spotRecordName = "spot"
 
     /// CKQuerySubscription greift in der sharedCloudDatabase nicht — nur Datenbank-Subscriptions.
-    static let privateSubscriptionID = "gz-private-db"
-    static let sharedSubscriptionID = "gz-shared-db"
+    /// v2 = sichtbarer Push (alert + mutable-content), den die Notification-Extension betextet.
+    /// Die v1-IDs waren silent-only; Geräte mit v1 bekämen nie ein Banner, deshalb werden sie
+    /// beim Registrieren aktiv gelöscht — `ensureDatabaseSubscription` fasst Bestehendes nie an.
+    static let privateSubscriptionID = "gz-private-db-v2"
+    static let sharedSubscriptionID = "gz-shared-db-v2"
+    static let legacySubscriptionIDs = ["gz-private-db", "gz-shared-db"]
 
     /// Letzter bekannter Anzeigename. Nötig, weil ein von außen (Universal Link) angenommener
     /// Freundschafts-Share sein Profile schreiben muss, ohne dass der JS-Layer den Namen mitliefert.

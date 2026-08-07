@@ -19,7 +19,8 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "deleteSpot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "saveInvitation", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "saveReply", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "registerSubscriptions", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "registerSubscriptions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "ensureNotificationPermission", returnType: CAPPluginReturnPromise)
     ]
 
     private var changeObserver: NSObjectProtocol?
@@ -168,6 +169,12 @@ public class CloudKitSyncPlugin: CAPPlugin, CAPBridgedPlugin {
         run(call) {
             try await CloudKitService.shared.registerSubscriptions()
             return [:]
+        }
+    }
+
+    @objc func ensureNotificationPermission(_ call: CAPPluginCall) {
+        run(call) {
+            ["granted": await CloudKitService.shared.ensureNotificationPermission()]
         }
     }
 

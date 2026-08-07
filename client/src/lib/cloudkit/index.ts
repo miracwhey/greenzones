@@ -90,6 +90,10 @@ const web: CloudKitSyncPlugin = {
   registerSubscriptions() {
     return Promise.reject(cloudError("noAccount", NO_CLOUD));
   },
+  // Kein Reject: „keine Erlaubnis" ist im Web der ehrliche Normalzustand, kein Fehler.
+  async ensureNotificationPermission() {
+    return { granted: false };
+  },
   // Ohne Container feuert nichts — das Handle bleibt trotzdem gültig, damit der
   // Aufrufer keinen Sonderweg für „kein Listener" braucht.
   async addListener() {

@@ -72,8 +72,14 @@ export interface CloudKitSyncPlugin {
   saveReply(opts: { spotZone: string; invitationId: string; status: "in" | "out"; arrivalTime?: number }):
     Promise<void>;
 
-  /** CKDatabaseSubscriptions (private + shared, silent) anlegen + Remote-Push-Registrierung. Idempotent. */
+  /** CKDatabaseSubscriptions (private + shared, sichtbar + mutable-content) anlegen + Remote-Push-Registrierung. Idempotent. */
   registerSubscriptions(): Promise<void>;
+
+  /**
+   * Fragt einmalig nach der Mitteilungs-Erlaubnis (System-Dialog). Der Systemstatus ist
+   * der Zustand: schon entschieden → kein Dialog, nur der aktuelle Wert. Nie ein Reject.
+   */
+  ensureNotificationPermission(): Promise<{ granted: boolean }>;
 
   addListener(eventName: "cloudChanged", listener: () => void): Promise<{ remove: () => Promise<void> }>;
 }

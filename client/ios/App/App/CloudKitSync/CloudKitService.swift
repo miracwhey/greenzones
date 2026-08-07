@@ -1,6 +1,7 @@
 import Foundation
 import CloudKit
 import UIKit
+import UserNotifications
 
 /// Alle CloudKit-Zugriffe der App.
 ///
@@ -313,17 +314,44 @@ final class CloudKitService {
         }
     }
 
+    /// Fragt einmalig nach der Mitteilungs-Erlaubnis. Der Systemstatus IST der Zustand —
+    /// kein eigenes Flag: `notDetermined` heißt nie gefragt, alles andere ist entschieden.
+    func ensureNotificationPermission() async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        case .denied:
+            return false
+        default:
+            return true
+        }
+    }
+
     private func ensureDatabaseSubscription(id: String, in database: CKDatabase) async throws {
         // Idempotent: eine doppelt angelegte Subscription-ID weist der Server ab.
         let existing = try await database.allSubscriptions()
-        guard !existing.contains(where: { $0.subscriptionID == id }) else { return }
+        // Alte silent-only-Subscriptions abräumen — sie würden pro Änderung einen zweiten,
+        // bannerlosen Push erzeugen und blieben sonst für immer registriert.
+        let stale = existing.map(\.subscriptionID).filter { CKSchema.legacySubscriptionIDs.contains($0) }
+        guard !existing.contains(where: { $0.subscriptionID == id }) else {
+            if !stale.isEmpty {
+                _ = try await database.modifySubscriptions(saving: [], deleting: stale)
+            }
+            return
+        }
 
         let subscription = CKDatabaseSubscription(subscriptionID: id)
         let info = CKSubscription.NotificationInfo()
-        // Silent: die sichtbare Meldung baut der Client nach dem Fetch, mit korrektem Text.
+        // Sichtbar + mutable: die Notification-Extension ersetzt den Text nach einem Fetch
+        // durch das konkrete Ereignis. Stirbt sie, zeigt iOS diesen neutralen Fallback.
+        info.alertBody = "Neues von deinen Freunden"
+        info.shouldSendMutableContent = true
+        // Zusätzlich content-available, damit die laufende App im Hintergrund nachlädt.
         info.shouldSendContentAvailable = true
         subscription.notificationInfo = info
-        _ = try await database.modifySubscriptions(saving: [subscription], deleting: [])
+        _ = try await database.modifySubscriptions(saving: [subscription], deleting: stale)
     }
 
     /// Silent-Push aus einer CKDatabaseSubscription → Refetch anstoßen.

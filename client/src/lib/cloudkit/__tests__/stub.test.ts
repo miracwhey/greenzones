@@ -59,6 +59,10 @@ describe("CloudKitSync — Web-Stub", () => {
     }
   });
 
+  it("verneint die Mitteilungs-Erlaubnis ohne Reject — kein Fehler, ein Zustand", async () => {
+    await expect(CloudKitSync.ensureNotificationPermission()).resolves.toEqual({ granted: false });
+  });
+
   it("gibt ein entfernbares Listener-Handle zurück, das nie feuert", async () => {
     let fired = 0;
     const handle = await CloudKitSync.addListener("cloudChanged", () => {

@@ -299,6 +299,7 @@ export class SpotSync {
     // Freunde von gestern liegen längst auf dem Gerät, und ohne Netz käme die
     // Frage sonst gar nicht.
     this.evaluateProfilePrompt();
+    this.maybeAskNotificationPermission();
     try {
       const { status } = await this.deps.plugin.getAccountStatus();
       this.patch({ status });
@@ -342,6 +343,18 @@ export class SpotSync {
     }
   }
 
+  /**
+   * Mitteilungs-Erlaubnis erst erfragen, wenn es etwas mitzuteilen gibt: mit dem
+   * ersten Freund. Bewertet am LOKALEN Bestand (wie der Profil-Prompt) — die Freunde
+   * von gestern liegen auf dem Gerät, ohne Netz käme die Frage sonst nie. Kein eigenes
+   * Flag: der Systemstatus merkt sich die Antwort, Folgeaufrufe zeigen keinen Dialog.
+   */
+  private maybeAskNotificationPermission(): void {
+    if (this.deps.friends.getFriends().length === 0) return;
+    // Ohne Erlaubnis bleibt alles nutzbar — es gibt nur keine Banner.
+    void this.deps.plugin.ensureNotificationPermission().catch(() => {});
+  }
+
   private async fetchAndMerge(): Promise<void> {
     // Der Merge rechnet gegen den lokalen Bestand — vor der Ladung wäre das
     // eine leere Basis und würde alles Persistierte überschreiben.
@@ -376,6 +389,7 @@ export class SpotSync {
         // Push ist Komfort, kein Datenpfad — der nächste Fetch versucht es erneut.
       }
     }
+    this.maybeAskNotificationPermission();
     await this.flushShares();
   }
 
