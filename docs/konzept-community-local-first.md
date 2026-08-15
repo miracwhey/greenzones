@@ -72,8 +72,11 @@ Regel bei jedem neuen Feature: erst einordnen — A, B oder C? Gibt es Zweifel, 
 
 ## Weitere Phasen
 
-### Spot-Fotos (Phase 2)
-- Foto am Spot hinterlassen, **sichtbar nur für die Spot-Teilnehmer** (CKAsset als Child-Record am Spot).
+### Snaps (Phase 2) — Design-Gate 15.08.2026 gelockt
+- **Snappen überall:** Plus-Knopf → Live-Kamera (kein Import). Der Aufnahme-Ort routet automatisch: in Spot-Nähe → Snap gehört zum Spot, sonst **freier Snap-Pin** an der Aufnahme-Position. Snaps bleiben dauerhaft (Album, neuester zuerst; Löschen Autor + Host), kein Verfall.
+- **Sichtbarkeit (Leon-Lock 15.08.):** Default für jeden Snap = **alle Freunde**. Beim Spot-Snap ein Schalter „Alle Freunde" / **„Nur Freunde im Spot"** (= die, mit denen der Spot geteilt ist — unabhängig davon, wer gerade dort steht). Freunde außerhalb des Spots sehen den Spot-Snap als Foto-Pin an der Position mit „bei 🌳 Spotname" (kein Spot-Zugang). Kein Personen-Picker pro Bild in v1 (Tür offen, additiv nachrüstbar).
+- Technik: „Alle Freunde" = **eigener Freunde-Feed** (1 CKShare pro Person, alle Freunde Teilnehmer → 1 Upload pro Foto). „Nur Freunde im Spot" = CKAsset als Child-Record am Spot-Share (Behälter existiert). Details in der Neubau-SPEC.
+- **Karten-Look (Leon-Wahl 15.08.):** Spot-Pin = Variante A „Emoji-Anker" (40-pt-Emoji-Kreis vorn, 2 kleine Foto-Kreise + „+n"-Chip dahinter). Freie Snaps = runder Foto-Pin mit Stiel. Tap auf Pin → Karte fährt zum Pin (über das Sheet), Zoom bleibt.
 - Lokal-first: Aufnahme funktioniert offline → Outbox → Upload bei Netz. Empfangene Fotos werden lokal gecacht → offline ansehbar.
 - UGC-Pflichten (Apple 1.2) im privaten Kreis minimal: Melden + Blockieren + Teilnehmer entfernen reichen.
 

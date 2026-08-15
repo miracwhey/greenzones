@@ -1,0 +1,19 @@
+# xcodegen-Erzeugnis — Quelle ist project.yml.
+# ACHTUNG: die aufgeloesten SPM-Pins duerfen NICHT mitverschwinden, sie liegen
+# deshalb als `ios/Package.resolved` im Repo und werden von Scripts/gen.sh in
+# das erzeugte Projekt kopiert.
+*.xcodeproj/
+
+# Ebenfalls von xcodegen aus project.yml erzeugt — dort stehen die Keys.
+GreenZones/Resources/Info.plist
+NotificationService/Info.plist
+
+# Build-Artefakte und SPM-Checkout (25 MB xcframework)
+.dd/
+.dd-dist/
+.spm/
+DerivedData/
+Packages/*/.build/
+
+# Beweis-Screenshots (regenerierbar via Scripts/shot.sh) — nicht ins Repo
+shots/
