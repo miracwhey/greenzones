@@ -14,6 +14,8 @@ final class AppModel {
     private static let tickSeconds: UInt64 = 30
 
     let location: LocationService
+    /// App-DB. Jedes Feature traegt seine Migrationsschritte in `migrations` ein.
+    let database: AppDatabase
     private let clock: GZClock
     private let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "status")
 
@@ -52,6 +54,17 @@ final class AppModel {
         let fixtureAccuracy: Double = 12
         #endif
         location = LocationService(fixedCoordinate: fixtureCoordinate, fixedAccuracyM: fixtureAccuracy)
+        // Migrationsschritte der Features — Reihenfolge = Registrierungsreihenfolge.
+        let migrations: [DBMigration] = []
+        do {
+            // Fixture-Laeufe (Screenshots) schreiben nichts auf die Platte.
+            database = try fixtureCoordinate != nil
+                ? AppDatabase.inMemory(migrations: migrations)
+                : AppDatabase(path: AppDatabase.defaultPath(), migrations: migrations)
+        } catch {
+            // Ohne DB laeuft die App nicht sinnvoll — laut scheitern statt still leer.
+            fatalError("App-DB startet nicht: \(error)")
+        }
         hour = GZTime.currentHour(clock)
         // Im Fixture-Lauf gibt es keinen Dialog und kein Onboarding — der
         // Screenshot soll die Karte zeigen, nicht die Erlaubnisfrage.
