@@ -340,6 +340,35 @@ public final class SyncCoordinator {
         patch { $0.profilePrompt = false }
     }
 
+    /// Freundschaft beenden (SPEC 7). Erst die Cloud, dann lokal — und lokal
+    /// wird der Eintrag NICHT geloescht, sondern blockiert: solange der naechste
+    /// Fetch die verschwundene Zone nicht bestaetigt hat, ist „blockiert" der
+    /// ehrliche Zustand. Ist die Cloud durch, faellt der Eintrag beim naechsten
+    /// Merge ohnehin weg.
+    ///
+    /// Bleibt eine der beiden Netz-Phasen haengen, wirft das Gateway — der
+    /// lokale Block steht trotzdem, damit die Person hier sofort weg ist.
+    public func removeFriend(id: String) async throws {
+        guard let friend = friends.friend(id: id) else { return }
+        defer { Task { await self.refresh() } }
+        do {
+            if let zone = friend.friendshipZone {
+                try await gateway.removeFriend(userID: id, friendshipZone: zone)
+            }
+        } catch {
+            try await blockLocally(id: id)
+            throw error
+        }
+        try await blockLocally(id: id)
+    }
+
+    private func blockLocally(id: String) async throws {
+        var next = friends.friends
+        guard let index = next.firstIndex(where: { $0.id == id }), !next[index].blocked else { return }
+        next[index].blocked = true
+        try await friends.replaceAll(next)
+    }
+
     /// Einladungs-Link fuer einen neuen Freund; der Aufrufer schickt ihn uebers Share-Sheet.
     public func inviteFriend(displayName: String, emoji: String? = nil) async throws -> String {
         let sign = emoji ?? settings.profile.emoji

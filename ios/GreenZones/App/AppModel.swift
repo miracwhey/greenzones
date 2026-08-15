@@ -53,6 +53,7 @@ final class AppModel {
     private var targetTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
     private var previousKind: StatusKind = .wait
+    private var cloudObserver: (any NSObjectProtocol)?
 
     static let onboardedKey = "gz_onboarded"
 
@@ -133,7 +134,7 @@ final class AppModel {
         // Die Closure haelt die Engine direkt, nicht `self`: waehrend `init` ist
         // `self` noch nicht vollstaendig.
         let engineForPoints = startedEngine
-        community = CommunityModel(database: database, clock: clock) { coordinate in
+        community = CommunityModel(database: database, gateway: GZCloud.gateway, clock: clock) { coordinate in
             guard let engineForPoints else { return nil }
             return await engineForPoints.status(at: coordinate)
         }
@@ -174,11 +175,24 @@ final class AppModel {
         #else
         Task { await community.sync.start() }
         #endif
+        observeCloudChanges()
         // Solange das Onboarding steht, wird NICHT geortet — sonst stuende der
         // System-Dialog vor dem Bildschirm, der ihn erklaeren soll (v1:
         // `useLocation(onboarded)` laeuft erst nach dem Onboarding an).
         guard !shouldShowOnboarding else { return }
         location.start()
+    }
+
+    /// Push und angenommene Einladungen sagen nur „da hat sich was geaendert" —
+    /// was, holt der naechste Vollabzug. Die Beobachtung laeuft mit dem Modell:
+    /// stirbt es, endet auch sie.
+    private func observeCloudChanges() {
+        guard cloudObserver == nil else { return }
+        cloudObserver = NotificationCenter.default.addObserver(forName: GZCloud.changed,
+                                                               object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in await self.community.sync.refresh() }
+        }
     }
 
     /// Erlaubnis wurde noch nie gefragt? Dann fragt sie das Onboarding, sonst

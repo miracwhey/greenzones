@@ -511,10 +511,15 @@ struct SPRsvpRow: View {
 }
 
 /// Freundes-Zeile in der Liste.
+///
+/// Das Menue rechts traegt „Freund entfernen" (SPEC 7). Es steht sichtbar in
+/// der Zeile statt hinter einer Wischgeste: eine Trennung muss auffindbar sein,
+/// nicht erraten werden.
 struct SPMemberRow: View {
     let friend: Friend
     let detail: String
     let showDivider: Bool
+    var onRemove: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -532,6 +537,18 @@ struct SPMemberRow: View {
                         .foregroundStyle(GZ.ink2)
                 }
                 Spacer(minLength: 0)
+                if let onRemove {
+                    Menu {
+                        Button("Freund entfernen", role: .destructive, action: onRemove)
+                    } label: {
+                        Text("•••")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(GZ.ink3)
+                            .frame(width: 34, height: 34)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Mehr zu \(friendLabel(friend))")
+                }
             }
             .padding(.vertical, 10)
         }

@@ -16,6 +16,8 @@ struct FriendsSheet: View {
 
     @State private var intent: ProfileIntent?
     @State private var seeded = false
+    /// Freund, dessen Entfernen gerade nachgefragt wird.
+    @State private var removing: Friend?
 
     private var friends: [Friend] { model.friends.friends }
     private var shared: [Spot] {
@@ -56,7 +58,8 @@ struct FriendsSheet: View {
             ForEach(Array(friends.enumerated()), id: \.element.id) { index, friend in
                 SPMemberRow(friend: friend,
                             detail: sharedSpotsLine(spotNames(friend.id)),
-                            showDivider: index > 0)
+                            showDivider: index > 0,
+                            onRemove: { removing = friend })
             }
 
             Button(action: { GZ.haptic(); intent = .invite }) {
@@ -81,6 +84,19 @@ struct FriendsSheet: View {
 
             SPCloudHint(status: model.sync.state.status)
             SPGhost(title: "Schließen") { model.closeSheet() }
+        }
+        // `.alert`, nicht `.confirmationDialog`: der schluckt unter iOS 26 den
+        // Abbrechen-Knopf, wenn er aus einem Sheet heraus kommt.
+        .alert("Freund entfernen?", isPresented: Binding(get: { removing != nil },
+                                                        set: { if !$0 { removing = nil } }),
+               presenting: removing) { friend in
+            Button("Entfernen", role: .destructive) {
+                removing = nil
+                model.run { try await model.sync.removeFriend(id: friend.id) }
+            }
+            Button("Abbrechen", role: .cancel) { removing = nil }
+        } message: { friend in
+            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über einen neuen Einladungs-Link.")
         }
     }
 

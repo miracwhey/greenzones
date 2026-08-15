@@ -26,14 +26,18 @@ public struct CloudFriend: Equatable, Sendable {
     public var friendshipZone: String
     /// true = ich habe die Freundschaft angelegt.
     public var isOwner: Bool
+    /// Zonen-Name `feed-<uuid>` des Gegenuebers, "" solange sein Feed nicht
+    /// angenommen ist (v1-Bestand vor dem ersten Fetch mit v2).
+    public var feedZone: String
 
     public init(userID: String, name: String, emoji: String, friendshipZone: String,
-                isOwner: Bool) {
+                isOwner: Bool, feedZone: String = "") {
         self.userID = userID
         self.name = name
         self.emoji = emoji
         self.friendshipZone = friendshipZone
         self.isOwner = isOwner
+        self.feedZone = feedZone
     }
 }
 

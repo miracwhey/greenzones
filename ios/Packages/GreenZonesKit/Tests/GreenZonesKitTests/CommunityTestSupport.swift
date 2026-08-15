@@ -39,6 +39,13 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
         try guardCall("setProfile")
     }
 
+    private(set) var removedFriends: [String] = []
+
+    func removeFriend(userID: String, friendshipZone: String) async throws {
+        try guardCall("removeFriend")
+        removedFriends.append(userID)
+    }
+
     func createSpotShare(_ spot: Spot) async throws -> SpotShare {
         try guardCall("createSpotShare")
         return SpotShare(zoneName: "spot-\(spot.id)",

@@ -31,6 +31,14 @@ public protocol CloudGateway: Sendable {
     func saveReply(spotZone: String, invitationId: String, status: ReplyStatus,
                    arrivalTime: Date?) async throws
 
+    /// Freundschaft beenden: Zone verlassen bzw. loeschen UND die Person aus
+    /// allen eigenen Shares (Spots, Feed) entfernen. Zwei Netz-Phasen, jede fuer
+    /// sich idempotent; ein Teilerfolg wirft, damit die UI ihn melden kann.
+    ///
+    /// Ob die Zone mir gehoert, schlaegt das Gateway selbst nach — ein
+    /// mitgereichtes Flag waere ein zweiter Zustand neben der Datenbank.
+    func removeFriend(userID: String, friendshipZone: String) async throws
+
     /// CKDatabaseSubscriptions + Remote-Push-Registrierung. Idempotent.
     func registerSubscriptions() async throws
     /// Fragt einmalig nach der Mitteilungs-Erlaubnis. Schon entschieden → kein Dialog.
@@ -112,6 +120,10 @@ public struct NoCloudGateway: CloudGateway {
 
     public func saveReply(spotZone: String, invitationId: String, status: ReplyStatus,
                           arrivalTime: Date?) async throws {
+        throw SyncError.noAccount
+    }
+
+    public func removeFriend(userID: String, friendshipZone: String) async throws {
         throw SyncError.noAccount
     }
 

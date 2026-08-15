@@ -188,3 +188,91 @@ export interface CloudKitSyncPlugin {
   Teilnehmern statt Fixtures. Mockups `mockup/community.html` + `mockup/invite.html` bleiben bindend fürs UI.
 - NoAccount-/Offline-States im UI: ruhiger Hinweis („Für Freunde & geteilte Spots bei iCloud anmelden —
   Einstellungen → [dein Name]"), App bleibt voll lokal nutzbar. Kein Modal-Zwang, kein Dauer-Banner.
+
+---
+
+# v2 — Neubau (Stand 2026-08-15, gebaut in Welle 4)
+
+Der Neubau (`ios/`, natives SwiftUI) löst den Capacitor-Client ab. Alles oben Beschriebene gilt
+unverändert weiter — Zonen, recordNames, Schreiber-Regel, Zone-Sharing, Auto-Accept von Angeboten,
+Subscriptions `gz-private-db-v2`/`gz-shared-db-v2`. Bestandsgeräte mit v1 bleiben anschlussfähig:
+kein Name wurde umbenannt, nur ergänzt.
+
+**Was sich strukturell ändert:** Es gibt keine Plugin-Brücke und keinen TS-Layer mehr. Die
+Plugin-API (Abschnitt oben) lebt als Swift-Protokoll `CloudGateway` weiter, die Implementierung ist
+`CloudKitGateway` (`ios/Packages/GreenZonesKit/Sources/GreenZonesKit/Cloud/`). Der Web-Stub heißt
+`NoCloudGateway` und verhält sich wie dort beschrieben: leerer Snapshot mit `couldNotDetermine`,
+Writes lehnen mit `noAccount` ab. Deployment-Target ist iOS 17 — klassische CKOperations bleiben
+trotzdem, `CKSyncEngine` wird bewusst nicht verwendet (Pull-Snapshot-Modell, SPEC E4).
+
+## Neue Zonen und Records
+
+| Wo | Record-Type · recordName | Felder | Schreiber |
+|---|---|---|---|
+| Friendship-Zone | `FeedOffer` · `feedoffer-<userRecordID>` | `feedShareURL: String` | jede Person für den eigenen Feed |
+| **Feed-Zone `feed-<uuid>`** (private DB des Autors, zone-wide Share, Teilnehmer = alle Freunde) | `Feed` · `feed` | `createdAt: Date` | Owner, einmalig |
+| Feed-Zone | `Snap` · `<uuid>` (lokale Snap-Id) | `createdAt: Date`, `lat`, `lng`, `thumb: CKAsset`, `photo: CKAsset`, `spotZone: String?`, `spotName: String?`, `spotEmoji: String?` | Autor = Owner |
+| Feed-Zone | `Report` · `report-<snapId>-<userRecordID>` | `snapId: String`, `createdAt: Date` | der Meldende |
+| Spot-Zone | `Snap` · `<uuid>` | wie oben, ohne die `spot*`-Felder — die Zone IST der Spot | Autor (jeder Teilnehmer) |
+| Spot-Zone | `Report` · `report-<snapId>-<userRecordID>` | `snapId: String`, `createdAt: Date` | der Meldende |
+
+Die `Snap`- und `Report`-Records sind hier vollständig beschrieben, werden aber erst in Welle 5
+geschrieben und gelesen. Welle 4 legt die Namen fest (`CKSchema`), die Feed-Zone und ihre
+Verteilung — und die Notification-Extension kennt das Snap-Ereignis bereits.
+
+## Feed-Anlage und -Verteilung (implementiert)
+
+- `fetchAll()` legt beim ersten Lauf mit Konto die eigene Feed-Zone samt Share an
+  (`ensureFeedZone`, idempotent wie `createSpotShare`): vorhandene Zone wird nie ersetzt, sonst
+  liefen bereits verteilte `FeedOffer` ins Leere.
+- Danach schreibt derselbe Lauf in **jede** Friendship-Zone einen `FeedOffer` mit der eigenen
+  Share-URL — sofern dort noch keiner mit genau dieser URL liegt. Bestandsfreundschaften aus v1
+  bekommen den Feed damit automatisch beim ersten Start nach dem Update, ohne Zutun.
+- `acceptPendingOffers` behandelt `FeedOffer` wie `SpotOffer`. Ein Unterschied: der `SpotOffer`
+  trägt seine Ziel-Zone im recordName (`offer-<spotZone>`) und ist damit ohne Netz als erledigt
+  erkennbar; der `FeedOffer` kodiert im Namen den **Schreiber**. Ob er erledigt ist, entscheidet
+  deshalb erst die Share-Metadata — der Accept selbst ist idempotent.
+- Die Feed-Zone eines Freundes wird nicht aus dem Offer abgeleitet, sondern aus der angenommenen
+  `feed-`-Zone in der shared DB, deren `ownerName` seiner userRecordID entspricht. Sie landet als
+  `CloudFriend.feedZone` im Snapshot und als `friend.feedZone` in der App-DB.
+
+## Freund entfernen (implementiert, war die v1-Lücke)
+
+`removeFriend(userID:friendshipZone:)`, zwei Netz-Phasen, jede für sich idempotent:
+
+1. Friendship-Zone: liegt sie in der privaten DB, wird sie gelöscht; liegt sie in der shared DB,
+   wird die Teilnahme beendet (`modifyRecordZones(deleting:)`). Wo sie liegt, schlägt das Gateway
+   selbst nach — ein mitgereichtes „bin ich Owner"-Flag wäre ein zweiter Zustand neben der Datenbank.
+   Eine bereits verschwundene Zone ist Erfolg, kein Fehler.
+2. Die Person wird aus **allen** eigenen Zone-Shares entfernt (`share.removeParticipant`) — Spots
+   und Feed. Diese Phase läuft auch, wenn Phase 1 scheitert: sonst bliebe jemand, den man gerade
+   entfernt hat, weiter in den eigenen Spots.
+
+Der erste Fehler wird am Ende geworfen, damit die App den Teilerfolg ehrlich melden kann. Lokal
+setzt der `SyncCoordinator` `friend.blocked = 1`, **auch wenn die Cloud scheitert** — so ist die
+Person sofort weg. `blocked` überlebt den Merge aus dem lokalen Bestand (die Cloud kennt das Feld
+nicht und würde es bei jedem Fetch zurücksetzen).
+
+## Push / NSE (implementiert)
+
+- Ereignis-Rangfolge der Notification-Extension: `Invitation > SpotOffer > Snap > Reply > Profile`.
+  `FeedOffer`, `Feed` und `Report` erzeugen **nie** ein Banner — sie sind Infrastruktur; ein Push
+  ohne bannerwürdiges Ereignis wird `interruptionLevel = .passive`.
+- Snap-Text: „🌳 Maschsee-Bank: Tara hat einen Snap gemacht" (Titel = Ort, Body = Person) bzw.
+  „Neuer Snap / Tara hat einen Snap gemacht" ohne Ortsbezug.
+- Die Extension scannt jetzt auch `feed-`-Zonen (dort liegen die Snaps) und teilt sich Konstanten
+  und Vollabzug mit der App (`CKSchema`, `CKZoneReader` aus `GreenZonesKit`) — kein zweites,
+  driftendes Exemplar mehr.
+- Share-Accept über beide Wege: Kaltstart aus `connectionOptions.cloudKitShareMetadata`
+  (`GZSceneDelegate.scene(_:willConnectTo:options:)`) und laufend über
+  `windowScene(_:userDidAcceptCloudKitShareWith:)`. Beide melden `GZCloud.changed`, worauf das
+  Modell einen Vollabzug fährt.
+
+## Was in v2 NICHT gilt
+
+- Die Plugin-API-Signaturen mit Millisekunden-Zahlen (`time: number`) sind Geschichte: das
+  Swift-Protokoll reicht `Date` durch. Die Umrechnung `millisSince1970` gibt es nur noch im
+  v1-Importer, der die alte Capacitor-Datenbank einliest.
+- Der TS-Layer-Abschnitt oben beschreibt den v1-Client. Für den Neubau gelten dieselben Regeln
+  inhaltlich weiter, aber die Orte sind andere: Merge in `MergeSnapshot.swift`, Stores in
+  `CommunityStores.swift`, Fehlertexte in `cloudMessage()`.

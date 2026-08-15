@@ -36,13 +36,20 @@ public func mergeSnapshot(_ snapshot: CloudSnapshot, current: LocalState) -> Loc
         !id.isEmpty && id == snapshot.userID ? SELF_ID : id
     }
 
+    // `blocked` ist eine rein lokale Entscheidung — die Cloud kennt sie nicht
+    // und wuerde sie bei jedem Fetch zuruecksetzen. Sie ueberlebt den Merge
+    // deshalb aus dem bisherigen Bestand (dritte Grenze der Regel „Cloud
+    // gewinnt", siehe oben).
+    let blockedIds = Set(current.friends.filter(\.blocked).map(\.id))
     let friends: [Friend] = snapshot.friends
         .map { cloud in
             Friend(id: cloud.userID,
                    name: cloud.name,
                    emoji: cloud.emoji,
                    color: friendColor(cloud.userID),
-                   friendshipZone: cloud.friendshipZone)
+                   friendshipZone: cloud.friendshipZone,
+                   feedZone: cloud.feedZone.isEmpty ? nil : cloud.feedZone,
+                   blocked: blockedIds.contains(cloud.userID))
         }
         .sorted { a, b in
             a.name == b.name ? a.id < b.id : a.name < b.name
