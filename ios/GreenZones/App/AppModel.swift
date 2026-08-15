@@ -16,10 +16,20 @@ final class AppModel {
     let location: LocationService
     /// App-DB. Jedes Feature traegt seine Migrationsschritte in `migrations` ein.
     let database: AppDatabase
+    /// W2: Such-Kern (Offline-Index + Photon + Recents).
+    let search: SearchController
     private let clock: GZClock
     private let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "status")
 
     private(set) var status: ZoneStatus?
+
+    /// W2: Ziel-Modus — der gewaehlte Ort und sein Zonen-Status.
+    struct Target: Equatable {
+        let result: SearchResult
+        var status: ZoneStatus?
+    }
+
+    private(set) var target: Target?
     /// Aktuelle Stunde aus der Uhr — traegt Zeitfenster-Farbe UND Verdikt.
     private(set) var hour: Int
     /// Engine fehlt = die pmtiles sind nicht im Bundle. Sichtbar, nicht still.
@@ -37,6 +47,7 @@ final class AppModel {
     private var engine: ZoneEngine?
     private var lastEvaluated: CLLocationCoordinate2D?
     private var statusTask: Task<Void, Never>?
+    private var targetTask: Task<Void, Never>?
     private var tickTask: Task<Void, Never>?
     private var previousKind: StatusKind = .wait
 
@@ -55,7 +66,8 @@ final class AppModel {
         #endif
         location = LocationService(fixedCoordinate: fixtureCoordinate, fixedAccuracyM: fixtureAccuracy)
         // Migrationsschritte der Features — Reihenfolge = Registrierungsreihenfolge.
-        let migrations: [DBMigration] = []
+        // W2: `SearchMigrations.all` bringt `recent_search` mit.
+        let migrations: [DBMigration] = SearchMigrations.all
         do {
             // Fixture-Laeufe (Screenshots) schreiben nichts auf die Platte.
             database = try fixtureCoordinate != nil
@@ -65,6 +77,21 @@ final class AppModel {
             // Ohne DB laeuft die App nicht sinnvoll — laut scheitern statt still leer.
             fatalError("App-DB startet nicht: \(error)")
         }
+        #if DEBUG
+        // Recents VOR dem Controller schreiben — er liest sie beim Bauen seines
+        // ersten Zustands, ein spaeterer Eintrag kaeme im Screenshot nicht an.
+        if DebugEnvironment.route.opensSearch {
+            let store = RecentsStore(database: database)
+            for recent in DebugEnvironment.fixtureRecents.reversed() { store.add(recent) }
+        }
+        #endif
+        // W2: Such-Kern. Der Index liegt read-only im Bundle; fehlt er, macht der
+        // Controller daraus einen sichtbaren Zustand mit „Erneut versuchen".
+        let placesURL = Bundle.main.url(forResource: "places", withExtension: "sqlite")
+            ?? URL(fileURLWithPath: "/places.sqlite")
+        search = SearchController(offline: PlacesIndex(url: placesURL),
+                                  photon: DebugEnvironment.photonSource(),
+                                  recents: RecentsStore(database: database))
         hour = GZTime.currentHour(clock)
         // Im Fixture-Lauf gibt es keinen Dialog und kein Onboarding — der
         // Screenshot soll die Karte zeigen, nicht die Erlaubnisfrage.
@@ -86,16 +113,29 @@ final class AppModel {
     var timeActive: Bool { GZTime.banAtHour(hour) }
 
     var presentation: StatusPresentation {
-        StatusPresentation(status: status,
-                           locating: location.state.isLocating,
-                           denied: location.state == .denied,
-                           hour: hour)
+        // W2: im Ziel-Modus gilt der Status des Ziels, nicht der des Standorts.
+        if let target {
+            return StatusPresentation(target: target.result, status: target.status, hour: hour)
+        }
+        return StatusPresentation(status: status,
+                                  locating: location.state.isLocating,
+                                  denied: location.state == .denied,
+                                  hour: hour)
     }
+
+    /// W2: Status, den das Detail-Sheet und die Zonenliste zeigen.
+    var visibleStatus: ZoneStatus? { target?.status ?? status }
 
     // MARK: - Lebenszyklus
 
     func start() {
         startTick()
+        // W2: Der Index wird vorgewaermt, nicht erst beim ersten Tastendruck
+        // geoeffnet — sonst haengt der erste Buchstabe an einem Dateizugriff.
+        search.prewarm()
+        #if DEBUG
+        applyDebugSearchFixtures()
+        #endif
         // Solange das Onboarding steht, wird NICHT geortet — sonst stuende der
         // System-Dialog vor dem Bildschirm, der ihn erklaeren soll (v1:
         // `useLocation(onboarded)` laeuft erst nach dem Onboarding an).
@@ -121,12 +161,60 @@ final class AppModel {
         recenterToken += 1
     }
 
+    // MARK: - Ziel-Modus (W2)
+
+    /// Suchtreffer gewaehlt: Pin setzen, Karte hinfliegen lassen, Status am Ziel
+    /// rechnen. Der Ziel-Status kommt aus derselben Engine wie der Standort-Status
+    /// — nur an einem anderen Punkt (SPEC E6).
+    func selectTarget(_ result: SearchResult) {
+        target = Target(result: result, status: nil)
+        evaluateTarget()
+    }
+
+    /// Ziel verlassen: Pin weg, Feld leer, Karte zurueck auf den Standort (v1
+    /// `clearTarget` → `gz:recenter`).
+    func clearTarget() {
+        guard target != nil else { return }
+        targetTask?.cancel()
+        target = nil
+        // Ohne Haptik: das X hat schon eine gegeben, ein zweiter Schlag waere
+        // ein anderes Ereignis als in v1.
+        recenterToken += 1
+    }
+
+    #if DEBUG
+    /// W2: Fixture-Zustaende der Screenshot-Routen — dieselben Setter, die auch
+    /// ein Tap benutzt, kein Sonderrendering.
+    private func applyDebugSearchFixtures() {
+        let route = DebugEnvironment.route
+        if route == .target || route == .targetDetail {
+            selectTarget(DebugEnvironment.fixtureTarget)
+        }
+    }
+    #endif
+
+    private func evaluateTarget() {
+        guard let engine, let coordinate = target?.result.coordinate else { return }
+        let pending = target?.result
+        targetTask?.cancel()
+        targetTask = Task { [weak self] in
+            let result = await engine.status(at: coordinate)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.target?.result == pending else { return }
+                self.target?.status = result
+            }
+        }
+    }
+
     // MARK: - Status
 
     /// Wird bei jeder Standort-Aenderung aufgerufen; rechnet aber nur, wenn sich
     /// wirklich etwas geaendert hat (≥ 15 m oder noch gar kein Ergebnis).
     func locationChanged() {
         guard let coordinate = location.state.coordinate, let engine else { return }
+        // W2: Das Offline-Ranking der Suche kennt die Nutzerposition (v1 App.tsx).
+        search.setUserPos(coordinate)
         if let last = lastEvaluated,
            status != nil,
            Geo.distanceM(last, coordinate) < Self.recomputeDistanceM {
@@ -164,6 +252,9 @@ final class AppModel {
                 let now = GZTime.currentHour(self.clock)
                 if now != self.hour {
                     self.hour = now
+                    // W2: Das Verdikt am Ziel kippt mit der Stunde genauso wie
+                    // das am Standort — beide neu bewerten (v1 App.tsx).
+                    self.evaluateTarget()
                     // Das Verdikt kann kippen, ohne dass sich der Ort bewegt hat.
                     if let status = self.status {
                         let kind = ZoneStatus.statusKind(status, hour: now)

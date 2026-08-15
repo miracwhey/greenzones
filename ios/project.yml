@@ -56,6 +56,12 @@ targets:
       # nicht kopiert (SPEC 2).
       - path: ../client/public/zones.pmtiles
         buildPhase: resources
+      # W2: Orts-Index der Suche. Bau-Erzeugnis (nicht im Git), erzeugt von
+      # Scripts/gen.sh vor jedem xcodegen-Lauf — deshalb explizit gelistet:
+      # fehlt die Datei beim Erzeugen, soll das Projekt laut scheitern und nicht
+      # still eine App ohne Ortsverzeichnis bauen.
+      - path: GreenZones/Resources/Generated/places.sqlite
+        buildPhase: resources
     dependencies:
       - package: MapLibre
         product: MapLibre

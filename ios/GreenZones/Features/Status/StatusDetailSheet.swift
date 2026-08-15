@@ -32,9 +32,11 @@ struct StatusDetailSheet: View {
                         .font(.system(size: 15, weight: .semibold))
                         .tracking(-0.15)
                         .foregroundStyle(GZ.ink)
-                    Text("Dein Standort")
+                    // W2: im Ziel-Modus steht hier das Ziel statt „Dein Standort".
+                    Text(presentation.contextLine)
                         .font(.system(size: 12))
                         .foregroundStyle(GZ.ink2)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button(action: onClose) {

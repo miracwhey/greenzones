@@ -8,6 +8,11 @@
 GreenZones/Resources/Info.plist
 NotificationService/Info.plist
 
+# W2: Orts-Index der Suche — 36 MB Bau-Erzeugnis aus client/public/places.json,
+# erzeugt von Scripts/gen.sh (pipeline/build_places_sqlite.py). Quelle ist die
+# JSON, nicht die sqlite.
+GreenZones/Resources/Generated/
+
 # Build-Artefakte und SPM-Checkout (25 MB xcframework)
 .dd/
 .dd-dist/

@@ -10,6 +10,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# W2: Orts-Index der Suche bauen, BEVOR xcodegen die Ressourcen einsammelt —
+# eine fehlende Datei wuerde sonst still aus dem Projekt fallen und die App
+# ohne Ortsverzeichnis ausliefern. Zweiter Lauf ohne Quelländerung tut nichts.
+PLACES="$ROOT/GreenZones/Resources/Generated/places.sqlite"
+python3 "$ROOT/../pipeline/build_places_sqlite.py"
+[ -f "$PLACES" ] || { echo "[gen] FEHLER: $PLACES fehlt"; exit 1; }
+
 /opt/homebrew/bin/xcodegen generate --quiet
 
 PINS_DIR="$ROOT/GreenZones.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"

@@ -3,6 +3,7 @@
 #
 #   Scripts/shot.sh <route> <out.png> [dark]
 #   route: map | status_detail | info
+#          search | search_results | search_offline | target | target_detail  (W2)
 #
 # Umgebung (optional):
 #   GZ_HOUR=12        Stunde fuer das Zeitfenster (Default 12 = time-Zonen aktiv)
@@ -20,11 +21,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-ROUTE="${1:?Route fehlt: map | status_detail | info}"
+ROUTE="${1:?Route fehlt: map | status_detail | info | search | search_results | search_offline | target | target_detail}"
 OUT="${2:?Zieldatei fehlt}"
 APPEARANCE="${3:-light}"
 
-UDID="D8C2B2AC-1A11-423D-AA0F-BBC9D746A0E7"   # iPhone 17 Pro
+# W2: ueberschreibbar per GZ_SIM_UDID. Zwei Builder auf EINEM Simulator mit
+# derselben Bundle-ID ueberschreiben sich gegenseitig die installierte App —
+# der Shot zeigt dann die Welle des anderen. Default bleibt iPhone 17 Pro.
+UDID="${GZ_SIM_UDID:-D8C2B2AC-1A11-423D-AA0F-BBC9D746A0E7}"   # iPhone 17 Pro
 BUNDLE_ID="de.leonvalentin.greenzones.dev"
 HOUR="${GZ_HOUR:-12}"
 SETTLE="${GZ_SETTLE:-9}"

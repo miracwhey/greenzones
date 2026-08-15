@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import GreenZonesKit
 
 /// Screenshot-Routen (SPEC 12). Nur `#if DEBUG` — im Release existiert der
 /// Fixture-Pfad nicht, damit kein Beweisbild je einen Zustand zeigen kann, den
@@ -8,6 +9,17 @@ enum DebugRoute: String {
     case map
     case statusDetail = "status_detail"
     case info
+    // W2
+    case search
+    case searchResults = "search_results"
+    case searchOffline = "search_offline"
+    case target
+    case targetDetail = "target_detail"
+
+    /// Alle Routen, die mit offener Suche starten.
+    var opensSearch: Bool {
+        self == .search || self == .searchResults || self == .searchOffline
+    }
 }
 
 enum DebugEnvironment {
@@ -30,8 +42,56 @@ enum DebugEnvironment {
     static var route: DebugRoute {
         environment["GZ_ROUTE"].flatMap(DebugRoute.init(rawValue:)) ?? .map
     }
+
+    // MARK: - W2: Suche im Screenshot
+
+    /// Adress-Antwort der Suchroute — der Shot darf kein Netz brauchen.
+    /// `search_offline` liefert stattdessen den Offline-Ausgang, damit der
+    /// Stoerungs-Zustand ohne Flugmodus fotografierbar ist.
+    static func photonSource() -> any PhotonSource {
+        switch route {
+        case .searchResults, .target, .targetDetail:
+            return FixturePhoton(outcome: .ok(fixtureAddresses))
+        case .searchOffline:
+            return FixturePhoton(outcome: .failure(.offline))
+        default:
+            return PhotonClient()
+        }
+    }
+
+    /// Erfundene Adressen in Hannover — keine echte Person, kein echtes Haus.
+    static let fixtureAddresses: [SearchResult] = [
+        SearchResult(name: "Maschstraße", detail: "30169, Hannover, Niedersachsen",
+                     lng: 9.7392, lat: 52.3562, source: .photon),
+        SearchResult(name: "Maschseepromenade", detail: "30169, Hannover, Niedersachsen",
+                     lng: 9.7449, lat: 52.3521, source: .photon),
+    ]
+
+    /// Zwei Recents fuer die leere Suche.
+    static let fixtureRecents: [SearchResult] = [
+        SearchResult(name: "Maschsee", detail: "See · Hannover",
+                     lng: 9.7444, lat: 52.3528, source: .place),
+        SearchResult(name: "Von-Alten-Garten", detail: "Park · Hannover",
+                     lng: 9.7114, lat: 52.3641, source: .place),
+    ]
+
+    /// Ziel der Routen `target` / `target_detail`.
+    static let fixtureTarget = SearchResult(name: "Maschsee", detail: "See · Hannover",
+                                            lng: 9.7444, lat: 52.3528, source: .place)
+
+    /// Vorbelegte Query der Route `search_results` / `search_offline`.
+    static let fixtureQuery = "masch"
     #else
     static var usesFixtures: Bool { false }
     static var route: DebugRoute { .map }
+    static func photonSource() -> any PhotonSource { PhotonClient() }
     #endif
 }
+
+#if DEBUG
+/// Photon-Ersatz fuer Screenshots: liefert immer denselben Ausgang, ohne Netz.
+struct FixturePhoton: PhotonSource {
+    let outcome: PhotonOutcome
+    func search(_ query: String) async -> PhotonOutcome { outcome }
+}
+#endif

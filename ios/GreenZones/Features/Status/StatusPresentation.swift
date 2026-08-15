@@ -7,6 +7,18 @@ struct StatusPresentation {
     let kind: StatusKind
     let title: String
     let subtitle: String
+    /// W2: zweite Zeile im Detail-Sheet — „Dein Standort" oder das Ziel.
+    var contextLine: String = "Dein Standort"
+
+    /// W2: Ziel-Modus — derselbe Status, nur an einem anderen Punkt gerechnet.
+    /// Texte woertlich aus v1 `StatusBar.tsx`.
+    init(target: SearchResult, status: ZoneStatus?, hour: Int) {
+        kind = ZoneStatus.statusKind(status, hour: hour)
+        title = status == nil ? "Ziel wird geprüft …"
+                              : (kind == .ok ? "Am Ziel erlaubt" : "Am Ziel verboten")
+        subtitle = target.targetSubtitle
+        contextLine = target.targetSubtitle
+    }
 
     init(status: ZoneStatus?, locating: Bool, denied: Bool, hour: Int) {
         kind = ZoneStatus.statusKind(status, hour: hour)

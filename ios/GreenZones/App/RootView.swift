@@ -15,7 +15,9 @@ struct RootView: View {
                          freePins: [],
                          userCoordinate: model.location.state.coordinate,
                          accuracyM: model.location.state.accuracyM,
-                         recenterToken: model.recenterToken)
+                         recenterToken: model.recenterToken,
+                         // W2: Ziel-Pin + Anflug.
+                         target: model.target?.result.coordinate)
                 .ignoresSafeArea()
 
             fabs
@@ -34,16 +36,33 @@ struct RootView: View {
                         .glassCard(cornerRadius: 12, shadowRadius: 8, shadowOpacity: 0.10)
                         .padding(.horizontal, 14)
                 }
-                StatusBarView(presentation: model.presentation) {
-                    GZ.haptic()
-                    model.detailOpen = true
-                }
+                StatusBarView(presentation: model.presentation,
+                              onTap: {
+                                  GZ.haptic()
+                                  model.detailOpen = true
+                              },
+                              // W2: X nur im Ziel-Modus.
+                              onClearTarget: model.target == nil ? nil : {
+                                  GZ.haptic()
+                                  model.clearTarget()
+                              })
             }
+
+            // W2: Suchfeld + Overlay liegen ueber Karte, FABs und Status-Bar —
+            // der Scrim muss alles darunter abdecken (v1 z-index 12/13).
+            SearchBarView(controller: model.search,
+                          selected: model.target?.result,
+                          userCoordinate: model.location.state.coordinate,
+                          onSelect: { model.selectTarget($0) },
+                          onClear: { model.clearTarget() },
+                          initiallyOpen: debugSearchOpen,
+                          initialQuery: debugSearchQuery)
         }
         .background(GZ.appBg)
         .sheet(isPresented: $model.detailOpen) {
             StatusDetailSheet(presentation: model.presentation,
-                              status: model.status,
+                              // W2: im Ziel-Modus zeigt das Sheet die Zonen am Ziel.
+                              status: model.visibleStatus,
                               hour: model.hour) {
                 model.detailOpen = false
             }
@@ -87,6 +106,25 @@ struct RootView: View {
         .accessibilityLabel(label)
     }
 
+    /// W2: Overlay-Zustand der Suchrouten. Ausserhalb von DEBUG immer aus.
+    private var debugSearchOpen: Bool {
+        #if DEBUG
+        return DebugEnvironment.route.opensSearch
+        #else
+        return false
+        #endif
+    }
+
+    private var debugSearchQuery: String? {
+        #if DEBUG
+        let route = DebugEnvironment.route
+        return route == .searchResults || route == .searchOffline
+            ? DebugEnvironment.fixtureQuery : nil
+        #else
+        return nil
+        #endif
+    }
+
     /// `GZ_ROUTE` faehrt beim Start denselben Zustand an, den die Taps setzen —
     /// kein Sonderrendering, nur derselbe State.
     private func applyDebugRoute() {
@@ -99,9 +137,11 @@ struct RootView: View {
         // ueber halb geladenen Tiles.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
             switch route {
-            case .statusDetail: model.detailOpen = true
+            case .statusDetail, .targetDetail: model.detailOpen = true
             case .info: model.infoOpen = true
-            case .map: break
+            // Suche und Ziel-Modus stehen schon: die Suche oeffnet ihr Overlay
+            // selbst, das Ziel setzt `AppModel.start()`.
+            case .map, .search, .searchResults, .searchOffline, .target: break
             }
         }
         #endif

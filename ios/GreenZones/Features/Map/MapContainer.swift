@@ -25,6 +25,8 @@ struct MapContainer: UIViewRepresentable {
     let accuracyM: Double
     /// Zaehler statt Boolean: derselbe FAB-Tap zweimal muss zweimal fahren.
     let recenterToken: Int
+    /// W2: Ziel-Modus — Pin an dieser Stelle, Karte fliegt hin. `nil` = kein Ziel.
+    var target: CLLocationCoordinate2D?
     var onSelectSpot: (String) -> Void = { _ in }
     var onSelectFreeSnap: (String) -> Void = { _ in }
 
@@ -64,6 +66,9 @@ struct MapContainer: UIViewRepresentable {
         coordinator.syncPins(pins, on: mapView)
         coordinator.syncFreePins(freePins, on: mapView)
         coordinator.updateUser(userCoordinate, accuracyM: accuracyM, on: mapView)
+        // W2: vor dem Recenter — beendet der Nutzer den Ziel-Modus, faehrt die
+        // Karte im selben Durchlauf zurueck auf seinen Standort.
+        coordinator.syncTarget(target, on: mapView)
         coordinator.applyRecenter(token: recenterToken, on: mapView)
     }
 
@@ -89,6 +94,13 @@ struct MapContainer: UIViewRepresentable {
         private var freeAnnotations: [String: FreeSnapAnnotation] = [:]
         /// Frisch aufgenommene freie Snaps — ihre View ploppt beim Erzeugen auf.
         private var pendingPopIn: Set<String> = []
+
+        /// W2: Ziel-Pin des Ziel-Modus.
+        private var targetAnnotation: TargetAnnotation?
+        private var target: CLLocationCoordinate2D?
+        /// Ziel, das gesetzt wurde, bevor die Karte stand — die Fahrt wird
+        /// nachgeholt, sobald der Style geladen ist.
+        private var pendingTargetFly: CLLocationCoordinate2D?
 
         private var puckAnnotation: PuckAnnotation?
         private var userCoordinate: CLLocationCoordinate2D?
@@ -265,6 +277,60 @@ struct MapContainer: UIViewRepresentable {
             view.setAccuracyRadius(CGFloat(accuracyM / metersPerPoint))
         }
 
+        // MARK: - Ziel-Modus (W2)
+
+        /// Ziel gesetzt → Pin steht und die Karte fliegt hin; Ziel weg → Pin weg.
+        /// Der Vergleich laeuft ueber die Koordinate, nicht ueber ein Token:
+        /// derselbe Ort zweimal gewaehlt ist derselbe Kartenausschnitt (v1).
+        func syncTarget(_ coordinate: CLLocationCoordinate2D?, on mapView: MLNMapView) {
+            guard target?.latitude != coordinate?.latitude
+                    || target?.longitude != coordinate?.longitude else { return }
+            target = coordinate
+
+            guard let coordinate else {
+                if let annotation = targetAnnotation { mapView.removeAnnotation(annotation) }
+                targetAnnotation = nil
+                return
+            }
+
+            // Im Ziel-Modus gehoert die Karte dem Ziel — ein GPS-Update darf den
+            // Ausschnitt nicht wegziehen (v1 `followUser.current = false`).
+            follow = false
+            if let annotation = targetAnnotation {
+                annotation.coordinate = coordinate
+            } else {
+                let annotation = TargetAnnotation(coordinate: coordinate)
+                targetAnnotation = annotation
+                mapView.addAnnotation(annotation)
+            }
+
+            // Solange der Style nicht geladen ist, verpufft die Fahrt: die
+            // Kamera wird beim Style-Aufbau neu gesetzt. Dann erst nach
+            // `didFinishLoading` fliegen — sonst steht das Ziel im Screenshot
+            // ausserhalb der Bildmitte, obwohl der Pin richtig sitzt.
+            if mapView.style == nil || mapView.bounds.width == 0 {
+                pendingTargetFly = coordinate
+                logger.info("Ziel gesetzt (Fahrt wartet auf den Style)")
+            } else {
+                flyToTarget(coordinate, on: mapView)
+            }
+        }
+
+        /// v1: `flyTo({ zoom: 15, offset: [0, -60] })`. `edgePadding` unten hebt
+        /// den Punkt um die HALBE Einrueckung — 120 pt ergeben die 60 pt.
+        private func flyToTarget(_ coordinate: CLLocationCoordinate2D, on mapView: MLNMapView) {
+            let altitude = MLNAltitudeForZoomLevel(kFocusZoom, 0, coordinate.latitude,
+                                                   mapView.bounds.size)
+            let camera = MLNMapCamera(lookingAtCenter: coordinate, altitude: altitude,
+                                      pitch: 0, heading: 0)
+            mapView.setCamera(camera,
+                              withDuration: 0.9,
+                              animationTimingFunction: CAMediaTimingFunction(name: .easeInEaseOut),
+                              edgePadding: UIEdgeInsets(top: 0, left: 0, bottom: 120, right: 0),
+                              completionHandler: nil)
+            logger.info("Ziel angeflogen")
+        }
+
         // MARK: - Kamera
 
         func applyRecenter(token: Int, on mapView: MLNMapView) {
@@ -301,6 +367,11 @@ struct MapContainer: UIViewRepresentable {
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: PuckView.reuseID) as? PuckView)
                     ?? PuckView(reuseIdentifier: PuckView.reuseID)
                 return view
+            }
+            // W2: Ziel-Pin.
+            if annotation is TargetAnnotation {
+                return (mapView.dequeueReusableAnnotationView(withIdentifier: TargetPinView.reuseID) as? TargetPinView)
+                    ?? TargetPinView(reuseIdentifier: TargetPinView.reuseID)
             }
             if let free = annotation as? FreeSnapAnnotation {
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: FreeSnapPinView.reuseID) as? FreeSnapPinView)
@@ -361,6 +432,11 @@ struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             installZoneLayers(in: style)
             updateAccuracyRing(on: mapView)
+            // W2: Ziel, das vor dem Style gesetzt wurde, jetzt anfliegen.
+            if let pending = pendingTargetFly {
+                pendingTargetFly = nil
+                flyToTarget(pending, on: mapView)
+            }
         }
 
         /// Zonen-Layer exakt mit den v1-Werten (SPEC 5.6). Laeuft bei JEDEM
