@@ -16,6 +16,25 @@ enum DebugRoute: String {
     case target
     case targetDetail = "target_detail"
 
+    // W3: Community. Jede Route faehrt denselben Zustand an, den auch die Taps
+    // setzen — kein Sonderrendering, nur derselbe State auf einem Fixture-Bestand.
+    case mapSpots = "map_spots"
+    case newspot
+    case pick
+    case detail
+    /// Erstnutzer: 0 Freunde, lokaler Spot → Detail muss in den
+    /// Freund-einladen-Flow fuehren (keine Sackgasse).
+    case solo
+    case invite
+    /// Einladung abgeschickt — in W3 ohne CloudKit der ehrliche Abbruch.
+    case sent
+    case manage
+    case reply
+    case friends
+    case profile
+    case profileEmpty = "profile_empty"
+    case welcome
+
     /// Alle Routen, die mit offener Suche starten.
     var opensSearch: Bool {
         self == .search || self == .searchResults || self == .searchOffline

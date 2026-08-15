@@ -18,6 +18,9 @@ final class AppModel {
     let database: AppDatabase
     /// W2: Such-Kern (Offline-Index + Photon + Recents).
     let search: SearchController
+    // W3: Community (Spots, Einladungen, Freunde, Profil) — eigenes Modell,
+    // damit die Composition Root nicht zum Sammelbecken wird.
+    let community: CommunityModel
     private let clock: GZClock
     private let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "status")
 
@@ -67,7 +70,8 @@ final class AppModel {
         location = LocationService(fixedCoordinate: fixtureCoordinate, fixedAccuracyM: fixtureAccuracy)
         // Migrationsschritte der Features — Reihenfolge = Registrierungsreihenfolge.
         // W2: `SearchMigrations.all` bringt `recent_search` mit.
-        let migrations: [DBMigration] = SearchMigrations.all
+        // W3: `CommunityMigrations.all` bringt Spots/Freunde/Einladungen mit.
+        let migrations: [DBMigration] = SearchMigrations.all + CommunityMigrations.all
         do {
             // Fixture-Laeufe (Screenshots) schreiben nichts auf die Platte.
             database = try fixtureCoordinate != nil
@@ -92,14 +96,28 @@ final class AppModel {
         search = SearchController(offline: PlacesIndex(url: placesURL),
                                   photon: DebugEnvironment.photonSource(),
                                   recents: RecentsStore(database: database))
+
+        // W3: v1-Bestand einmalig uebernehmen (SPEC 4) — VOR den Stores, sonst
+        // stuende der erste Frame leer da. Ohne diesen Schritt waeren alle rein
+        // lokalen Spots weg; ein Fehler kippt den Start nicht, der Marker bleibt
+        // dann ungesetzt und der naechste Start versucht es erneut.
+        if fixtureCoordinate == nil {
+            do {
+                _ = try V1Importer.runIfNeeded(database: database)
+            } catch {
+                Logger(subsystem: "de.leonvalentin.greenzones", category: "store")
+                    .error("v1-Import fehlgeschlagen: \(String(describing: error), privacy: .public)")
+            }
+        }
         hour = GZTime.currentHour(clock)
         // Im Fixture-Lauf gibt es keinen Dialog und kein Onboarding — der
         // Screenshot soll die Karte zeigen, nicht die Erlaubnisfrage.
         onboarded = fixtureCoordinate != nil || UserDefaults.standard.bool(forKey: Self.onboardedKey)
 
+        var startedEngine: ZoneEngine?
         if let url = Bundle.main.url(forResource: "zones", withExtension: "pmtiles") {
             do {
-                engine = try ZoneEngine(pmtilesURL: url)
+                startedEngine = try ZoneEngine(pmtilesURL: url)
             } catch {
                 engineFailure = String(describing: error)
                 logger.error("Zonen-Engine startet nicht: \(String(describing: error), privacy: .public)")
@@ -107,6 +125,17 @@ final class AppModel {
         } else {
             engineFailure = "zones.pmtiles fehlt im Bundle"
             logger.error("zones.pmtiles fehlt im Bundle")
+        }
+        engine = startedEngine
+
+        // W3: Community. Der Zonen-Status einzelner Punkte (Spot, gewaehlte
+        // Position) kommt aus derselben Engine wie die Status-Bar — eine Quelle.
+        // Die Closure haelt die Engine direkt, nicht `self`: waehrend `init` ist
+        // `self` noch nicht vollstaendig.
+        let engineForPoints = startedEngine
+        community = CommunityModel(database: database, clock: clock) { coordinate in
+            guard let engineForPoints else { return nil }
+            return await engineForPoints.status(at: coordinate)
         }
     }
 
@@ -133,8 +162,17 @@ final class AppModel {
         // W2: Der Index wird vorgewaermt, nicht erst beim ersten Tastendruck
         // geoeffnet — sonst haengt der erste Buchstabe an einem Dateizugriff.
         search.prewarm()
+        // W3: Fixture-Laeufe fahren den Bestand selbst; der Sync wuerde ihn nur
+        // mit einem leeren Snapshot bewerten und den Screenshot verwaessern.
         #if DEBUG
         applyDebugSearchFixtures()
+        if DebugEnvironment.usesFixtures {
+            CommunityFixtures.seed(community, route: DebugEnvironment.route, clock: clock)
+        } else {
+            Task { await community.sync.start() }
+        }
+        #else
+        Task { await community.sync.start() }
         #endif
         // Solange das Onboarding steht, wird NICHT geortet — sonst stuende der
         // System-Dialog vor dem Bildschirm, der ihn erklaeren soll (v1:
