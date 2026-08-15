@@ -33,3 +33,7 @@ Debug-Query-Params: `?lat=&lng=` (Standort-Override), `?hour=` (Zeitfenster-Test
 - **time** (orange): Fußgängerzonen, verboten 7–20 Uhr. Linien-Geometrien als ~8 m-Korridor.
 
 Disclaimer in App: Orientierungshilfe, keine Rechtsberatung, OSM-Vollständigkeit nicht garantiert.
+
+## Datenquelle
+
+Zonendaten abgeleitet aus [OpenStreetMap](https://www.openstreetmap.org) — © OpenStreetMap-Mitwirkende, lizenziert unter der [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/). Das gilt auch für die gebundelte `client/public/zones.pmtiles`.
