@@ -9,7 +9,7 @@ struct StatusDetailSheet: View {
     let hour: Int
     let onClose: () -> Void
 
-    /// Startwert fuer den ersten Frame — die echte Hoehe misst `fittedSheetDetent`.
+    /// Startwert fuer den ersten Frame — die echte Hoehe misst `bottomSheetCard`.
     private var estimatedHeight: CGFloat {
         let rowCount: Int = {
             guard let status else { return 1 }
@@ -64,9 +64,6 @@ struct StatusDetailSheet: View {
         .padding(.horizontal, 18)
         .padding(.top, 14)
         .padding(.bottom, 10)
-        .fittedSheetDetent(estimate: estimatedHeight)
-        .presentationDragIndicator(.visible)
-        .presentationBackground(.regularMaterial)
-        .presentationCornerRadius(22)
+        .bottomSheetCard(estimate: estimatedHeight)
     }
 }

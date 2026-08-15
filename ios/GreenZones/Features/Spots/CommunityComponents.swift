@@ -35,13 +35,6 @@ enum SP {
 
 // MARK: - Sheet-Rahmen
 
-private struct SheetHeight: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 @MainActor
 enum SPScreen {
     private static var keyWindow: UIWindow? {
@@ -58,44 +51,23 @@ enum SPScreen {
     static var sheetContentWidth: CGFloat { width - 36 }
 }
 
-/// Rahmen aller Community-Sheets: Inhaltshoehe messen, aber nie ueber die
-/// Bildschirmhoehe hinaus — der Profil-Editor und „Spot markieren" sind laenger
-/// als ein Telefon, und ein zu grosses Detent laesst SwiftUI das Sheet verwerfen.
+/// Rahmen aller Community-Sheets: Innenabstaende und das kantenbuendige Blatt
+/// (`bottomSheetCard`), das die Inhaltshoehe misst und bei 86 % der
+/// Bildschirmhoehe deckelt — der Profil-Editor und „Spot markieren" sind laenger
+/// als ein Telefon und scrollen ab dort im Blatt.
 struct CommunitySheet<Content: View>: View {
     /// Startwert fuer den ersten Frame, bis die echte Hoehe gemessen ist.
     var estimate: CGFloat = 420
     @ViewBuilder var content: () -> Content
 
-    @State private var measured: CGFloat?
-
-    private var detent: CGFloat {
-        let cap = SPScreen.height * 0.86
-        return min(measured ?? estimate, cap) + SPScreen.bottomInset
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                content()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            .background {
-                GeometryReader { proxy in
-                    Color.clear.preference(key: SheetHeight.self, value: proxy.size.height)
-                }
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            content()
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .onPreferenceChange(SheetHeight.self) { height in
-            guard height > 0 else { return }
-            measured = height
-        }
-        .presentationDetents([.height(detent)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(.regularMaterial)
-        .presentationCornerRadius(22)
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .bottomSheetCard(estimate: estimate)
     }
 }
 

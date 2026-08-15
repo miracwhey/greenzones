@@ -38,10 +38,7 @@ struct InfoSheetView: View {
         .padding(.horizontal, 22)
         .padding(.top, 14)
         .padding(.bottom, 12)
-        .fittedSheetDetent(estimate: 460)
-        .presentationDragIndicator(.visible)
-        .presentationBackground(.regularMaterial)
-        .presentationCornerRadius(22)
+        .bottomSheetCard(estimate: 460)
     }
 
     /// Die Quellen-Links sind Teil des Lizenztexts — als echte Links, nicht als

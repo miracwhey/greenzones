@@ -101,6 +101,21 @@ targets:
         Distribution:
           CODE_SIGN_ENTITLEMENTS: GreenZones/Resources/GreenZones-Distribution.entitlements
 
+  # Bedienung statt Aussehen: das Blatt (`gzSheet`) baut Tippen daneben, Wischen
+  # am Griff und die Einfahrt selbst — ein Screenshot beweist davon nichts.
+  GreenZonesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: GreenZonesUITests
+    dependencies:
+      - target: GreenZones
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GZ_BUNDLE_ID).uitests
+        TEST_TARGET_NAME: GreenZones
+        GENERATE_INFOPLIST_FILE: YES
+
   NotificationService:
     type: app-extension
     platform: iOS
@@ -130,7 +145,12 @@ schemes:
     build:
       targets:
         GreenZones: all
+        GreenZonesUITests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - GreenZonesUITests
     archive:
       config: Distribution

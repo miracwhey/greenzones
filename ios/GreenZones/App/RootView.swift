@@ -93,7 +93,7 @@ struct RootView: View {
         .animation(GZ.spring, value: community.toast)
         .animation(GZ.spring, value: community.isPicking)
         .background(GZ.appBg)
-        .sheet(isPresented: $model.detailOpen) {
+        .gzSheet(isPresented: $model.detailOpen) {
             StatusDetailSheet(presentation: model.presentation,
                               // W2: im Ziel-Modus zeigt das Sheet die Zonen am Ziel.
                               status: model.visibleStatus,
@@ -101,12 +101,13 @@ struct RootView: View {
                 model.detailOpen = false
             }
         }
-        .sheet(isPresented: $model.infoOpen) {
+        .gzSheet(isPresented: $model.infoOpen) {
             InfoSheetView { model.infoOpen = false }
         }
         // W3: genau EIN Community-Sheet (SheetState-Union wie v1).
-        .sheet(item: Binding(get: { community.presentedSheet },
-                             set: { if $0 == nil { community.closeSheet() } })) { route in
+        .gzSheet(item: Binding(get: { community.presentedSheet },
+                               set: { if $0 == nil { community.closeSheet() } }),
+                 onDismiss: { community.closeSheet() }) { route in
             communitySheet(route)
         }
         .fullScreenCover(isPresented: .constant(model.shouldShowOnboarding)) {
@@ -217,7 +218,10 @@ struct RootView: View {
         guard !routed else { return }
         routed = true
         let route = DebugEnvironment.route
-        guard route == .statusDetail || route == .info else { return }
+        // W2 liess hier alles ausser `map` durch, W3 nur `statusDetail` und
+        // `info` — beim Zusammenlegen fiel `targetDetail` heraus und die Route
+        // zeigte still die Karte ohne Sheet.
+        guard route == .statusDetail || route == .targetDetail || route == .info else { return }
         // Erst die Karte settlen lassen — sonst zeigt der Screenshot ein Sheet
         // ueber halb geladenen Tiles.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
