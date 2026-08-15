@@ -25,6 +25,9 @@ struct MapContainer: UIViewRepresentable {
     let accuracyM: Double
     /// Zaehler statt Boolean: derselbe FAB-Tap zweimal muss zweimal fahren.
     let recenterToken: Int
+    /// W3: Pick-Modus liest hierueber den Kartenmittelpunkt. Kein Zustand in der
+    /// Karte — nur eine Leseschliesse, die sie eintraegt.
+    var centerSink: MapCenterSink?
     var onSelectSpot: (String) -> Void = { _ in }
     var onSelectFreeSnap: (String) -> Void = { _ in }
 
@@ -52,6 +55,8 @@ struct MapContainer: UIViewRepresentable {
 
         context.coordinator.attach(to: mapView, pins: pins, freePins: freePins,
                                    user: userCoordinate, accuracyM: accuracyM)
+        // W3
+        centerSink?.read = { [weak mapView] in mapView?.centerCoordinate }
         return mapView
     }
 

@@ -3,6 +3,8 @@
 #
 #   Scripts/shot.sh <route> <out.png> [dark]
 #   route: map | status_detail | info
+#          W3: map_spots | newspot | pick | detail | solo | invite | sent
+#              | manage | reply | friends | profile | profile_empty | welcome
 #
 # Umgebung (optional):
 #   GZ_HOUR=12        Stunde fuer das Zeitfenster (Default 12 = time-Zonen aktiv)
@@ -20,7 +22,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-ROUTE="${1:?Route fehlt: map | status_detail | info}"
+ROUTE="${1:?Route fehlt — siehe Kopf dieser Datei}"
 OUT="${2:?Zieldatei fehlt}"
 APPEARANCE="${3:-light}"
 
