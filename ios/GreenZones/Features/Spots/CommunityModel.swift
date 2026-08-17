@@ -70,11 +70,25 @@ final class CommunityModel {
     let invites: InviteStore
     let settings: SettingsStore
     let sync: SyncCoordinator
+    /// W5: Bestand der Snaps (eigene wie fremde) …
+    let snaps: SnapStore
+    /// … und ihr Weg: Aufnahme, Outbox, Vorschaubilder, Loeschen, Melden.
+    let snapSync: SnapCoordinator
+    /// Vorschaubilder von der Platte — Kacheln und Karten-Pins lesen dieselben.
+    let thumbs: SnapThumbs
 
     var sheet: SheetRoute?
+    /// W5: Vollbild ueber allem — Kamera oder Betrachter. Eines von beiden, nie
+    /// beides: zwei `fullScreenCover` an derselben View schliessen einander aus.
+    var cover: SnapCover?
     var draft = NewSpotDraft()
     private(set) var toast: String?
+    /// Frisch aufgenommener freier Snap — sein Pin ploppt einmal auf (SPEC 9).
+    private(set) var popInSnapId: String?
 
+    /// Wo die Bilder liegen — Bestand, Aufnahme und Fixture-Laeufe teilen sich
+    /// dieselbe Basis.
+    @ObservationIgnored let files: SnapFiles
     @ObservationIgnored private let clock: GZClock
     @ObservationIgnored private let zoneStatus: (CLLocationCoordinate2D) async -> ZoneStatus?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -88,16 +102,30 @@ final class CommunityModel {
     @ObservationIgnored var didSeedFixtures = false
 
     init(database: AppDatabase, gateway: any CloudGateway = NoCloudGateway(),
-         clock: GZClock = SystemClock(),
+         clock: GZClock = SystemClock(), files: SnapFiles = SnapFiles(),
          zoneStatus: @escaping (CLLocationCoordinate2D) async -> ZoneStatus?) {
         self.clock = clock
         self.zoneStatus = zoneStatus
+        self.files = files
         spots = SpotStore(database, clock: clock)
         friends = FriendStore(database)
         invites = InviteStore(database)
         settings = SettingsStore(database)
         sync = SyncCoordinator(gateway: gateway, spots: spots, friends: friends,
                                invites: invites, settings: settings, clock: clock)
+        // W5: EIN Dateiort fuer Bestand, Aufnahme und Anzeige — zwei
+        // `SnapFiles`-Instanzen mit verschiedenen Basen wuerden aneinander
+        // vorbei schreiben und lesen.
+        snaps = SnapStore(database, files: files)
+        snapSync = SnapCoordinator(store: snaps, gateway: gateway, files: files, clock: clock)
+        thumbs = SnapThumbs(files: files)
+        // Der Vollabzug traegt auch die Snaps. Der `SyncCoordinator` kennt sie
+        // nicht — er reicht den Snapshot hierher durch, und zwar mit dem
+        // Spot-Bestand von NACH dem Merge (die Zuordnung laeuft ueber Zonen).
+        sync.onSnapshot = { [weak self] snapshot in
+            guard let self else { return }
+            await self.snapSync.apply(snapshot, spots: self.spots.spots)
+        }
     }
 
     var now: Date { clock.now }
@@ -177,14 +205,118 @@ final class CommunityModel {
         invites.activeFor(spotId: spotId, now: now)
     }
 
-    /// Spot-Marker der Karte (Variante A). Ring `ok` bei ≤ 75 m.
+    /// Spot-Marker der Karte (Variante A). Ring `ok` bei ≤ 75 m; der Faecher
+    /// traegt die zwei neuesten Snaps des Albums, der Chip den Rest.
     func spotPins(user: CLLocationCoordinate2D?) -> [SpotPinState] {
         spots.spots.map { spot in
             let near = user.map { Geo.distanceM($0, spot.coordinate) <= 75 } ?? false
+            let album = snaps.album(of: spot)
+            let photos = album.prefix(2).compactMap { thumbs.image(id: $0.id) }
             return SpotPinState(id: spot.id, emoji: spot.emoji, isNear: near,
-                                stackPhotos: [], snapCount: 0, frontSnapID: nil,
+                                stackPhotos: photos, snapCount: album.count,
+                                frontSnapID: album.first?.id,
                                 latitude: spot.lat, longitude: spot.lng)
         }
+    }
+
+    /// W5: freie Snaps als eigene Pins. Ohne geladenes Vorschaubild steht der Pin
+    /// trotzdem — das Bild kommt nach, der Ort ist schon wahr.
+    func freeSnapPins() -> [FreeSnapPinState] {
+        snaps.freePins.map { snap in
+            FreeSnapPinState(id: snap.id, photo: thumbs.image(id: snap.id),
+                             latitude: snap.lat, longitude: snap.lng)
+        }
+    }
+
+    // MARK: - Snaps (W5)
+
+    /// Album eines Spots: eigene Spot-Snaps ∪ Feed-Snaps am selben Spot.
+    func album(of spot: Spot) -> [Snap] { snaps.album(of: spot) }
+
+    /// Anstoss-Schluessel fuer die Vorschaubilder: Id UND Pfad. Ein Thumb, der
+    /// aus der Cloud nachkommt, aendert nur den Pfad — an einer reinen Id-Liste
+    /// würde er nie bemerkt.
+    var thumbKey: String {
+        snaps.snaps.map { "\($0.id)|\($0.thumbPath ?? "")" }.joined(separator: ",")
+    }
+
+    func loadThumbs() async { await thumbs.load(snaps.snaps) }
+
+    /// Was der Betrachter zeigt: das ganze Album eines Spots, oder genau den
+    /// einen freien Snap, den jemand auf der Karte angetippt hat.
+    func visibleSnaps(_ source: SnapSource) -> [Snap] {
+        switch source {
+        case .spot(let spotId):
+            guard let spot = spot(id: spotId) else { return [] }
+            return album(of: spot)
+        case .free(let snapId):
+            return snaps.snap(id: snapId).map { [$0] } ?? []
+        }
+    }
+
+    func openCamera(spotId: String? = nil) {
+        GZ.haptic()
+        cover = .camera(spotId: spotId)
+    }
+
+    func openViewer(_ source: SnapSource, index: Int = 0, report: Bool = false) {
+        cover = .viewer(source: source, index: index, report: report)
+    }
+
+    func closeCover() { cover = nil }
+
+    /// Aufnahme abschliessen: Datei, Bestand, Vorschau, Pin. Der Upload laeuft
+    /// hinterher (Outbox) — sichtbar ist der Snap sofort.
+    func capture(_ data: Data, at coordinate: CLLocationCoordinate2D?, spot: Spot?,
+                 scope: SnapScope) async {
+        // Ein Snap braucht einen Ort: er ist ein Punkt auf der Karte, kein
+        // Bild in einem Ordner. Ohne Standort und ohne Spot gibt es keinen.
+        guard let position = coordinate ?? spot?.coordinate else {
+            notice("Ohne Standort kann der Snap nicht auf die Karte — Ortung erlauben und nochmal.")
+            return
+        }
+        do {
+            let snap = try await snapSync.capture(data, at: position, spot: spot, scope: scope)
+            await thumbs.load([snap])
+            // Nur freie Snaps ploppen: am Spot waechst stattdessen der Faecher
+            // des bestehenden Pins (SpotPinView.playStackGrow).
+            popInSnapId = snap.isFree ? snap.id : nil
+        } catch {
+            notice("Das Foto konnte nicht gespeichert werden.")
+        }
+    }
+
+    /// Auslösen aus der Kamera: erst das Vollbild schliessen, dann den Snap
+    /// anlegen. Andersherum liefe die Feder (Pin-Pop-in, wachsender Faecher)
+    /// hinter dem Vollbild ab und niemand saehe sie — der Kern-Moment aus der
+    /// SPEC waere weg. Der Auftrag haengt am Modell, nicht an der Kamera-View:
+    /// die ist beim Anlegen laengst verschwunden.
+    func captureAndClose(_ data: Data, at coordinate: CLLocationCoordinate2D?, spot: Spot?,
+                         scope: SnapScope) {
+        closeCover()
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(340))
+            await self?.capture(data, at: coordinate, spot: spot, scope: scope)
+        }
+    }
+
+    /// Das Aufploppen ist ein Ereignis, kein Zustand: die Karte quittiert es,
+    /// damit ein zweiter Render den Pin nicht erneut hereinspringen laesst.
+    func consumePopIn() { popInSnapId = nil }
+
+    /// Loeschen darf der Autor — und der Gastgeber in seiner eigenen Spot-Zone
+    /// (Zone-Owner-Recht, SPEC 7). Fremde Feed-Snaps am eigenen Spot liegen in
+    /// fremder Zone: dort bleibt nur Melden.
+    func canDelete(_ snap: Snap) -> Bool {
+        if snap.isMine { return true }
+        guard snap.scope == .spot, let zone = snap.zoneName else { return false }
+        return spots.spots.contains { $0.zoneName == zone && $0.isMine }
+    }
+
+    /// Beschriftung einer Album-Kachel: „Ich · gestern", „Tara · 19:41".
+    func snapCaption(_ snap: Snap) -> String {
+        let who = snap.isMine ? "Ich" : (friends.friend(id: snap.authorId).map(friendLabel) ?? "Freund")
+        return "\(who) · \(snapWhen(snap.createdAt, now: now))"
     }
 
     /// Freunde, mit denen dieser Spot noch nicht geteilt ist.

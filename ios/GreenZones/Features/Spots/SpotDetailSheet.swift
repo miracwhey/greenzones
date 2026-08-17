@@ -23,6 +23,11 @@ struct SpotDetailSheet: View {
     @State private var addTo: Set<String> = []
     /// Bandanfang einmal einfrieren — sonst wandert „Jetzt" unter dem Finger.
     @State private var now: Date?
+    /// W5: Person, deren Entfernen gerade nachgefragt wird — aus dem Spot bzw.
+    /// aus der Freundesliste. Zwei Zustaende, weil beide verschiedene Folgen
+    /// haben und der Text sie benennen muss.
+    @State private var removingFromSpot: Friend?
+    @State private var removingFriend: Friend?
 
     private var invitation: Invitation? { model.activeInvitation(spotId: spot.id) }
     private var status: ZoneStatus? { model.status(at: spot.coordinate) }
@@ -55,12 +60,38 @@ struct SpotDetailSheet: View {
         }
         .task { if now == nil { now = model.now } }
         .task(id: spot.id) { await model.loadStatus(at: spot.coordinate) }
+        // `.alert` statt `.confirmationDialog`: der schluckt unter iOS 26 den
+        // Abbrechen-Knopf, wenn er aus einem Blatt heraus kommt.
+        .alert("Aus Spot entfernen?", isPresented: Binding(get: { removingFromSpot != nil },
+                                                          set: { if !$0 { removingFromSpot = nil } }),
+               presenting: removingFromSpot) { friend in
+            Button("Entfernen", role: .destructive) {
+                removingFromSpot = nil
+                let spotId = spot.id
+                model.run { try await model.sync.removeSpotParticipant(spotId: spotId,
+                                                                        userId: friend.id) }
+            }
+            Button("Abbrechen", role: .cancel) { removingFromSpot = nil }
+        } message: { friend in
+            Text("\(friendLabel(friend)) sieht „\(spot.name)“ dann nicht mehr — auch die Snaps hier nicht. Ihr bleibt befreundet.")
+        }
+        .alert("Freund entfernen?", isPresented: Binding(get: { removingFriend != nil },
+                                                        set: { if !$0 { removingFriend = nil } }),
+               presenting: removingFriend) { friend in
+            Button("Entfernen", role: .destructive) {
+                removingFriend = nil
+                model.run { try await model.sync.removeFriend(id: friend.id) }
+            }
+            Button("Abbrechen", role: .cancel) { removingFriend = nil }
+        } message: { friend in
+            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über einen neuen Einladungs-Link.")
+        }
     }
 
     // MARK: - Ansicht
 
     private var detailSheet: some View {
-        CommunitySheet(estimate: 420) {
+        CommunitySheet(estimate: 560) {
             SPTitle(text: spot.name)
             if let invitation {
                 SPSubtitle(text: isHost
@@ -76,6 +107,10 @@ struct SpotDetailSheet: View {
                let line = spotLegalLine(status, at: invitation.time, base: frozenNow) {
                 legalLine(line, warns: !spotAllowedAt(status, at: invitation.time))
             }
+
+            // W5, Lock A: das Album steht ueber der Einladung — beim Oeffnen
+            // gewinnt, was am Spot passiert ist, nicht der Verwaltungsteil.
+            SnapAlbumSection(model: model, spot: spot)
 
             if let invitation, isHost {
                 SPSection(text: "Deine Zeit")
@@ -100,7 +135,12 @@ struct SpotDetailSheet: View {
                 if !rows.isEmpty {
                     SPSection(text: "Wer kommt")
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
-                        SPRsvpRow(entry: entry, showDivider: index > 0)
+                        // Das Menue haengt an der Person, nicht an der Zeile:
+                        // ohne bekannten Freund dahinter gaebe es nichts zu tun.
+                        let friend = entry.friendId.flatMap { model.friends.friend(id: $0) }
+                        SPRsvpRow(entry: entry, showDivider: index > 0,
+                                  onRemoveFromSpot: removeFromSpotAction(friend),
+                                  onRemoveFriend: removeFriendAction(friend))
                     }
                 }
             }
@@ -121,10 +161,19 @@ struct SpotDetailSheet: View {
                 .padding(.top, 14)
             }
 
+            // W5 (Mockup, Zustand 4): Ein ungeteilter Spot ist eine Schublade
+            // fuer mich allein — und seine Snaps verlassen das Geraet nicht.
+            // Der Satz steht VOR den Aktionen, damit der Weg heraus (teilen
+            // bzw. Freund einladen) direkt darunter liegt.
+            if spot.isLocalOnly, spot.isMine {
+                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Snaps hier bleiben auf dem Gerät, bis du ihn teilst.")
+            }
+
             actions
 
+            // Sackgassen-Regel: ohne Freunde ist der Weg heraus der Link, und
+            // ohne iCloud sagt der Hinweis, warum es gerade keinen gibt.
             if spot.isLocalOnly, friends.isEmpty {
-                SPNote(text: "Noch keine Freunde — teile einen Link, dann könnt ihr Spots teilen und euch einladen.")
                 SPCloudHint(status: model.sync.state.status)
             }
 
@@ -143,6 +192,21 @@ struct SpotDetailSheet: View {
             }
             .padding(.top, 14)
         }
+    }
+
+    /// „Aus Spot entfernen" gibt es nur fuer den Gastgeber und nur fuer
+    /// Teilnehmer DIESES Spots — bei einem fremden Spot bin ich selbst Gast.
+    private func removeFromSpotAction(_ friend: Friend?) -> (() -> Void)? {
+        guard let friend, spot.isMine, spot.participantIds.contains(friend.id) else { return nil }
+        return { removingFromSpot = friend }
+    }
+
+    /// Das Personen-Menue gehoert dem Gastgeber (Mockup, Zustand 2): in einem
+    /// fremden Spot bin ich Gast und verwalte dort niemanden. „Freund entfernen"
+    /// bleibt ueber die Freundesliste erreichbar — es gehoert nicht dem Spot.
+    private func removeFriendAction(_ friend: Friend?) -> (() -> Void)? {
+        guard let friend, spot.isMine else { return nil }
+        return { removingFriend = friend }
     }
 
     @ViewBuilder

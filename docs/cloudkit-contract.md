@@ -253,6 +253,20 @@ setzt der `SyncCoordinator` `friend.blocked = 1`, **auch wenn die Cloud scheiter
 Person sofort weg. `blocked` überlebt den Merge aus dem lokalen Bestand (die Cloud kennt das Feld
 nicht und würde es bei jedem Fetch zurücksetzen).
 
+## Aus einem Spot entfernen (implementiert, Welle 5)
+
+`removeSpotParticipant(zoneName:userID:)` nimmt jemanden aus **einem** eigenen Spot-Share, ohne die
+Freundschaft anzufassen — der Menüpunkt aus dem abgenommenen Spot-Sheet-Mockup („Aus Spot
+entfernen" neben „Freund entfernen"). Kein neuer Record-Typ: es ist derselbe
+`share.removeParticipant`-Weg wie Phase 2 von `removeFriend`, nur auf eine Zone begrenzt.
+
+- Nur der **Owner** der Zone kann das; bei einem fremden Spot bin ich selbst Gast, und das Gateway
+  bricht still ab (Zielzustand erreicht, kein Fehler). Die App zeigt den Punkt dort gar nicht erst.
+- Wer nicht (mehr) Teilnehmer ist, ist der Zielzustand — der Aufruf ist idempotent.
+- Reihenfolge wie bei allen Schreibwegen außer der Spot-Anlage: **erst die Cloud, dann lokal.**
+  Schlägt der Share-Write fehl, bleibt die Person im lokalen `spot.participantIds` — sonst zeigte
+  die App eine Trennung, die es in der Zone nicht gibt.
+
 ## Push / NSE (implementiert)
 
 - Ereignis-Rangfolge der Notification-Extension: `Invitation > SpotOffer > Snap > Reply > Profile`.

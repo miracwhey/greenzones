@@ -55,10 +55,18 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         self.fixedCoordinate = fixedCoordinate
         self.fixedAccuracyM = fixedAccuracyM
         super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        // Wie v1: erst ab 5 m Bewegung ein neues Ereignis.
-        manager.distanceFilter = 5
+        // Im Fixture-Betrieb bleibt der Manager stumm: KEIN Delegate. Sonst
+        // meldet sich CoreLocation von selbst, sobald die Erlaubnis schon
+        // erteilt ist (`locationManagerDidChangeAuthorization` beim Start),
+        // startet die Ortung und ueberschreibt den festen Punkt mit dem
+        // Simulator-Standort. Genau das hat Screenshots nach San Francisco
+        // versetzt — samt „10502,5 km von dir" in den Blaettern.
+        if fixedCoordinate == nil {
+            manager.delegate = self
+            manager.desiredAccuracy = kCLLocationAccuracyBest
+            // Wie v1: erst ab 5 m Bewegung ein neues Ereignis.
+            manager.distanceFilter = 5
+        }
     }
 
     /// Startet die Ortung. Idempotent — ein zweiter Aufruf ist ein No-Op.
@@ -110,6 +118,9 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
+            // Zweiter Riegel neben dem fehlenden Delegate: ein fester Punkt
+            // gewinnt immer gegen das Geraet.
+            guard self.fixedCoordinate == nil else { return }
             switch status {
             case .authorizedWhenInUse, .authorizedAlways:
                 if self.state == .denied || self.state == .idle { self.state = .locating }
@@ -132,6 +143,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         // Negative Genauigkeit = ungueltige Messung; v1 fiel auf 50 m zurueck.
         let accuracy = last.horizontalAccuracy > 0 ? last.horizontalAccuracy : 50
         Task { @MainActor in
+            guard self.fixedCoordinate == nil else { return }
             self.state = .ready(coordinate: coordinate, accuracyM: accuracy)
         }
     }
@@ -140,6 +152,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         let message = error.localizedDescription
         let denied = (error as? CLError)?.code == .denied
         Task { @MainActor in
+            guard self.fixedCoordinate == nil else { return }
             self.logger.error("Standort-Fehler: \(message, privacy: .public)")
             // Ein einzelner „unknown"-Fehler ist normal, solange noch keine Fixe
             // da ist — er darf einen bereits gueltigen Standort nicht loeschen.

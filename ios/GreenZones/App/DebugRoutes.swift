@@ -35,9 +35,31 @@ enum DebugRoute: String {
     case profileEmpty = "profile_empty"
     case welcome
 
+    // W5: Snaps. Album, Kamera (frei und am Spot), Betrachter, Melden, freie
+    // Pins — jede Route faehrt denselben Zustand an wie ein Tap.
+    /// Karte mit freien Snap-Pins.
+    case freesnap
+    /// Kamera ohne Spot in Reichweite: Chip „Auf der Karte", kein Schalter.
+    case camera
+    /// Kamera aus dem Spot-Blatt: Kontext-Chip + Sichtbarkeits-Schalter.
+    case cameraSpot = "camera_spot"
+    case viewer
+    /// Betrachter mit offenem Melden-Dialog.
+    case report
+
     /// Alle Routen, die mit offener Suche starten.
     var opensSearch: Bool {
         self == .search || self == .searchResults || self == .searchOffline
+    }
+
+    /// Routen, die Snaps im Bestand brauchen.
+    var needsSnaps: Bool {
+        switch self {
+        case .detail, .manage, .solo, .viewer, .report, .camera, .cameraSpot, .freesnap, .mapSpots:
+            return true
+        default:
+            return false
+        }
     }
 }
 

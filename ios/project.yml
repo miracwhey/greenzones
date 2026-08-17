@@ -98,8 +98,15 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: ""
       configs:
+        # W5: Die vier Fixture-Fotos der Screenshot-Routen liegen im Bundle,
+        # aber NUR im Debug-Build — der Fixture-Pfad selbst ist `#if DEBUG`.
+        # Ohne diesen Ausschluss traege jede ausgelieferte App knapp 1 MB
+        # Bilder mit, die kein Code je oeffnet.
+        Release:
+          EXCLUDED_SOURCE_FILE_NAMES: snap1.jpg snap2.jpg snap3.jpg snap4.jpg
         Distribution:
           CODE_SIGN_ENTITLEMENTS: GreenZones/Resources/GreenZones-Distribution.entitlements
+          EXCLUDED_SOURCE_FILE_NAMES: snap1.jpg snap2.jpg snap3.jpg snap4.jpg
 
   # Bedienung statt Aussehen: das Blatt (`gzSheet`) baut Tippen daneben, Wischen
   # am Griff und die Einfahrt selbst — ein Screenshot beweist davon nichts.

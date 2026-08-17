@@ -485,9 +485,17 @@ struct SPTimeRow: View {
 }
 
 /// Eine Zeile in „Wer kommt".
+///
+/// W5 (Mockup-Lock B): der Gastgeber erreicht ueber „•••" genau zwei Wege —
+/// jemanden aus DIESEM Spot nehmen, oder die Freundschaft ganz beenden. Melden
+/// steht bewusst nicht hier: das gehoert an den Snap, nicht an die Person.
 struct SPRsvpRow: View {
     let entry: RsvpEntry
     let showDivider: Bool
+    var onRemoveFromSpot: (() -> Void)?
+    var onRemoveFriend: (() -> Void)?
+
+    private var hasMenu: Bool { onRemoveFromSpot != nil || onRemoveFriend != nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -504,6 +512,23 @@ struct SPRsvpRow: View {
                 Text(entry.text)
                     .font(.system(size: 12.5, weight: entry.tone == .attending ? .semibold : .medium))
                     .foregroundStyle(entry.tone == .attending ? GZ.ok : GZ.ink3)
+                if hasMenu {
+                    Menu {
+                        if let onRemoveFromSpot {
+                            Button("Aus Spot entfernen", action: onRemoveFromSpot)
+                        }
+                        if let onRemoveFriend {
+                            Button("Freund entfernen", role: .destructive, action: onRemoveFriend)
+                        }
+                    } label: {
+                        Text("•••")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(GZ.ink3)
+                            .frame(width: 30, height: 34)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Mehr zu \(entry.name)")
+                }
             }
             .padding(.vertical, 9)
         }
@@ -690,6 +715,9 @@ struct RsvpEntry: Identifiable {
     let color: Color
     let text: String
     let tone: Tone
+    /// userRecordID der Person, sofern es eine andere als ich ist — daran haengt
+    /// das „•••"-Menue des Gastgebers. `nil` bei der eigenen Zeile.
+    var friendId: String?
 }
 
 /// Antwort → Statuszeile. „Ich komme um 21:00" ist eine Zusage, keine Absage.
@@ -718,7 +746,8 @@ func rsvpEntries(_ invitation: Invitation, friends: [Friend],
                          emoji: friend?.emoji,
                          color: SP.color(friend?.color),
                          text: state.text,
-                         tone: state.tone)
+                         tone: state.tone,
+                         friendId: id)
     }
 
     var seen: Set<String> = [SELF_ID]
@@ -730,7 +759,8 @@ func rsvpEntries(_ invitation: Invitation, friends: [Friend],
                               emoji: host?.emoji,
                               color: host.map { SP.color($0.color) } ?? GZ.accent,
                               text: "ab \(Tape.fmtClock(invitation.time)) · Gastgeber",
-                              tone: .attending))
+                              tone: .attending,
+                              friendId: invitation.hostId))
     }
     for id in participantIds where !seen.contains(id) {
         seen.insert(id)

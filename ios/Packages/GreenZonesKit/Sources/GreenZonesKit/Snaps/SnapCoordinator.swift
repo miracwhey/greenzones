@@ -187,6 +187,13 @@ public final class SnapCoordinator {
     /// Original für den Viewer — eigenes von der Platte, fremdes aus dem Cache
     /// oder frisch geladen.
     public func original(of snap: Snap) async -> URL? {
+        // Was schon auf der Platte liegt, gewinnt — unabhaengig davon, wer den
+        // Snap gemacht hat. Ohne diese Zeile laedt ein fremdes Bild erneut aus
+        // der Cloud, obwohl es daneben liegt (und im Fixture-Lauf bliebe der
+        // Betrachter beim unscharfen Vorschaubild).
+        if let path = snap.photoPath, files.exists(path) {
+            return URL(fileURLWithPath: path)
+        }
         if snap.isMine {
             let url = files.originalURL(id: snap.id)
             return files.exists(url.path) ? url : nil

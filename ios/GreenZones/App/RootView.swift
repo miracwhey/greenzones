@@ -1,6 +1,22 @@
 import GreenZonesKit
 import SwiftUI
 
+/// Was die App ueber allem zeigen kann. Genau eines davon, nie zwei.
+enum RootCover: Identifiable, Equatable {
+    case onboarding
+    case camera(spotId: String?)
+    case viewer(source: SnapSource, index: Int, report: Bool)
+
+    var id: String {
+        switch self {
+        case .onboarding: return "onboarding"
+        case .camera(let spotId): return "camera-\(spotId ?? "free")"
+        case .viewer(let source, let index, let report):
+            return "viewer-\(source.key)-\(index)-\(report)"
+        }
+    }
+}
+
 /// Kartenebene mit Status-Bar, FAB-Gruppe und den Sheets.
 struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -10,19 +26,34 @@ struct RootView: View {
     // W3: die Community haengt am AppModel, die Views lesen sie hier heraus.
     private var community: CommunityModel { model.community }
 
+    /// Vollbild-Vorrang: erst die Standort-Frage, dann Kamera/Betrachter.
+    private var rootCover: RootCover? {
+        if model.shouldShowOnboarding { return .onboarding }
+        switch community.cover {
+        case .camera(let spotId): return .camera(spotId: spotId)
+        case .viewer(let source, let index, let report):
+            return .viewer(source: source, index: index, report: report)
+        case nil: return nil
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             MapContainer(dark: colorScheme == .dark,
                          timeActive: model.timeActive,
                          pins: community.spotPins(user: model.location.state.coordinate),
-                         freePins: [],
+                         // W5: freie Snaps stehen als eigene Pins auf der Karte.
+                         freePins: community.freeSnapPins(),
                          userCoordinate: model.location.state.coordinate,
                          accuracyM: model.location.state.accuracyM,
                          recenterToken: model.recenterToken,
                          // W2: Ziel-Pin + Anflug.
                          target: model.target?.result.coordinate,
                          centerSink: community.mapCenter,
-                         onSelectSpot: { community.sheet = .detail(spotId: $0) })
+                         popInSnapId: community.popInSnapId,
+                         onSelectSpot: { community.sheet = .detail(spotId: $0) },
+                         onSelectFreeSnap: { community.openViewer(.free(snapId: $0)) },
+                         onPopInPlayed: { _ in community.consumePopIn() })
                 .ignoresSafeArea()
 
             // W3: Fadenkreuz des Pick-Modus liegt ueber der Karte, nicht darin —
@@ -110,17 +141,46 @@ struct RootView: View {
                  onDismiss: { community.closeSheet() }) { route in
             communitySheet(route)
         }
-        .fullScreenCover(isPresented: .constant(model.shouldShowOnboarding)) {
-            OnboardingView(onAllow: { model.finishOnboarding() },
-                           onSkip: { model.finishOnboarding() })
+        // EIN Vollbild fuer alles: Onboarding, Kamera und Betrachter. Zwei
+        // `fullScreenCover` an derselben View schliessen einander aus — die
+        // zweite gewinnt, die erste zuendet nie (Spike-Befund). Das Onboarding
+        // hat Vorrang: solange die Standort-Frage steht, gibt es keine Kamera.
+        .fullScreenCover(item: Binding(get: { rootCover },
+                                       set: { if $0 == nil { community.closeCover() } })) { cover in
+            switch cover {
+            case .onboarding:
+                OnboardingView(onAllow: { model.finishOnboarding() },
+                               onSkip: { model.finishOnboarding() })
+            case .camera(let spotId):
+                SnapCameraView(model: community, spotId: spotId,
+                               userCoordinate: model.location.state.coordinate)
+            case .viewer(let source, let index, let report):
+                SnapViewerView(model: community, source: source, startIndex: index,
+                               autoReport: report)
+            }
         }
+        // Die Pins der Karte tragen Vorschaubilder: was noch nicht auf der
+        // Platte liegt, wird hier nachgezogen. Der Schluessel traegt den PFAD,
+        // nicht nur die Id — ein aus der Cloud nachgeladener Thumb aendert die
+        // Id-Liste nicht, und der Pin bliebe sonst bis zur naechsten
+        // Bestandsaenderung leer.
+        .task(id: community.thumbKey) { await community.loadThumbs() }
         .task { model.start() }
+        // W5: Der Snap-Weg hat einen eigenen Fehlerkanal (Upload, Nachladen).
+        // Ohne diese Bruecke schriebe er still in eine Eigenschaft, die niemand
+        // liest — die App saehe aus, als sei alles gut gegangen.
+        .onChange(of: community.snapSync.error) { _, message in
+            guard let message else { return }
+            community.notice(message)
+            community.snapSync.clearError()
+        }
         .onChange(of: model.location.state) { _, _ in model.locationChanged() }
         .onAppear(perform: applyDebugRoute)
     }
 
     /// FAB-Gruppe rechts (v1-Reihenfolge: Spot markieren · Freunde · Zentrieren ·
-    /// Info). Der Plus-FAB fuer Snaps kommt mit W5 — kein Platzhalter, der nichts tut.
+    /// Info), darunter der Snap-FAB aus W5. Er sitzt unten und ist groesser: von
+    /// hier aus entsteht etwas, die vier darueber verwalten nur (SPEC 9).
     private var fabs: some View {
         VStack(spacing: 10) {
             // W3
@@ -139,7 +199,27 @@ struct RootView: View {
                 GZ.haptic()
                 model.infoOpen = true
             }
+            snapFab
+                .padding(.top, 4)
         }
+    }
+
+    /// W5: Plus-FAB fuer Snaps. Blau gefuellt statt Glas — er ist die einzige
+    /// Handlung hier, die etwas erschafft.
+    private var snapFab: some View {
+        Button(action: { community.openCamera() }) {
+            ZStack {
+                Circle().strokeBorder(Color.white, lineWidth: 2.4)
+                    .frame(width: 24, height: 24)
+                Circle().fill(Color.white).frame(width: 14, height: 14)
+            }
+            .frame(width: 56, height: 56)
+            .background(GZ.accent, in: .circle)
+            .shadow(color: GZ.accent.opacity(0.35), radius: 12, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Snap aufnehmen")
+        .accessibilityIdentifier("gz.fab.snap")
     }
 
     private func fab<S: Shape>(icon: S, tint: Color, label: String,

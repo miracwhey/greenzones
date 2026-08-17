@@ -39,6 +39,10 @@ public protocol CloudGateway: Sendable {
     /// mitgereichtes Flag waere ein zweiter Zustand neben der Datenbank.
     func removeFriend(userID: String, friendshipZone: String) async throws
 
+    /// Jemanden aus EINEM eigenen Spot-Share nehmen, ohne die Freundschaft zu
+    /// beenden. Idempotent: wer nicht (mehr) Teilnehmer ist, ist der Zielzustand.
+    func removeSpotParticipant(zoneName: String, userID: String) async throws
+
     // MARK: - Snaps (W5)
 
     /// Laedt einen eigenen Snap hoch — in die Feed-Zone (alle Freunde) oder die
@@ -163,6 +167,10 @@ public struct NoCloudGateway: CloudGateway {
     }
 
     public func removeFriend(userID: String, friendshipZone: String) async throws {
+        throw SyncError.noAccount
+    }
+
+    public func removeSpotParticipant(zoneName: String, userID: String) async throws {
         throw SyncError.noAccount
     }
 

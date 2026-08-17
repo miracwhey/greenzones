@@ -108,6 +108,29 @@ public func albumSnaps(_ all: [Snap], spot: Spot) -> [Snap] {
     .sorted { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }
 }
 
+/// Wann ein Snap entstanden ist — in der Kuerze, die auf eine 84-pt-Kachel passt
+/// (Mockup-Lock 15.08.: „Tara · 19:41", „Ich · gestern", „Marcel · Di").
+///
+/// Die Aufloesung faellt mit dem Alter: heute die Uhrzeit, gestern das Wort,
+/// diese Woche der Wochentag, danach das Datum. Ein Zeitstempel, den niemand
+/// einordnen kann, ist auf einer Kachel verschenkter Platz.
+public func snapWhen(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+    let today = calendar.startOfDay(for: now)
+    let day = calendar.startOfDay(for: date)
+    let diff = calendar.dateComponents([.day], from: day, to: today).day ?? 0
+    // Zukunft (Uhr des Autors laeuft vor) wie „heute" behandeln — eine Kachel
+    // „in 2 Tagen" waere Unsinn.
+    if diff <= 0 { return Tape.fmtClock(date, calendar: calendar) }
+    if diff == 1 { return "gestern" }
+    if diff < 7 {
+        let names = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
+        let weekday = calendar.component(.weekday, from: date)
+        return names[(weekday - 1) % 7]
+    }
+    let parts = calendar.dateComponents([.day, .month], from: date)
+    return "\(parts.day ?? 1).\(parts.month ?? 1)."
+}
+
 /// Snaps, die als eigener Pin auf der Karte stehen: ohne Spot-Bezug, sichtbar.
 public func freeSnaps(_ all: [Snap]) -> [Snap] {
     all.filter { !$0.hidden && $0.isFree }

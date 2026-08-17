@@ -80,6 +80,15 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
         removedFriends.append(userID)
     }
 
+    /// Wer aus welchem Spot genommen wurde — Zone und Person, damit ein Test
+    /// nicht nur „irgendwas passierte" pruefen kann.
+    private(set) var removedFromSpots: [(zoneName: String, userID: String)] = []
+
+    func removeSpotParticipant(zoneName: String, userID: String) async throws {
+        try guardCall("removeSpotParticipant")
+        removedFromSpots.append((zoneName, userID))
+    }
+
     func createSpotShare(_ spot: Spot) async throws -> SpotShare {
         try guardCall("createSpotShare")
         return SpotShare(zoneName: "spot-\(spot.id)",
@@ -173,9 +182,10 @@ func cloudFriend(userID: String, name: String = "Tara", emoji: String = "",
 
 func snapshot(status: CKAccountStatus = .available, userID: String = ME,
               friends: [CloudFriend] = [], spots: [CloudSpot] = [],
-              invitations: [CloudInvitation] = []) -> CloudSnapshot {
+              invitations: [CloudInvitation] = [],
+              snaps: [CloudSnap] = []) -> CloudSnapshot {
     CloudSnapshot(status: status, userID: userID, friends: friends, spots: spots,
-                  invitations: invitations)
+                  invitations: invitations, snaps: snaps)
 }
 
 let LOCAL_SPOT = Spot(id: "lokal-1", name: "Balkon", emoji: "🌳", lng: 9.7, lat: 52.3,

@@ -55,6 +55,14 @@ public final class SyncCoordinator {
     @ObservationIgnored private let logger = Logger(subsystem: "de.leonvalentin.greenzones",
                                                     category: "cloud")
 
+    /// Nach jedem gemergten Vollabzug: derselbe Snapshot geht an alles, was mehr
+    /// darin liest als Spots, Freunde und Einladungen (W5: Snaps). Der
+    /// Coordinator kennt die Snaps bewusst nicht — er haelt kein Bild, keine
+    /// Datei und keine Outbox davon, er reicht nur durch. Der Aufruf steht NACH
+    /// `spots.replaceAll`: die Snap-Zuordnung laeuft ueber die Spot-Zonen und
+    /// braeuchte sonst den Bestand von vorhin.
+    @ObservationIgnored public var onSnapshot: ((CloudSnapshot) async -> Void)?
+
     @ObservationIgnored private var started = false
     @ObservationIgnored private var subscribed = false
     @ObservationIgnored private var running: Task<Void, Never>?
@@ -141,6 +149,7 @@ public final class SyncCoordinator {
             logger.error("Merge nicht geschrieben: \(String(describing: error), privacy: .public)")
         }
         evaluateProfilePrompt()
+        await onSnapshot?(snapshot)
 
         if !subscribed {
             do {
@@ -246,6 +255,24 @@ public final class SyncCoordinator {
 
     private func friendshipZones(of friendIds: [String]) -> [String] {
         friendIds.compactMap { friends.friend(id: $0)?.friendshipZone }
+    }
+
+    /// Jemanden aus einem eigenen Spot nehmen (Mockup-Lock B, 15.08.): der
+    /// Teilnehmer verliert die Zone, die Freundschaft bleibt. Nur der Owner kann
+    /// das — bei einem fremden Spot gibt es den Menuepunkt nicht.
+    ///
+    /// Erst die Cloud, dann lokal (Ehrlichkeitsregel): schlaegt der Share-Write
+    /// fehl, steht die Person weiter im Spot — genau wie in der Zone.
+    public func removeSpotParticipant(spotId: String, userId: String) async throws {
+        guard let spot = spots.spot(id: spotId), spot.isMine,
+              spot.participantIds.contains(userId) else { return }
+        if let zone = spot.zoneName {
+            try await gateway.removeSpotParticipant(zoneName: zone, userID: userId)
+        }
+        try await spots.setCloudState(id: spotId,
+                                      SpotCloudState(participantIds: spot.participantIds
+                                          .filter { $0 != userId }))
+        Task { await self.refresh() }
     }
 
     /// Owner loescht die Zone, Teilnehmer beendet die Teilnahme — beides erst in der Cloud.

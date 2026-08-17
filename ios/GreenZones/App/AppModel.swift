@@ -72,7 +72,9 @@ final class AppModel {
         // Migrationsschritte der Features — Reihenfolge = Registrierungsreihenfolge.
         // W2: `SearchMigrations.all` bringt `recent_search` mit.
         // W3: `CommunityMigrations.all` bringt Spots/Freunde/Einladungen mit.
+        // W5: `SnapMigrations.all` bringt `snap` und `snap_report` mit.
         let migrations: [DBMigration] = SearchMigrations.all + CommunityMigrations.all
+            + SnapMigrations.all
         do {
             // Fixture-Laeufe (Screenshots) schreiben nichts auf die Platte.
             database = try fixtureCoordinate != nil
@@ -134,7 +136,15 @@ final class AppModel {
         // Die Closure haelt die Engine direkt, nicht `self`: waehrend `init` ist
         // `self` noch nicht vollstaendig.
         let engineForPoints = startedEngine
-        community = CommunityModel(database: database, gateway: GZCloud.gateway, clock: clock) { coordinate in
+        // W5: Fixture-Laeufe legen ihre Bilder in ein eigenes, verwerfbares
+        // Verzeichnis — ein Screenshot-Lauf darf den echten Bestand nicht
+        // anfassen (dieselbe Regel wie die In-Memory-DB darueber).
+        let snapFiles = fixtureCoordinate != nil
+            ? SnapFiles(base: FileManager.default.temporaryDirectory
+                .appendingPathComponent("gz-fixture-snaps", isDirectory: true))
+            : SnapFiles()
+        community = CommunityModel(database: database, gateway: GZCloud.gateway, clock: clock,
+                                   files: snapFiles) { coordinate in
             guard let engineForPoints else { return nil }
             return await engineForPoints.status(at: coordinate)
         }
@@ -171,9 +181,11 @@ final class AppModel {
             CommunityFixtures.seed(community, route: DebugEnvironment.route, clock: clock)
         } else {
             Task { await community.sync.start() }
+            startSnapOutbox()
         }
         #else
         Task { await community.sync.start() }
+        startSnapOutbox()
         #endif
         observeCloudChanges()
         // Solange das Onboarding steht, wird NICHT geortet — sonst stuende der
@@ -181,6 +193,13 @@ final class AppModel {
         // `useLocation(onboarded)` laeuft erst nach dem Onboarding an).
         guard !shouldShowOnboarding else { return }
         location.start()
+    }
+
+    /// W5: Ein Snap, der beim letzten Mal nicht rausging (kein Netz, App
+    /// beendet), liegt in der Outbox. Ohne diesen Anstoss beim Start bliebe er
+    /// dort liegen, bis zufaellig ein neuer Snap entsteht.
+    private func startSnapOutbox() {
+        Task { await community.snapSync.flush() }
     }
 
     /// Push und angenommene Einladungen sagen nur „da hat sich was geaendert" —

@@ -250,6 +250,27 @@ public actor CloudKitGateway: CloudGateway {
         if let lastError { throw lastError }
     }
 
+    /// Aus EINEM eigenen Spot-Share austragen. Die Freundschaft bleibt — nur der
+    /// Zugang zu dieser Zone endet. Wer nicht (mehr) drinsteht, ist der
+    /// Zielzustand, kein Fehler.
+    public func removeSpotParticipant(zoneName: String, userID: String) async throws {
+        try await requireAccount()
+        do {
+            // Nur eigene Zonen: in einem fremden Spot bin ich Gast und kann
+            // niemanden austragen. `zoneIndex` sagt, wem die Zone gehoert.
+            guard let located = try await zoneIndex()[zoneName], located.isMine,
+                  let share = await fetchZoneShare(located.zoneID, from: privateDB) else { return }
+            guard let participant = share.participants.first(where: {
+                $0.userIdentity.userRecordID?.recordName == userID
+            }) else { return }
+            share.removeParticipant(participant)
+            _ = try await privateDB.modifyRecords(saving: [share], deleting: [],
+                                                  savePolicy: .allKeys, atomically: true)
+        } catch {
+            throw CKErrorMapper.syncError(for: error)
+        }
+    }
+
     // MARK: - Spots
 
     public func createSpotShare(_ spot: Spot) async throws -> SpotShare {

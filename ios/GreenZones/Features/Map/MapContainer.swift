@@ -30,8 +30,14 @@ struct MapContainer: UIViewRepresentable {
     /// W3: Pick-Modus liest hierueber den Kartenmittelpunkt. Kein Zustand in der
     /// Karte — nur eine Leseschliesse, die sie eintraegt.
     var centerSink: MapCenterSink?
+    /// W5: GENAU dieser Pin ploppt auf — der gerade aufgenommene. Alles andere
+    /// erscheint ruhig: beim Start liegt der ganze Bestand an, und eine Karte,
+    /// auf der zwanzig Pins gleichzeitig hereinspringen, zappelt nur.
+    var popInSnapId: String?
     var onSelectSpot: (String) -> Void = { _ in }
     var onSelectFreeSnap: (String) -> Void = { _ in }
+    /// Der Sprung ist gelaufen — das Modell kann das Ereignis abhaken.
+    var onPopInPlayed: (String) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(dark: dark, timeActive: timeActive)
@@ -66,6 +72,8 @@ struct MapContainer: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.onSelectSpot = onSelectSpot
         coordinator.onSelectFreeSnap = onSelectFreeSnap
+        coordinator.onPopInPlayed = onPopInPlayed
+        coordinator.popInSnapId = popInSnapId
         coordinator.applyAppearance(dark: dark, on: mapView)
         coordinator.applyTimeActive(timeActive, on: mapView)
         coordinator.syncPins(pins, on: mapView)
@@ -92,6 +100,9 @@ struct MapContainer: UIViewRepresentable {
 
         var onSelectSpot: ((String) -> Void)?
         var onSelectFreeSnap: ((String) -> Void)?
+        var onPopInPlayed: ((String) -> Void)?
+        /// W5: der eine frisch aufgenommene Snap, dessen Pin aufploppen soll.
+        var popInSnapId: String?
 
         private var pins: [SpotPinState] = []
         private var freePins: [FreeSnapPinState] = []
@@ -214,7 +225,6 @@ struct MapContainer: UIViewRepresentable {
 
         func syncFreePins(_ states: [FreeSnapPinState], on mapView: MLNMapView) {
             guard states != freePins else { return }
-            let known = Set(freePins.map(\.id))
             freePins = states
             let ids = Set(states.map(\.id))
 
@@ -233,8 +243,9 @@ struct MapContainer: UIViewRepresentable {
                 }
                 let annotation = FreeSnapAnnotation(state: state)
                 freeAnnotations[state.id] = annotation
-                // Nur wirklich neue Pins ploppen — beim Erstaufbau waere das Zappeln.
-                if !known.isEmpty || !freeAnnotations.isEmpty { pendingPopIn.insert(state.id) }
+                // Nur der gerade aufgenommene Snap springt herein. Der Bestand
+                // beim Start erscheint ruhig — sonst zappelt die ganze Karte.
+                if state.id == popInSnapId { pendingPopIn.insert(state.id) }
                 mapView.addAnnotation(annotation)
             }
         }
@@ -386,6 +397,11 @@ struct MapContainer: UIViewRepresentable {
                 }
                 if pendingPopIn.remove(free.snapID) != nil {
                     view.playPopIn()
+                    // Quittung erst im naechsten Durchlauf: waehrend SwiftUI
+                    // gerade aktualisiert, waere das Setzen eines Zustands ein
+                    // Schreibzugriff mitten im Zeichnen.
+                    let id = free.snapID
+                    DispatchQueue.main.async { [weak self] in self?.onPopInPlayed?(id) }
                 }
                 return view
             }

@@ -112,6 +112,10 @@ enum CommunityFixtures {
             try? await model.invites.replaceAll(finalInvitations)
             try? await model.settings.setProfile(finalProfile)
             try? await model.settings.setProfileAsked(asked)
+            // W5: Snaps NACH den Spots — das Album haengt an der Spot-Zone.
+            if route.needsSnaps {
+                await SnapFixtures.seed(model, route: route, clock: clock)
+            }
             // Der Sync laeuft auch im Fixture-Lauf: ohne CloudKit meldet er
             // ehrlich `couldNotDetermine` — genau der Hinweis, den die Bilder
             // zeigen sollen. Der leere Snapshot merged nichts, der Bestand
@@ -159,6 +163,25 @@ enum CommunityFixtures {
                 model.sheet = .friends(intent: .edit)
             case .welcome, .mapSpots, .map, .statusDetail, .info:
                 break
+            // W5: Karte mit freien Snap-Pins — kein Blatt, die Pins sind der Prüfling.
+            case .freesnap:
+                break
+            case .camera:
+                // Ohne Spot in Reichweite: derselbe Weg wie der Plus-FAB.
+                model.openCamera()
+            case .cameraSpot:
+                // Aus dem Spot-Blatt heraus (Kontext-Chip + Sichtbarkeits-Schalter).
+                // Das Blatt bleibt darunter offen: nach dem Auslösen faellt die
+                // neue Kachel dorthin — daran haengt der Beweis, dass der ganze
+                // Weg (Pipeline, Dateien, Bestand, Anzeige) laeuft.
+                model.sheet = .detail(spotId: "s1")
+                model.openCamera(spotId: "s1")
+            case .viewer:
+                model.openViewer(.spot(spotId: "s1"))
+            case .report:
+                // Index 0 ist der neueste Snap und stammt von Tara — melden
+                // laesst sich nur ein fremdes Bild.
+                model.openViewer(.spot(spotId: "s1"), index: 0, report: true)
             // W2-Routen: Suche und Ziel-Modus fahren ihren Zustand selbst an
             // (Overlay in `RootView`, Ziel in `AppModel.start()`). Der Community-
             // Bestand steht dann trotzdem — die Spot-Pins gehoeren zur Karte.
