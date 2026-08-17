@@ -1,0 +1,6 @@
+# xcodegen-Erzeugnis — Quelle ist project.yml
+GreenZonesSpike.xcodeproj/
+
+# Build-Artefakte und SPM-Checkout (25 MB xcframework)
+.dd/
+.spm/
