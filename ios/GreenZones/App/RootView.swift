@@ -114,14 +114,7 @@ struct RootView: View {
                 PickOverlay(model: community)
             }
 
-            // W3: Toast (2600 ms). Bei offenem Sheet liegt er im Sheet selbst —
-            // hier waere er dahinter und damit unsichtbar.
-            if let toast = community.toast, community.presentedSheet == nil {
-                SPToast(text: toast)
-                    .padding(.bottom, 84)
-            }
         }
-        .animation(GZ.spring, value: community.toast)
         .animation(GZ.spring, value: community.isPicking)
         .background(GZ.appBg)
         .gzSheet(isPresented: $model.detailOpen) {
@@ -141,6 +134,22 @@ struct RootView: View {
                  onDismiss: { community.closeSheet() }) { route in
             communitySheet(route)
         }
+        // W3-Toast (2600 ms), EINE Stelle fuer alle Blaetter — und zwar HINTER
+        // den `gzSheet`-Modifiern: die sind eigene ZStack-Ebenen ueber der Karte,
+        // kein Systemsheet, ein Overlay danach liegt also ueber dem Blatt.
+        // Vorher lag er IM Blatt und damit auf dessen Kopf: bei Route `sent`
+        // verdeckte er „Einladen" samt Unterzeile.
+        // Ort wie v1 (`.sp-toast` / `.sp-toast.top`): bei offenem Blatt oben,
+        // sonst unten ueber den FABs. Oben heisst hier direkt unter der Safe
+        // Area — beim hoechsten Blatt (0.86 der Hoehe) reicht ein zweizeiliger
+        // Toast gemessen bis auf dessen Griff, der Titel darunter bleibt frei.
+        .overlay(alignment: sheetOpen ? .top : .bottom) {
+            if let toast = community.toast {
+                SPToast(text: toast)
+                    .padding(sheetOpen ? .top : .bottom, sheetOpen ? 12 : 84)
+            }
+        }
+        .animation(GZ.spring, value: community.toast)
         // EIN Vollbild fuer alles: Onboarding, Kamera und Betrachter. Zwei
         // `fullScreenCover` an derselben View schliessen einander aus — die
         // zweite gewinnt, die erste zuendet nie (Spike-Befund). Das Onboarding
@@ -255,11 +264,16 @@ struct RootView: View {
         #endif
     }
 
-    /// W3: Inhalt des Community-Sheets. Der Toast liegt hier mit drin — ein
-    /// gescheiterter Cloud-Write meldet sich ueber dem offenen Sheet.
+    /// Liegt gerade ein Blatt ueber der Karte? Entscheidet, wo der Toast steht.
+    private var sheetOpen: Bool {
+        community.presentedSheet != nil || model.detailOpen || model.infoOpen
+    }
+
+    /// W3: Inhalt des Community-Sheets. Der Toast liegt NICHT hier, sondern als
+    /// Overlay ueber der ganzen Blatt-Ebene (siehe `body`).
     @ViewBuilder
     private func communitySheet(_ route: SheetRoute) -> some View {
-        ZStack(alignment: .top) {
+        Group {
             switch route {
             case .newspot, .pick:
                 NewSpotSheet(model: community,
@@ -282,13 +296,7 @@ struct RootView: View {
             case .profilePrompt:
                 ProfilePromptSheet(model: community)
             }
-
-            if let toast = community.toast {
-                SPToast(text: toast)
-                    .padding(.top, 14)
-            }
         }
-        .animation(GZ.spring, value: community.toast)
     }
 
     /// `GZ_ROUTE` faehrt beim Start denselben Zustand an, den die Taps setzen —

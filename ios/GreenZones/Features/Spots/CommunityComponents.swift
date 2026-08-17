@@ -683,8 +683,9 @@ struct SPEmojiPicker: View {
 
 // MARK: - Toast
 
-/// 2600 ms wie v1. Bei offenem Sheet sitzt er oben — unten wuerde er das Sheet
-/// (Eingabefeld, CTA) verdecken.
+/// 2600 ms wie v1. Bei offenem Blatt sitzt er oben am Bildschirm — unten wuerde
+/// er das Blatt (Eingabefeld, CTA) verdecken, im Blatt selbst dessen Kopf.
+/// Platziert wird er in `RootView`, ueber der ganzen Blatt-Ebene.
 struct SPToast: View {
     let text: String
     var body: some View {
