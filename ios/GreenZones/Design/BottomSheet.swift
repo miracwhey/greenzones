@@ -53,7 +53,7 @@ private struct SheetLayer<Sheet: View>: ViewModifier {
                     .transition(.move(edge: .bottom))
             }
         }
-        .animation(GZ.spring, value: isActive)
+        .animation(GZ.sheetSpring, value: isActive)
     }
 }
 
@@ -87,10 +87,20 @@ private struct ItemSheetLayer<Item: Identifiable & Equatable, Sheet: View>: View
     @State private var shown: Item?
 
     func body(content wrapped: Content) -> some View {
-        wrapped
+        // Solange ein Wert anliegt, kommt der Inhalt aus IHM, nicht aus `shown`.
+        //
+        // Vorher hing er allein an `shown`, und das setzt `onChange` erst NACH
+        // dem Render, in dem `isActive` true wurde: die Einfahrt lief mit einem
+        // leeren Blatt (ohne Inhalt hat es keine Hoehe, also sieht man nichts),
+        // und wenn der Inhalt kam, stand das Blatt schon oben. Es fuhr nicht
+        // ein, es erschien. Gemessen bei 30-facher Zeitlupe — nach 60 ms stand
+        // es voll da, waehrend das `isPresented`-Blatt zur selben Zeit noch
+        // unter der Kante war.
+        let current = item ?? shown
+        return wrapped
             .modifier(SheetLayer(isActive: item != nil, dismiss: dismiss) {
-                if let shown {
-                    content(shown)
+                if let current {
+                    content(current)
                 }
             })
             .onChange(of: item) { _, new in

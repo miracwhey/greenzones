@@ -231,6 +231,7 @@ struct SnapCameraView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Kamera schließen")
+                .accessibilityIdentifier("gz.camera.close")
                 Spacer(minLength: 0)
             }
         }
@@ -347,7 +348,7 @@ struct SnapCameraView: View {
         guard !busy else { return }
         busy = true
         GZ.haptic()
-        withAnimation(GZ.spring) { shutterPressed = true }
+        withAnimation(GZ.microSpring) { shutterPressed = true }
         withAnimation(.easeOut(duration: 0.06)) { flash = true }
         Task {
             let data = await captureData()

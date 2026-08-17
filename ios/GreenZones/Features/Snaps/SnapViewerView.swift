@@ -194,7 +194,7 @@ struct SnapViewerView: View {
                 if value.translation.height > 130 || value.predictedEndTranslation.height > 320 {
                     model.closeCover()
                 } else {
-                    withAnimation(GZ.spring) { dragY = 0 }
+                    withAnimation(GZ.sheetSpring) { dragY = 0 }
                 }
             }
     }

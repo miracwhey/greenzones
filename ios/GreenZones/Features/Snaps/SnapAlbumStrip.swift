@@ -51,7 +51,7 @@ struct SnapAlbumSection: View {
             // Der Streifen liegt kantenbuendig im Blatt: die letzte Kachel darf
             // beim Wischen unter den Rand laufen, sonst wirkt er beschnitten.
             .scrollClipDisabled()
-            .animation(GZ.spring, value: snaps.map(\.id))
+            .animation(GZ.elementSpring, value: snaps.map(\.id))
         }
         // Schluessel mit Pfad, nicht nur mit Id: ein nachgeladener Thumb aendert
         // die Id-Liste nicht (siehe `RootView`).

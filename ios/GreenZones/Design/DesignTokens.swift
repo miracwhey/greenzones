@@ -57,8 +57,48 @@ enum GZ {
     static let uiZoneBan = uiBan
     static let uiZoneTime = uiTime
 
-    /// Ein Motion-Wert fuer alles (SPEC 9).
-    static let spring = Animation.spring(response: 0.4, dampingFraction: 0.85)
+    // MARK: - Federn
+    //
+    // Drei Massen statt einer Kurve. Bis zum 18.08. trug ein einziger Wert
+    // (0.40/0.85) Blatt, Kachel, Toast und Statuszeile gleichermassen — ein
+    // Blatt wirkt damit nervoes und eine Marke traege, weil beide dieselbe Zeit
+    // brauchen. Die Werte sind aus dem abgenommenen Prototyp (`mockup/motion-v6.html`,
+    // Szene D stellt sie nebeneinander), nicht geschaetzt.
+    //
+    // Zuordnung: was gross ist und den Blick traegt, faellt unter `sheetSpring`;
+    // was eine Strecke zuruecklegt (Kachel, Pin, Band, das wandernde Bild) unter
+    // `elementSpring`; was nur an- oder umschaltet (Toast, Zaehler, Marke, ein
+    // Druckpunkt) unter `microSpring`.
+
+    /// Blatt — traeger, kein Nachwippen. Bottom-Sheets, Vollbild-Ruckfeder.
+    static let sheetSpring = gzSpring(0.52, 0.90)
+
+    /// Element — Kachel, Pin, Band, Morph. Die Feder der wandernden Dinge.
+    static let elementSpring = gzSpring(0.36, 0.82)
+
+    /// Mikro — Toast, Zaehler, Marke, Druckpunkt. Kurz genug, um nicht zu warten.
+    static let microSpring = gzSpring(0.22, 0.80)
+
+    /// Zeitlupe fuer die Bildabnahme: `GZ_SLOWMO=<faktor>` dehnt jede Feder um
+    /// diesen Faktor. Eine Feder mit `response × N` ist **dieselbe Kurve**, nur
+    /// auf der Zeitachse gestreckt — `dampingFraction` bleibt, also auch die
+    /// Form. Nur so ist Bewegung ueberhaupt fotografierbar: ein Screenshot
+    /// trifft keine 120-ms-Marke, eine 1,2-s-Marke schon.
+    ///
+    /// Was die Zeitlupe NICHT beweist: die absolute Dauer. Die steht in den drei
+    /// Werten oben und ist nur dort zu pruefen.
+    static let slowmo: Double = {
+        #if DEBUG
+        let value = ProcessInfo.processInfo.environment["GZ_SLOWMO"].flatMap(Double.init) ?? 1
+        return value > 0 ? value : 1
+        #else
+        return 1
+        #endif
+    }()
+
+    private static func gzSpring(_ response: Double, _ damping: Double) -> Animation {
+        .spring(response: response * slowmo, dampingFraction: damping)
+    }
 
     /// `--shadow-1` / `--shadow-2` aus theme.css.
     static func shadow1<V: View>(_ view: V) -> some View {

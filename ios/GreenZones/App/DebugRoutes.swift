@@ -84,6 +84,39 @@ enum DebugEnvironment {
         environment["GZ_ROUTE"].flatMap(DebugRoute.init(rawValue:)) ?? .map
     }
 
+    // MARK: - Bewegung fotografieren
+
+    /// `GZ_UI_SETTLE=<s>`: wie lange die Karte stehen darf, bevor die Route
+    /// ihren Zustand setzt. Default 2,2 s — genug fuer die Basemap-Tiles.
+    ///
+    /// Fuer Bewegungsbilder wird der Wert hochgesetzt: der Uebergang soll erst
+    /// starten, wenn alles andere ruhig ist, sonst zeigt der Frame nicht die
+    /// Feder, sondern nachladende Kacheln.
+    static var uiSettle: Double {
+        environment["GZ_UI_SETTLE"].flatMap(Double.init) ?? 2.2
+    }
+
+    /// Startmarke fuer `Scripts/frame.sh`. Das Skript kann den Moment der
+    /// Ausloesung nicht aus der Prozessuhr ableiten — zwischen `simctl launch`
+    /// und dem ersten Frame liegen unbestimmte Hunderte Millisekunden, und
+    /// genau die waeren bei einer 400-ms-Bewegung der ganze Messfehler.
+    /// Deshalb sagt die App selbst Bescheid, und das Skript zaehlt ab hier.
+    ///
+    /// Nur einmal: bei `status_detail` und `info` laufen beide Ausloese-Stellen
+    /// (`RootView` und `CommunityFixtures`) — zwei Marken, und das Skript
+    /// zaehlte ab der falschen.
+    @MainActor
+    static func motionGo() {
+        guard !didAnnounceMotion else { return }
+        didAnnounceMotion = true
+        // Den Dehnfaktor mitschreiben: ohne ihn im Bild waere nicht zu
+        // unterscheiden, ob ein Frame die Bewegung verpasst hat oder ob die
+        // Zeitlupe gar nicht angekommen ist.
+        NSLog("[GZ-MOTION] go slowmo=\(GZ.slowmo) settle=\(uiSettle)")
+    }
+
+    @MainActor private static var didAnnounceMotion = false
+
     // MARK: - W2: Suche im Screenshot
 
     /// Adress-Antwort der Suchroute — der Shot darf kein Netz brauchen.

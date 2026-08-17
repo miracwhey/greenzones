@@ -115,7 +115,7 @@ struct RootView: View {
             }
 
         }
-        .animation(GZ.spring, value: community.isPicking)
+        .animation(GZ.elementSpring, value: community.isPicking)
         .background(GZ.appBg)
         .gzSheet(isPresented: $model.detailOpen) {
             StatusDetailSheet(presentation: model.presentation,
@@ -149,13 +149,19 @@ struct RootView: View {
                     .padding(sheetOpen ? .top : .bottom, sheetOpen ? 12 : 84)
             }
         }
-        .animation(GZ.spring, value: community.toast)
-        // EIN Vollbild fuer alles: Onboarding, Kamera und Betrachter. Zwei
-        // `fullScreenCover` an derselben View schliessen einander aus — die
-        // zweite gewinnt, die erste zuendet nie (Spike-Befund). Das Onboarding
-        // hat Vorrang: solange die Standort-Frage steht, gibt es keine Kamera.
-        .fullScreenCover(item: Binding(get: { rootCover },
-                                       set: { if $0 == nil { community.closeCover() } })) { cover in
+        .animation(GZ.microSpring, value: community.toast)
+        // EIN Vollbild fuer alles: Onboarding, Kamera und Betrachter. Das
+        // Onboarding hat Vorrang: solange die Standort-Frage steht, gibt es
+        // keine Kamera.
+        //
+        // Als eigene Ebene, nicht als `fullScreenCover`: aus der Album-Kachel
+        // und dem Karten-Pin soll der Betrachter HERVORGEHEN, und ueber die
+        // Grenze einer Systempraesentation traegt kein `matchedGeometryEffect`
+        // (gemessen, Begruendung in `FullLayer.swift`). Nebenbei entfaellt der
+        // alte Spike-Befund, dass zwei `fullScreenCover` an derselben View
+        // einander ausschliessen.
+        .gzFullLayer(item: Binding(get: { rootCover },
+                                   set: { if $0 == nil { community.closeCover() } })) { cover in
             switch cover {
             case .onboarding:
                 OnboardingView(onAllow: { model.finishOnboarding() },
@@ -311,8 +317,10 @@ struct RootView: View {
         // zeigte still die Karte ohne Sheet.
         guard route == .statusDetail || route == .targetDetail || route == .info else { return }
         // Erst die Karte settlen lassen — sonst zeigt der Screenshot ein Sheet
-        // ueber halb geladenen Tiles.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+        // ueber halb geladenen Tiles. `GZ_UI_SETTLE` hebt die Wartezeit fuer
+        // Bewegungsbilder an.
+        DispatchQueue.main.asyncAfter(deadline: .now() + DebugEnvironment.uiSettle) {
+            DebugEnvironment.motionGo()
             switch route {
             case .statusDetail, .targetDetail: model.detailOpen = true
             case .info: model.infoOpen = true

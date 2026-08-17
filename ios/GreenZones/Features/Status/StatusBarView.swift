@@ -68,6 +68,6 @@ struct StatusBarView: View {
         .accessibilityAddTraits(.isButton)
         .padding(.horizontal, 14)
         .padding(.bottom, 10)
-        .animation(GZ.spring, value: presentation.title)
+        .animation(GZ.microSpring, value: presentation.title)
     }
 }

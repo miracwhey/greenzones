@@ -69,7 +69,7 @@ struct TimeTapeView: View {
             ZStack(alignment: .topLeading) {
                 track
                     .offset(x: center - currentMinutes * Tape.pointsPerMinute)
-                    .animation(dragMinutes == nil ? GZ.spring : nil, value: currentMinutes)
+                    .animation(dragMinutes == nil ? GZ.elementSpring : nil, value: currentMinutes)
                 needle.offset(x: center - 1.5)
             }
             .frame(width: proxy.size.width, height: Self.tapeHeight, alignment: .topLeading)

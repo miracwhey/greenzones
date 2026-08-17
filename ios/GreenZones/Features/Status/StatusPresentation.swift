@@ -84,7 +84,7 @@ struct StatusDot: View {
             glyph
         }
         .frame(width: size + 10, height: size + 10)
-        .animation(GZ.spring, value: kind)
+        .animation(GZ.microSpring, value: kind)
     }
 
     @ViewBuilder

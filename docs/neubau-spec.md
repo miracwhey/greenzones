@@ -211,7 +211,9 @@ CREATE VIRTUAL TABLE place_tri USING fts5(norm_name, content='place', content_ro
 
 ## 9. UI-Screens und Referenzen
 
-Design-Tokens 1:1 aus dem Spike (`GZ.*`, dynamische UIColor, `theme.css`-Werte), Radii 14–20 continuous, `GZ.spring`,
+Design-Tokens 1:1 aus dem Spike (`GZ.*`, dynamische UIColor, `theme.css`-Werte), Radii 14–20 continuous,
+**drei Federn nach Masse** (`GZ.sheetSpring` 0.52/0.90 · `GZ.elementSpring` 0.36/0.82 · `GZ.microSpring` 0.22/0.80,
+Werte aus `mockup/motion-v6.html`; die frühere Einheitsfeder `GZ.spring` gibt es nicht mehr),
 Glas = `.regularMaterial` für Sheets, `.ultraThinMaterial` für Chips/FAB, System-Font. Beide Themes Pflicht.
 Wording konsumneutral (nur „Spot", „Snap", „Freunde"; Store-Fassade), Legal-Texte aus v1 (`StatusBar.tsx`, `ZoneList.tsx`, `InfoSheet.tsx`) wörtlich.
 

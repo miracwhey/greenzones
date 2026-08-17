@@ -109,9 +109,18 @@ final class SnapFlowUITests: XCTestCase {
         let app = launch(route: "camera_spot")
         let shutter = app.buttons["gz.camera.shutter"]
         XCTAssertTrue(shutter.waitForExistence(timeout: 25), "Kamera erscheint nicht")
-        // Ausgangslage: vier Fixture-Snaps liegen im Album (hinter der Kamera).
+
+        // Ausgangslage am offenen Blatt, nicht durch die Kamera hindurch: das
+        // Vollbild blendet aus, was darunter liegt (fuer VoiceOver wie fuer die
+        // Automation) — richtig so, aber dann muss die Kamera dafuer weg.
+        app.buttons["gz.camera.close"].tap()
         XCTAssertTrue(app.staticTexts["ALBUM · 4"].waitForExistence(timeout: 15),
                       "Ausgangslage des Albums fehlt")
+
+        // Und zurueck in die Kamera — ueber die Kachel, also denselben Weg, den
+        // auch ein Nutzer aus dem Blatt heraus nimmt.
+        app.buttons["gz.snap.cta"].tap()
+        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "Kamera oeffnet nicht aus dem Album")
 
         shutter.tap()
 

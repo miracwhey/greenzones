@@ -128,8 +128,10 @@ enum CommunityFixtures {
     /// Faehrt den Zustand an, den in der App ein Tap setzen wuerde.
     private static func applyRoute(_ model: CommunityModel, route: DebugRoute, now: Date) {
         // Erst die Karte settlen lassen — sonst zeigt der Screenshot ein Sheet
-        // ueber halb geladenen Tiles.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+        // ueber halb geladenen Tiles. `GZ_UI_SETTLE` hebt die Wartezeit fuer
+        // Bewegungsbilder an.
+        DispatchQueue.main.asyncAfter(deadline: .now() + DebugEnvironment.uiSettle) {
+            DebugEnvironment.motionGo()
             switch route {
             case .newspot:
                 model.openNewSpot()
