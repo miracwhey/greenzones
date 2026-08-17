@@ -40,6 +40,40 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
     }
 
     private(set) var removedFriends: [String] = []
+    /// Hochgeladene Snaps in der Reihenfolge des Aufrufs.
+    private(set) var uploadedSnaps: [String] = []
+    private(set) var deletedSnaps: [String] = []
+    private(set) var reportedSnaps: [String] = []
+    /// Was `fetchThumbs` liefern soll — je Snap-Id.
+    var thumbs: [String: Data] = [:]
+
+    func uploadSnap(_ snap: Snap, original: URL, thumb: URL) async throws -> SnapUpload {
+        try guardCall("uploadSnap")
+        uploadedSnaps.append(snap.id)
+        let zone = snap.scope == .spot ? (snap.spotZone ?? "spot-?") : "feed-me"
+        return SnapUpload(zoneName: zone, recordName: snap.id)
+    }
+
+    func deleteSnap(zoneName: String, recordName: String) async throws {
+        try guardCall("deleteSnap")
+        deletedSnaps.append(recordName)
+    }
+
+    func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
+        try guardCall("reportSnap")
+        reportedSnaps.append(snapId)
+    }
+
+    func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data] {
+        try guardCall("fetchThumbs")
+        return thumbs.filter { key, _ in refs.contains { $0.snapId == key } }
+    }
+
+    func fetchOriginal(_ ref: SnapAsset) async throws -> Data {
+        try guardCall("fetchOriginal")
+        guard let data = thumbs[ref.snapId] else { throw SyncError.notFound }
+        return data
+    }
 
     func removeFriend(userID: String, friendshipZone: String) async throws {
         try guardCall("removeFriend")

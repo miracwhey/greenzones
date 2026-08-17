@@ -108,6 +108,41 @@ public struct CloudInvitation: Equatable, Sendable {
     }
 }
 
+/// Ein Snap, wie ihn der Vollabzug liefert — ohne Bilddaten. Die Assets holt
+/// `fetchThumbs` nach (SPEC 7: `desiredKeys` ohne `thumb`/`photo`, sonst zieht
+/// jeder Fetch alle Fotos aller Freunde).
+public struct CloudSnap: Equatable, Sendable {
+    /// `recordName` — bei fremden Snaps die Id des Autors-Geraets.
+    public var id: String
+    /// Zone, in der der Record liegt.
+    public var zoneName: String
+    public var authorUserID: String
+    public var createdAt: Date
+    public var lat: Double
+    public var lng: Double
+    /// Nur bei Feed-Snaps gesetzt, die an einem Spot aufgenommen wurden.
+    public var spotZone: String?
+    public var spotName: String?
+    public var spotEmoji: String?
+    /// `true`, wenn der Record in einer Spot-Zone liegt („nur Freunde im Spot").
+    public var inSpotZone: Bool
+
+    public init(id: String, zoneName: String, authorUserID: String, createdAt: Date,
+                lat: Double, lng: Double, spotZone: String? = nil, spotName: String? = nil,
+                spotEmoji: String? = nil, inSpotZone: Bool) {
+        self.id = id
+        self.zoneName = zoneName
+        self.authorUserID = authorUserID
+        self.createdAt = createdAt
+        self.lat = lat
+        self.lng = lng
+        self.spotZone = spotZone
+        self.spotName = spotName
+        self.spotEmoji = spotEmoji
+        self.inSpotZone = inSpotZone
+    }
+}
+
 public struct CloudSnapshot: Equatable, Sendable {
     public var status: CKAccountStatus
     /// "" wenn `status != .available`.
@@ -115,18 +150,20 @@ public struct CloudSnapshot: Equatable, Sendable {
     public var friends: [CloudFriend]
     public var spots: [CloudSpot]
     public var invitations: [CloudInvitation]
+    public var snaps: [CloudSnap]
 
     public init(status: CKAccountStatus, userID: String, friends: [CloudFriend],
-                spots: [CloudSpot], invitations: [CloudInvitation]) {
+                spots: [CloudSpot], invitations: [CloudInvitation], snaps: [CloudSnap] = []) {
         self.status = status
         self.userID = userID
         self.friends = friends
         self.spots = spots
         self.invitations = invitations
+        self.snaps = snaps
     }
 
     /// Leerer Snapshot mit Status — genau die Form, die `fetchAll` ohne Konto liefert.
     public static func empty(status: CKAccountStatus) -> CloudSnapshot {
-        CloudSnapshot(status: status, userID: "", friends: [], spots: [], invitations: [])
+        CloudSnapshot(status: status, userID: "", friends: [], spots: [], invitations: [], snaps: [])
     }
 }

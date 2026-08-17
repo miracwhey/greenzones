@@ -39,10 +39,49 @@ public protocol CloudGateway: Sendable {
     /// mitgereichtes Flag waere ein zweiter Zustand neben der Datenbank.
     func removeFriend(userID: String, friendshipZone: String) async throws
 
+    // MARK: - Snaps (W5)
+
+    /// Laedt einen eigenen Snap hoch — in die Feed-Zone (alle Freunde) oder die
+    /// Spot-Zone (nur deren Mitglieder). Idempotent ueber den recordName.
+    func uploadSnap(_ snap: Snap, original: URL, thumb: URL) async throws -> SnapUpload
+    /// Eigenen Snap loeschen; als Spot-Owner auch fremde in der eigenen Zone.
+    func deleteSnap(zoneName: String, recordName: String) async throws
+    /// Meldung zu einem Snap in dessen Zone ablegen. Kein Auto-Loeschen — der
+    /// Autor sieht die Meldung, das Ausblenden passiert lokal.
+    func reportSnap(zoneName: String, snapId: String, at date: Date) async throws
+    /// Vorschaubilder nachladen (Batch); Rueckgabe je Snap-Id.
+    func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data]
+    /// Original eines einzelnen Snaps — erst beim Oeffnen im Viewer.
+    func fetchOriginal(_ ref: SnapAsset) async throws -> Data
+
     /// CKDatabaseSubscriptions + Remote-Push-Registrierung. Idempotent.
     func registerSubscriptions() async throws
     /// Fragt einmalig nach der Mitteilungs-Erlaubnis. Schon entschieden → kein Dialog.
     func ensureNotificationPermission() async throws -> Bool
+}
+
+/// Wo ein hochgeladener Snap gelandet ist.
+public struct SnapUpload: Equatable, Sendable {
+    public let zoneName: String
+    public let recordName: String
+
+    public init(zoneName: String, recordName: String) {
+        self.zoneName = zoneName
+        self.recordName = recordName
+    }
+}
+
+/// Adresse eines Snap-Assets: Zone plus recordName.
+public struct SnapAsset: Equatable, Sendable {
+    public let snapId: String
+    public let zoneName: String
+    public let recordName: String
+
+    public init(snapId: String, zoneName: String, recordName: String) {
+        self.snapId = snapId
+        self.zoneName = zoneName
+        self.recordName = recordName
+    }
 }
 
 public struct SpotShare: Equatable, Sendable {
@@ -126,6 +165,24 @@ public struct NoCloudGateway: CloudGateway {
     public func removeFriend(userID: String, friendshipZone: String) async throws {
         throw SyncError.noAccount
     }
+
+    public func uploadSnap(_ snap: Snap, original: URL, thumb: URL) async throws -> SnapUpload {
+        throw SyncError.noAccount
+    }
+
+    public func deleteSnap(zoneName: String, recordName: String) async throws {
+        throw SyncError.noAccount
+    }
+
+    public func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
+        throw SyncError.noAccount
+    }
+
+    /// Kein Fehler, sondern die Wahrheit: ohne Cloud gibt es nichts nachzuladen.
+    /// Ein Wurf wuerde den Album-Aufbau bei jedem Durchlauf stoeren.
+    public func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data] { [:] }
+
+    public func fetchOriginal(_ ref: SnapAsset) async throws -> Data { throw SyncError.noAccount }
 
     public func registerSubscriptions() async throws { throw SyncError.noAccount }
 

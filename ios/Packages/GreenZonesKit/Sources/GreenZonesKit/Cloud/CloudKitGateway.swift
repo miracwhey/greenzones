@@ -113,8 +113,10 @@ public actor CloudKitGateway: CloudGateway {
                               private: privateZones, shared: sharedZones)
         var spots: [CloudSpot] = []
         var invitations: [CloudInvitation] = []
+        var snaps: [CloudSnap] = []
         for entry in spotZones {
-            let records = try await CKZoneReader.fetchAllRecords(in: entry.zoneID, from: database(for: entry))
+            let records = try await lightRecords(in: entry)
+            snaps.append(contentsOf: records.compactMap { CKSnapRecord.parse($0, myID: myID) })
             guard let spotRecord = records.first(where: { $0.recordType == CKSchema.typeSpot }) else {
                 continue
             }
@@ -123,8 +125,16 @@ public actor CloudKitGateway: CloudGateway {
             invitations.append(contentsOf: Self.invitations(entry: entry, records: records, myID: myID))
         }
 
+        // Feeds: der eigene und die angenommenen der Freunde. Sie tragen nur
+        // Snaps (und den Feed-Marker), deshalb genuegt ein Durchgang.
+        for entry in zones(withPrefix: CKSchema.feedZonePrefix,
+                           private: privateZones, shared: sharedZones) {
+            let records = try await lightRecords(in: entry)
+            snaps.append(contentsOf: records.compactMap { CKSnapRecord.parse($0, myID: myID) })
+        }
+
         return CloudSnapshot(status: .available, userID: myID, friends: friends,
-                             spots: spots, invitations: invitations)
+                             spots: spots, invitations: invitations, snaps: snaps)
     }
 
     // MARK: - Freundschaften
@@ -412,6 +422,114 @@ public actor CloudKitGateway: CloudGateway {
         return true
     }
 
+    // MARK: - Snaps (W5)
+
+    /// Ein Snap-Record traegt zwei Assets. Er liegt in der Feed-Zone (alle
+    /// Freunde) oder in der Spot-Zone (nur deren Mitglieder) — die Zone IST die
+    /// Sichtbarkeit, es gibt kein Feld dafuer.
+    public func uploadSnap(_ snap: Snap, original: URL, thumb: URL) async throws -> SnapUpload {
+        try await requireAccount()
+        do {
+            let zoneName = try await zoneForUpload(snap)
+            guard let located = try await zoneIndex()[zoneName] else { throw SyncError.notFound }
+
+            let record = CKSnapRecord.make(snap, zoneID: located.zoneID,
+                                           original: original, thumb: thumb)
+            _ = try await (located.isMine ? privateDB : sharedDB)
+                .modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
+            return SnapUpload(zoneName: zoneName, recordName: snap.id)
+        } catch {
+            throw CKErrorMapper.syncError(for: error)
+        }
+    }
+
+    /// Zielzone eines Snaps. „Nur Freunde im Spot" braucht die Spot-Zone; alles
+    /// andere geht in den eigenen Feed, der beim ersten Fetch angelegt wurde.
+    private func zoneForUpload(_ snap: Snap) async throws -> String {
+        if snap.scope == .spot, let zone = snap.spotZone { return zone }
+        let feed = try await ensureFeedZone(privateZones: try await privateDB.allRecordZones())
+        return feed.zoneName
+    }
+
+    public func deleteSnap(zoneName: String, recordName: String) async throws {
+        try await requireAccount()
+        do {
+            guard let located = try await zoneIndex()[zoneName] else { return }
+            _ = try await (located.isMine ? privateDB : sharedDB)
+                .modifyRecords(saving: [],
+                               deleting: [CKRecord.ID(recordName: recordName, zoneID: located.zoneID)],
+                               savePolicy: .allKeys, atomically: true)
+        } catch {
+            // Schon weg = Ziel erreicht.
+            let mapped = CKErrorMapper.syncError(for: error)
+            if mapped != .notFound { throw mapped }
+        }
+    }
+
+    public func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
+        let myID = try await requireAccount()
+        do {
+            guard let located = try await zoneIndex()[zoneName] else { throw SyncError.notFound }
+            let record = CKRecord(recordType: CKSchema.typeReport,
+                                  recordID: CKRecord.ID(recordName: CKSchema.reportRecordName(snapId: snapId,
+                                                                                              userID: myID),
+                                                        zoneID: located.zoneID))
+            record["snapId"] = snapId
+            record["createdAt"] = date
+            _ = try await (located.isMine ? privateDB : sharedDB)
+                .modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
+        } catch {
+            throw CKErrorMapper.syncError(for: error)
+        }
+    }
+
+    public func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data] {
+        try await fetchAssets(refs, key: "thumb")
+    }
+
+    public func fetchOriginal(_ ref: SnapAsset) async throws -> Data {
+        let result = try await fetchAssets([ref], key: "photo")
+        guard let data = result[ref.snapId] else { throw SyncError.notFound }
+        return data
+    }
+
+    /// Assets in Stapeln von hoechstens 20 holen (SPEC 7). Fehlt ein einzelner
+    /// Record, faellt nur er aus — die anderen kommen an.
+    private func fetchAssets(_ refs: [SnapAsset], key: String) async throws -> [String: Data] {
+        guard !refs.isEmpty else { return [:] }
+        var out: [String: Data] = [:]
+        do {
+            let index = try await zoneIndex()
+            for batch in stride(from: 0, to: refs.count, by: 20).map({ start in
+                Array(refs[start..<min(start + 20, refs.count)])
+            }) {
+                var byDatabase: [Bool: [CKRecord.ID]] = [:]
+                var idBySnap: [CKRecord.ID: String] = [:]
+                for ref in batch {
+                    guard let located = index[ref.zoneName] else { continue }
+                    let recordID = CKRecord.ID(recordName: ref.recordName, zoneID: located.zoneID)
+                    byDatabase[located.isMine, default: []].append(recordID)
+                    idBySnap[recordID] = ref.snapId
+                }
+                for (isMine, ids) in byDatabase {
+                    let results = try await (isMine ? privateDB : sharedDB)
+                        .records(for: ids, desiredKeys: [key])
+                    for (recordID, result) in results {
+                        guard case .success(let record) = result,
+                              let asset = record[key] as? CKAsset,
+                              let url = asset.fileURL,
+                              let data = try? Data(contentsOf: url),
+                              let snapId = idBySnap[recordID] else { continue }
+                        out[snapId] = data
+                    }
+                }
+            }
+        } catch {
+            throw CKErrorMapper.syncError(for: error)
+        }
+        return out
+    }
+
     // MARK: - Subscriptions und Push
 
     public func registerSubscriptions() async throws {
@@ -597,9 +715,17 @@ public actor CloudKitGateway: CloudGateway {
     private func records(of zones: [ZoneEntry]) async throws -> [[CKRecord]] {
         var out: [[CKRecord]] = []
         for entry in zones {
-            out.append(try await CKZoneReader.fetchAllRecords(in: entry.zoneID, from: database(for: entry)))
+            out.append(try await lightRecords(in: entry))
         }
         return out
+    }
+
+    /// Vollabzug einer Zone OHNE die Bilddaten. Gilt fuer alle Zonen, nicht nur
+    /// fuer die mit Snaps: eine Ausnahme waere die Stelle, an der die naechste
+    /// Zone mit Assets durchrutscht.
+    private func lightRecords(in entry: ZoneEntry) async throws -> [CKRecord] {
+        try await CKZoneReader.fetchRecords(in: entry.zoneID, from: database(for: entry),
+                                            desiredKeys: CKSchema.Field.lightweight)
     }
 
     private struct LocatedZone {

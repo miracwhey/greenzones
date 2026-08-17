@@ -21,7 +21,10 @@ import GRDB
 /// aussen kommt (anderer Store, Migration, Import).
 
 @MainActor
-private final class StoreObserver {
+/// Geteilt von allen Stores (Community wie Snaps): eine Beobachtung, eine
+/// Fehlerbehandlung. Zwei Exemplare wuerden bei jeder Aenderung an GRDB
+/// auseinanderlaufen.
+final class StoreObserver {
     private var cancellable: AnyDatabaseCancellable?
 
     func start<T>(_ database: AppDatabase,

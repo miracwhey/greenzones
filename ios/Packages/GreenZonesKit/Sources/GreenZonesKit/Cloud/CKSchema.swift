@@ -52,6 +52,38 @@ public enum CKSchema {
     public static let sharedSubscriptionID = "gz-shared-db-v2"
     public static let legacySubscriptionIDs = ["gz-private-db", "gz-shared-db"]
 
+    // MARK: - Felder
+    //
+    // Der Vollabzug darf die Bilddaten NICHT mitziehen — sonst laedt jeder
+    // Fetch saemtliche Fotos aller Freunde. CloudKit kann das nur ueber eine
+    // Positivliste (`desiredKeys`), und eine Positivliste, die ein Feld
+    // vergisst, verliert es still. Deshalb steht hier die einzige Liste, aus
+    // der beide Seiten schoepfen: der Leser als `desiredKeys`, der Schreiber
+    // beim Bauen des Records.
+
+    public enum Field {
+        public static let friendship = ["createdAt"]
+        public static let profile = ["name", "emoji"]
+        public static let spotOffer = ["spotShareURL", "spotName", "spotEmoji"]
+        public static let feedOffer = ["feedShareURL"]
+        public static let spot = ["name", "emoji", "lng", "lat", "createdAt"]
+        public static let invitation = ["time", "createdAt", "cancelled"]
+        public static let reply = ["invitationId", "status", "arrivalTime"]
+        public static let feed = ["createdAt"]
+        public static let report = ["snapId", "createdAt"]
+        /// Snap ohne Bilder.
+        public static let snap = ["createdAt", "lat", "lng", "spotZone", "spotName", "spotEmoji"]
+        /// Die schweren Felder — nur auf Anforderung.
+        public static let snapAssets = ["thumb", "photo"]
+
+        /// Alles, was ein Vollabzug braucht: jedes Feld ausser den Bildern.
+        public static let lightweight: [String] = {
+            var seen = Set<String>()
+            return (friendship + profile + spotOffer + feedOffer + spot + invitation
+                    + reply + feed + report + snap).filter { seen.insert($0).inserted }
+        }()
+    }
+
     // MARK: - Abgeleitete Namen
     //
     // Jede Ableitung steht genau einmal hier: der Schreiber und der Leser eines

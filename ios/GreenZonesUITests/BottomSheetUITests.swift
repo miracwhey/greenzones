@@ -28,7 +28,24 @@ final class BottomSheetUITests: XCTestCase {
         // morgen vielleicht nicht — der Bezeichner bleibt.
         let sheet = app.descendants(matching: .any).matching(identifier: "gz.sheet").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 25), "Blatt erscheint nicht")
+        waitUntilStill(sheet)
         return sheet
+    }
+
+    /// Wartet, bis das Blatt steht.
+    ///
+    /// Vorhanden heisst nicht fertig: das Blatt faehrt mit einer Feder ein, und
+    /// eine Wischgeste waehrend der Fahrt verpufft. Ohne diese Wartezeit ist der
+    /// Wisch-Test zufaellig rot — gemessen wird die Ruhe, nicht geraten.
+    private func waitUntilStill(_ element: XCUIElement, timeout: TimeInterval = 3) {
+        var previous = element.frame
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+            let current = element.frame
+            if current == previous, current.height > 0 { return }
+            previous = current
+        }
     }
 
     /// Leons Beschwerde als Messung: das Systemsheet unter iOS 26 sitzt seitlich
