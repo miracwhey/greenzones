@@ -27,7 +27,7 @@ struct SnapAlbumSection: View {
                     SnapCTATile { model.openCamera(spotId: spot.id) }
                     if snaps.isEmpty {
                         // Einladung zum Anfangen, kein grauer Platzhalter-Kasten.
-                        Text("Noch keine Snaps — sei die/der Erste.")
+                        Text("Noch keine Shots — sei die/der Erste.")
                             .font(.system(size: 12.5))
                             .foregroundStyle(GZ.ink2)
                             .lineSpacing(3)
@@ -102,7 +102,7 @@ struct SnapCTATile: View {
                         .frame(width: 22, height: 22)
                     Circle().fill(Color.white).frame(width: 13, height: 13)
                 }
-                Text("Snap")
+                Text("Shot")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
             }
@@ -110,7 +110,7 @@ struct SnapCTATile: View {
             .background(GZ.accent, in: .rect(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Snap aufnehmen")
+        .accessibilityLabel("Shot aufnehmen")
         .accessibilityIdentifier("gz.snap.cta")
     }
 }

@@ -59,7 +59,7 @@ struct InfoSheetView: View {
                 Text("§5 Abs. 2 KCanG: Öffentlicher Konsum ist verboten in Sichtweite (100 m vom Eingangsbereich) von Schulen, Kinderspielplätzen, Kinder- und Jugendeinrichtungen sowie öffentlich zugänglichen Sportstätten — und in Fußgängerzonen zwischen 7 und 20 Uhr.")
             }
             section("DEINE DATEN") {
-                Text("GreenZones hat keinen Server. Spots, Freunde, Termine und Snaps liegen auf deinem Gerät und in deiner iCloud — außer den Freunden, denen du sie gibst, kommt niemand daran.\n\nDein Standort wird nur geteilt, wenn du selbst einen Spot oder Snap anlegst; im Bild steht er nie. Das Kartenbild lädt von OpenFreeMap, Adressen sucht Komoot — und nur, wenn du es verlangst.")
+                Text("GreenZones hat keinen Server. Spots, Freunde, Termine und Shots liegen auf deinem Gerät und in deiner iCloud — außer den Freunden, denen du sie gibst, kommt niemand daran.\n\nDein Standort wird nur geteilt, wenn du selbst einen Spot oder Shot anlegst; im Bild steht er nie. Das Kartenbild lädt von OpenFreeMap, Adressen sucht Komoot — und nur, wenn du es verlangst.")
             }
             section("KEIN RECHTSRAT") {
                 Text("Diese App ist eine Orientierungshilfe ohne Gewähr auf Richtigkeit oder Vollständigkeit. OpenStreetMap kennt nicht jede Einrichtung. Verantwortung bleibt bei dir.")

@@ -45,7 +45,7 @@ Fußgängerzonen zwischen 7 und 20 Uhr. Diese Flächen sind schwer im Kopf zu
 haben. GreenZones macht sie sichtbar.
 
 SO LIEST SICH DIE KARTE
-• Rote Flächen: 100 m um Schulen, Kitas, Spielplätze und Sportstätten.
+• Rote Flächen: 100 m um Schulen, Kitas, Spielplätze, Jugendtreffs und Sportstätten.
 • Orange Flächen: Fußgängerzonen, verboten von 7 bis 20 Uhr, danach frei.
 • Alles andere: kein Verbot nach §5 KCanG.
 Eine Zeile am unteren Rand sagt dir jederzeit, woran du gerade bist, und wie
@@ -67,7 +67,7 @@ kannst du für eine Zeit einladen; jeder antwortet mit seiner eigenen Ankunft.
 Geteilt wird immer der Ort des Spots — nie, wo du gerade bist.
 
 BILDER IM EIGENEN KREIS
-Snaps entstehen live in der App, nie aus der Mediathek. Sie landen am Spot in
+Shots entstehen live in der App, nie aus der Mediathek. Sie landen am Spot in
 der Nähe oder als eigener Pin auf der Karte. Wer sie sieht, entscheidest du:
 alle deine Freunde oder nur die, die zu diesem Spot gehören. In der Bilddatei
 steht weder Koordinate noch Gerätespur.
@@ -99,7 +99,7 @@ laufen, wie iOS es kann.
 
 • Karte und Zonen auch ohne Empfang; die Umgebung lässt sich vorher sichern.
 • Spots mit Freunden: einladen per Link, Termine mit eigener Ankunftszeit.
-• Snaps: live aufgenommen, sichtbar nur im gewählten Kreis, ohne Ort in der Datei.
+• Shots: live aufgenommen, sichtbar nur im gewählten Kreis, ohne Ort in der Datei.
 • Vier Schritte zu Beginn erklären Karte, Datenwege, Spots und Bilder.
 • Ortssuche ohne Netz; Adressen werden erst auf Nachfrage gesucht.
 ```
@@ -182,7 +182,7 @@ Der gehört vor den Bau abgenommen (Mockup-Regel).
 
 ⚠️ **Zwei Dinge zu klären, bevor der Satz hochgeht:**
 
-1. **Fremde Fotos.** Die Fixture-Bilder in Album und Snap-Pins sind Aufnahmen
+1. **Fremde Fotos.** Die Fixture-Bilder in Album und Bild-Pins sind Aufnahmen
    aus Wikimedia Commons. Für Beweisbilder in Ordnung, für Store-Screenshots
    nicht: dort sind sie Werbematerial und tragen fremde Lizenzbedingungen
    (CC BY-SA verlangt Namensnennung). Auf `03_zugang.png` ist der Foto-Fächer

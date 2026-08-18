@@ -33,11 +33,11 @@ enum CommunityFixtures {
     /// sichtbar.
     static func spots(_ now: Date) -> [Spot] {
         [
-            Spot(id: "s1", name: "Unsere Bank", emoji: "🪑", lng: 9.7375, lat: 52.3613,
+            Spot(id: "s1", name: "Unsere Bank", emoji: "🪑", lng: 9.7431, lat: 52.3615,
                  createdAt: now.addingTimeInterval(-86_400),
                  zoneName: "spot-s1", ownerId: SELF_ID, participantIds: ["f1", "f2"],
                  shareURL: "https://www.icloud.com/share/s1"),
-            Spot(id: "s2", name: "Maschsee-Ecke", emoji: "🌳", lng: 9.7430, lat: 52.3567,
+            Spot(id: "s2", name: "Maschsee-Ecke", emoji: "🌳", lng: 9.7377, lat: 52.3632,
                  createdAt: now.addingTimeInterval(-43_200)),
         ]
     }
@@ -168,7 +168,7 @@ enum CommunityFixtures {
             case .toastMap:
                 // Derselbe Weg wie jede echte Meldung — nur der Anlass ist
                 // gestellt. Der Text ist der laengste, den die App kennt.
-                model.notice("Ohne Standort kann der Snap nicht auf die Karte — Ortung erlauben und nochmal.")
+                model.notice("Ohne Standort kann der Shot nicht auf die Karte — Ortung erlauben und nochmal.")
             case .freeSnapLand:
                 // Wie der Ausloeser in der Kamera: dieselbe `captureAndClose`,
                 // nur ohne Sucher davor. Ohne Spot in Reichweite wird daraus ein

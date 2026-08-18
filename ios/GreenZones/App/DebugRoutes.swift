@@ -109,7 +109,11 @@ enum DebugRoute: String {
 
 enum DebugEnvironment {
     /// Position der Fixture-Laeufe: Maschsee-Nordufer, Hannover.
-    static let fixtureCoordinate = CLLocationCoordinate2D(latitude: 52.3595, longitude: 9.7400)
+    ///
+    /// Alle Fixture-Orte liegen nachweislich an Land und ausserhalb jeder Zone —
+    /// gemessen gegen die OSM-Wasserflaeche und die gebauten Zonen, nicht
+    /// geschaetzt. Die Vorgaenger lagen im Maschsee, was in jedem Bild auffiel.
+    static let fixtureCoordinate = CLLocationCoordinate2D(latitude: 52.3617, longitude: 9.7399)
 
     #if DEBUG
     private static let environment = ProcessInfo.processInfo.environment
@@ -187,9 +191,9 @@ enum DebugEnvironment {
     /// Erfundene Adressen in Hannover — keine echte Person, kein echtes Haus.
     static let fixtureAddresses: [SearchResult] = [
         SearchResult(name: "Maschstraße", detail: "30169, Hannover, Niedersachsen",
-                     lng: 9.7392, lat: 52.3562, source: .photon),
+                     lng: 9.7336, lat: 52.3565, source: .photon),
         SearchResult(name: "Maschseepromenade", detail: "30169, Hannover, Niedersachsen",
-                     lng: 9.7449, lat: 52.3521, source: .photon),
+                     lng: 9.7437, lat: 52.3475, source: .photon),
     ]
 
     /// Zwei Recents fuer die leere Suche.

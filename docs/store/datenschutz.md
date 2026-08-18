@@ -46,7 +46,7 @@ Diese Daten verlassen Ihr Gerät nur, wenn Sie etwas teilen (Abschnitt 4):
   Zeichen und Farbe.
 - **Termine und Antworten**: Zeitpunkt eines Treffens, Zu- und Absagen mit der
   jeweils angekündigten Ankunftszeit.
-- **Bilder (Snaps)**: die Bilddatei sowie Aufnahmezeit, Aufnahmeort und
+- **Bilder (Shots)**: die Bilddatei sowie Aufnahmezeit, Aufnahmeort und
   gewählte Sichtbarkeit als Angaben in der Datenbank.
 - **Einstellungen**: Ihr Anzeigename, Ihr Zeichen und Vermerke darüber, welche
   Hinweise Ihnen bereits gezeigt wurden.

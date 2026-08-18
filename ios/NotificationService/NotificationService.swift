@@ -196,10 +196,10 @@ private struct EventComposer {
         let who = await names.displayName(for: record.creatorUserRecordID) ?? "Jemand"
         if let place {
             content.title = place
-            content.body = "\(who) hat einen Snap gemacht"
+            content.body = "\(who) hat einen Shot gemacht"
         } else {
-            content.title = "Neuer Snap"
-            content.body = "\(who) hat einen Snap gemacht"
+            content.title = "Neuer Shot"
+            content.body = "\(who) hat einen Shot gemacht"
         }
     }
 

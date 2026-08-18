@@ -28,7 +28,7 @@ Apple-ID in iCloud angemeldet zu sein. Ein Demo-Zugang von uns ist nicht
 möglich, weil es keinen Server und keine Konten gibt.
 
 2) NUTZERINHALTE (Richtlinie 1.2)
-Bilder („Snaps") sind ausschließlich in einem geschlossenen Kreis sichtbar:
+Bilder („Shots") sind ausschließlich in einem geschlossenen Kreis sichtbar:
 Freundschaften entstehen nur über einen persönlich verschickten Einladungslink.
 Es gibt keinen öffentlichen Feed, keine Suche nach Personen, keine Vorschläge
 und keine Möglichkeit, Fremde oder deren Inhalte zu entdecken. Der Aufbau
@@ -52,9 +52,9 @@ Kein Tracking, keine Werbe-ID, keine Analyse-Bibliothek.
 INHALTLICH
 Die App ist eine Karte zum deutschen Konsumcannabisgesetz (§5 Abs. 2 KCanG).
 Sie zeigt, wo öffentlicher Konsum verboten ist — 100 m um Schulen, Kitas,
-Spielplätze und Sportstätten, dazu Fußgängerzonen zwischen 7 und 20 Uhr. Sie
-fordert zu keinem Konsum auf, bewirbt nichts, verkauft nichts und nennt keine
-Bezugsquellen. In der App steht ausdrücklich, dass es sich um eine
+Spielplätze, Jugendtreffs und Sportstätten, dazu Fußgängerzonen zwischen 7 und
+20 Uhr. Sie fordert zu keinem Konsum auf, bewirbt nichts, verkauft nichts und
+nennt keine Bezugsquellen. In der App steht ausdrücklich, dass es sich um eine
 Orientierungshilfe ohne Gewähr handelt und nicht um Rechtsberatung.
 
 Vielen Dank fürs Prüfen.
@@ -79,7 +79,7 @@ bug. Signing into iCloud with any Apple ID is enough to review them. We cannot
 provide a demo account because there is no server and no accounts.
 
 2) USER-GENERATED CONTENT (Guideline 1.2)
-Photos ("snaps") are visible only within a closed circle: friendships are
+Photos ("shots") are visible only within a closed circle: friendships are
 created solely through a personally shared invitation link. There is no public
 feed, no people search, no suggestions, and no way to discover strangers or
 their content — comparable to a shared photo album among acquaintances.
@@ -100,7 +100,8 @@ on explicit request). No tracking, no advertising identifier, no analytics SDK.
 ABOUT THE CONTENT
 The app is a map for the German Cannabis Act (§5 (2) KCanG). It shows where
 public consumption is prohibited — within 100 m of schools, day-care centres,
-playgrounds and sports facilities, plus pedestrian zones between 7 am and 8 pm.
+playgrounds, youth centres and sports facilities, plus pedestrian zones between
+7 am and 8 pm.
 It does not encourage consumption, advertise, sell, or point to any source of
 supply. The app states in plain words that it is guidance without warranty and
 not legal advice.

@@ -58,9 +58,9 @@ enum SnapFixtures {
             // Freie Snaps stehen als eigene Pins auf der Karte.
             planned = [
                 Plan(file: "snap3", author: SELF_ID, minutesAgo: 40, spot: nil, scope: .feed,
-                     latitude: 52.3602, longitude: 9.7418),
+                     latitude: 52.3610, longitude: 9.7414),
                 Plan(file: "snap1", author: "f1", minutesAgo: 200, spot: nil, scope: .feed,
-                     latitude: 52.3586, longitude: 9.7381),
+                     latitude: 52.3627, longitude: 9.7397),
             ]
         default:
             return

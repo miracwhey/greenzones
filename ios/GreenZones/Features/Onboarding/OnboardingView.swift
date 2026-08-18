@@ -201,7 +201,7 @@ extension OnboardingView {
             lead: ["Ein Blick genügt: erlaubt oder verboten, an deinem Ort, zu dieser Stunde."],
             rows: [
                 Row(icon: AnyShape(VectorIcon.banMark), color: GZ.ban, title: "Rote Flächen",
-                    text: "100 m um Schulen, Kitas, Spielplätze und Sportstätten."),
+                    text: "100 m um Schulen, Kitas, Spielplätze, Jugendtreffs und Sportstätten."),
                 Row(icon: AnyShape(VectorIcon.clock), color: GZ.time, title: "Orange Flächen",
                     text: "Fußgängerzonen — verboten von 7 bis 20 Uhr, danach frei."),
                 Row(icon: AnyShape(VectorIcon.check), color: GZ.ok, title: "Alles andere",
@@ -220,7 +220,7 @@ extension OnboardingView {
                    "Kein Konto, keine Anmeldung, keine Werbung, keine Statistik über dich."],
             rows: [
                 Row(icon: AnyShape(VectorIcon.check), color: GZ.ok, title: "Standort",
-                    text: "Bleibt beim Anzeigen auf dem Gerät. Geteilt nur als Ort eines Spots oder Snaps, den du selbst anlegst."),
+                    text: "Bleibt beim Anzeigen auf dem Gerät. Geteilt nur als Ort eines Spots oder Shots, den du selbst anlegst."),
                 Row(icon: AnyShape(VectorIcon.globe), color: GZ.ink3, title: "Karte & Adressen",
                     text: "Das Kartenbild lädt von OpenFreeMap. Adressen sucht Komoot — nur wenn du danach fragst."),
             ],
@@ -245,7 +245,7 @@ extension OnboardingView {
         /// Sichtbarkeit hier und nicht erst im Auslöser.
         static let snaps = Step(
             title: "Bilder bleiben im Kreis",
-            lead: ["Ein Snap entsteht live in der Kamera — nie aus deiner Mediathek."],
+            lead: ["Ein Shot entsteht live in der Kamera — nie aus deiner Mediathek."],
             rows: [
                 Row(icon: AnyShape(VectorIcon.check), color: GZ.ok, title: "Landet, wo du bist",
                     text: "In der Nähe eines Spots gehört er dorthin, sonst wird er ein Pin auf der Karte."),

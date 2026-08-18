@@ -30,7 +30,7 @@ struct ZoneListView: View {
                            distance: status.ban.nearestM,
                            title: "Verbotszone",
                            badge: nil,
-                           subtitle: "Schule, Kita, Spielplatz o. Sportstätte · 100 m · ganztägig",
+                           subtitle: "Schule, Kita, Spielplatz, Jugend- o. Sportstätte\n100 m · ganztägig",
                            icon: .lock,
                            color: GZ.ban))
         }

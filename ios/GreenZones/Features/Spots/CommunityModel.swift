@@ -397,7 +397,7 @@ final class CommunityModel {
         // Ein Snap braucht einen Ort: er ist ein Punkt auf der Karte, kein
         // Bild in einem Ordner. Ohne Standort und ohne Spot gibt es keinen.
         guard let position = coordinate ?? spot?.coordinate else {
-            notice("Ohne Standort kann der Snap nicht auf die Karte — Ortung erlauben und nochmal.")
+            notice("Ohne Standort kann der Shot nicht auf die Karte — Ortung erlauben und nochmal.")
             return
         }
         do {

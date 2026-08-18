@@ -94,7 +94,7 @@ struct SpotDetailSheet: View {
             }
             Button("Abbrechen", role: .cancel) { removingFromSpot = nil }
         } message: { friend in
-            Text("\(friendLabel(friend)) sieht „\(spot.name)“ dann nicht mehr — auch die Snaps hier nicht. Ihr bleibt befreundet.")
+            Text("\(friendLabel(friend)) sieht „\(spot.name)“ dann nicht mehr — auch die Shots hier nicht. Ihr bleibt befreundet.")
         }
         .alert("Freund entfernen?", isPresented: Binding(get: { removingFriend != nil },
                                                         set: { if !$0 { removingFriend = nil } }),
@@ -181,7 +181,7 @@ struct SpotDetailSheet: View {
             // Der Satz steht VOR den Aktionen, damit der Weg heraus (teilen
             // bzw. Freund einladen) direkt darunter liegt.
             if spot.isLocalOnly, spot.isMine {
-                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Snaps hier bleiben auf dem Gerät, bis du ihn teilst.")
+                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Shots hier bleiben auf dem Gerät, bis du ihn teilst.")
             }
 
             actions
@@ -277,7 +277,7 @@ struct SpotDetailSheet: View {
             }
 
             if spot.isLocalOnly, spot.isMine {
-                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Snaps hier bleiben auf dem Gerät, bis du ihn teilst.")
+                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Shots hier bleiben auf dem Gerät, bis du ihn teilst.")
             }
             if spot.isLocalOnly, friends.isEmpty {
                 SPCloudHint(status: model.sync.state.status)
@@ -317,7 +317,7 @@ struct SpotDetailSheet: View {
         let added = access.subtracting(spot.participantIds)
         return CommunitySheet(estimate: 460) {
             SPTitle(text: "Wer sieht „\(spot.name)“?")
-            SPSubtitle(text: "Angehakte sehen den Spot dauerhaft auf ihrer Karte — mit allen Snaps, die hier liegen.")
+            SPSubtitle(text: "Angehakte sehen den Spot dauerhaft auf ihrer Karte — mit allen Shots, die hier liegen.")
             SPChipRow(items: friends) { friend in
                 SPChip(name: friendLabel(friend), emoji: friend.emoji,
                        color: SP.color(friend.color),
@@ -345,7 +345,7 @@ struct SpotDetailSheet: View {
         let list = names.count == 1
             ? names[0]
             : names.dropLast().joined(separator: ", ") + " und " + (names.last ?? "")
-        return "\(list) \(names.count == 1 ? "verliert" : "verlieren") den Zugang — auch zu den Snaps hier. Ihr bleibt befreundet."
+        return "\(list) \(names.count == 1 ? "verliert" : "verlieren") den Zugang — auch zu den Shots hier. Ihr bleibt befreundet."
     }
 
     private func applyAccess(added: [String], removed: [String]) {

@@ -110,7 +110,7 @@ struct SnapViewerView: View {
                 "Das Bild verschwindet dauerhaft für dich — auch nach dem nächsten Abgleich. Wer gar nichts mehr von \($0) sehen will, entfernt \($0)."
             } ?? "Das Bild verschwindet dauerhaft für dich.")
         }
-        .alert("Snap löschen?", isPresented: Binding(get: { deleting != nil },
+        .alert("Bild löschen?", isPresented: Binding(get: { deleting != nil },
                                                      set: { if !$0 { deleting = nil } }),
                presenting: deleting) { snap in
             Button("Löschen", role: .destructive) {
@@ -121,7 +121,7 @@ struct SnapViewerView: View {
         } message: { snap in
             Text(snap.isMine
                  ? "Das Bild verschwindet auch bei allen, die es sehen konnten."
-                 : "Der Snap verschwindet aus deinem Spot — auch beim Autor.")
+                 : "Das Bild verschwindet aus deinem Spot — auch beim Autor.")
         }
         .task(id: current?.id) { await loadOriginal() }
         .onAppear(perform: applyAutoRoute)
@@ -188,7 +188,7 @@ struct SnapViewerView: View {
                                  identifier: "gz.viewer.hide") { hiding = current }
                 }
                 if model.canDelete(current) {
-                    chromeButton(icon: "trash", label: "Snap löschen",
+                    chromeButton(icon: "trash", label: "Bild löschen",
                                  identifier: "gz.viewer.delete") { deleting = current }
                 }
             }

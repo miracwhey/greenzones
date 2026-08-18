@@ -21,10 +21,10 @@ final class FixtureEnvironmentUITests: XCTestCase {
         ]
         app.launch()
 
-        // Der Fixture-Punkt liegt am Maschsee-Nordufer, der Spot 262 m entfernt.
+        // Der Fixture-Punkt liegt am Maschsee-Nordufer, der Spot 218 m entfernt.
         // Mit dem Simulator-Standort staende hier ein vierstelliger Kilometerwert.
         let distance = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "262 m von dir")).firstMatch
+            NSPredicate(format: "label CONTAINS %@", "218 m von dir")).firstMatch
         XCTAssertTrue(distance.waitForExistence(timeout: 25),
                       "Die Distanz kommt nicht vom Fixture-Standort")
     }

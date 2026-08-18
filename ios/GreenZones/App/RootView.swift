@@ -318,7 +318,7 @@ struct RootView: View {
             .shadow(color: GZ.accent.opacity(0.35), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Snap aufnehmen")
+        .accessibilityLabel("Shot aufnehmen")
         .accessibilityIdentifier("gz.fab.snap")
     }
 
