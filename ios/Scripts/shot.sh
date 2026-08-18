@@ -20,6 +20,7 @@
 #                         18.08. in SpotDetailSheet, kam hier aber nie an)
 #   GZ_HINTS_RESET=1      In-Kontext-Hinweise wieder auf ungesehen
 #   GZ_ACCURACY=120   Genauigkeit der Fixture-Position in Metern
+#   GZ_AT=48.14,11.58 Fixture-Standort woandershin verlegen (Abdeckung pruefen)
 #
 # WICHTIG: Die Env-Variablen gehen als SHELL-PRAEFIX an `simctl launch`.
 # Als Argument hinter dem Bundle-Identifier kommen sie still nie an — der
@@ -76,6 +77,7 @@ SIMCTL_CHILD_GZ_ONBOARDING_STEP="${GZ_ONBOARDING_STEP:-0}" \
 SIMCTL_CHILD_GZ_INFO_OPEN="${GZ_INFO_OPEN:-}" \
 SIMCTL_CHILD_GZ_SHARE_OPEN="${GZ_SHARE_OPEN:-}" \
 SIMCTL_CHILD_GZ_HINTS_RESET="${GZ_HINTS_RESET:-}" \
+SIMCTL_CHILD_GZ_AT="${GZ_AT:-}" \
     xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null
 
 # 5. Settle: Basemap kommt aus dem Netz, das Sheet oeffnet nach 2,2 s.

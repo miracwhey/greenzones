@@ -90,7 +90,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 146.220236
+    "nearestM": 61.115691
    },
    "time": {
     "inside": false,
@@ -142,7 +142,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 165.915664
+    "nearestM": 165.785844
    },
    "time": {
     "inside": false,
@@ -194,7 +194,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 6.853556
+    "nearestM": 6.988433
    },
    "time": {
     "inside": false,
@@ -233,7 +233,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 624.321158
+    "nearestM": 471.191947
    },
    "time": {
     "inside": false,
@@ -376,7 +376,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 190.763376
+    "nearestM": 192.004144
    },
    "time": {
     "inside": false,
@@ -402,11 +402,11 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 99.090914
+    "nearestM": 100.062216
    },
    "time": {
     "inside": false,
-    "nearestM": 97.05925
+    "nearestM": 97.575001
    }
   },
   {
@@ -428,7 +428,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 406.394281
+    "nearestM": 183.205894
    },
    "time": {
     "inside": false,
@@ -441,7 +441,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 576.898774
+    "nearestM": 123.299612
    },
    "time": {
     "inside": false,
@@ -454,7 +454,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 397.721969
+    "nearestM": 334.641103
    },
    "time": {
     "inside": false,
@@ -562,7 +562,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 217.567968
+    "nearestM": 218.424932
    }
   },
   {
@@ -601,7 +601,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 49.260543
+    "nearestM": 49.774073
    }
   },
   {
@@ -614,7 +614,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 143.511152
+    "nearestM": 143.409083
    }
   },
   {
@@ -636,7 +636,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 236.957058
+    "nearestM": 157.481354
    },
    "time": {
     "inside": false,
@@ -649,7 +649,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 248.52276
+    "nearestM": 89.231644
    },
    "time": {
     "inside": false,
@@ -796,7 +796,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 1.694381
+    "nearestM": 1.976248
    }
   },
   {
@@ -973,8 +973,8 @@
    "lng": 9.7213333,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 42.006304
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -1017,7 +1017,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 72.520869
+    "nearestM": 72.889891
    }
   },
   {
@@ -1182,7 +1182,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 32.444284
+    "nearestM": 20.250575
    },
    "time": {
     "inside": false,
@@ -1207,8 +1207,8 @@
    "lng": 9.7266667,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 45.794004
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -1233,8 +1233,8 @@
    "lng": 9.7266667,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 8.178185
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -1247,7 +1247,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 73.195063
+    "nearestM": 62.417184
    },
    "time": {
     "inside": false,
@@ -1363,12 +1363,12 @@
    "lng": 9.732,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 46.830951
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
-    "nearestM": 22.571952
+    "nearestM": 23.109365
    }
   },
   {
@@ -1407,7 +1407,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 89.761727
+    "nearestM": 90.07585
    }
   },
   {
@@ -1442,7 +1442,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 119.608453
+    "nearestM": 53.767064
    },
    "time": {
     "inside": false,
@@ -1572,7 +1572,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 65.680729
+    "nearestM": 19.887522
    },
    "time": {
     "inside": false,
@@ -1585,7 +1585,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 220.40829
+    "nearestM": 139.218521
    },
    "time": {
     "inside": true,
@@ -1611,7 +1611,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 164.360873
+    "nearestM": 3.215449
    },
    "time": {
     "inside": false,
@@ -1624,11 +1624,11 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 131.663754
+    "nearestM": 94.288779
    },
    "time": {
     "inside": false,
-    "nearestM": 203.852647
+    "nearestM": 204.114273
    }
   },
   {
@@ -1766,8 +1766,8 @@
    "lng": 9.7426667,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 140.713114
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -1780,7 +1780,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 186.705094
+    "nearestM": 148.104706
    },
    "time": {
     "inside": false,
@@ -1793,7 +1793,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 413.147105
+    "nearestM": 405.211931
    },
    "time": {
     "inside": false,
@@ -1806,7 +1806,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 301.667839
+    "nearestM": 246.724723
    },
    "time": {
     "inside": false,
@@ -1818,8 +1818,8 @@
    "lng": 9.7426667,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 70.021962
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -1922,8 +1922,8 @@
    "lng": 9.748,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 91.995057
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -2001,7 +2001,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 272.102921
+    "nearestM": 136.071033
    },
    "time": {
     "inside": false,
@@ -2014,7 +2014,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 131.656227
+    "nearestM": 8.632879
    },
    "time": {
     "inside": false,
@@ -2057,7 +2057,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 68.553477
+    "nearestM": 68.79089
    }
   },
   {
@@ -2157,7 +2157,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 61.563152
+    "nearestM": 56.789761
    },
    "time": {
     "inside": false,
@@ -2209,7 +2209,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 12.54283
+    "nearestM": 12.561468
    },
    "time": {
     "inside": false,
@@ -2326,7 +2326,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 98.297682
+    "nearestM": 82.360406
    },
    "time": {
     "inside": false,
@@ -2572,8 +2572,8 @@
    "lng": 9.764,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 15.183408
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -2590,7 +2590,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 332.719682
+    "nearestM": 332.90301
    }
   },
   {
@@ -2664,7 +2664,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 247.905942
+    "nearestM": 175.472507
    },
    "time": {
     "inside": false,
@@ -2677,7 +2677,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 351.264292
+    "nearestM": 64.940434
    },
    "time": {
     "inside": false,
@@ -2768,7 +2768,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 8.004043
+    "nearestM": 8.221997
    },
    "time": {
     "inside": false,
@@ -2785,7 +2785,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 788.025849
+    "nearestM": 787.646947
    }
   },
   {
@@ -2798,7 +2798,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 601.375252
+    "nearestM": 600.444529
    }
   },
   {
@@ -2884,8 +2884,8 @@
    "lng": 9.7693333,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 145.207
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -2898,7 +2898,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 306.528958
+    "nearestM": 17.842757
    },
    "time": {
     "inside": false,
@@ -2950,7 +2950,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 100.086073
+    "nearestM": 100.330119
    },
    "time": {
     "inside": false,
@@ -2963,7 +2963,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 33.520324
+    "nearestM": 25.583205
    },
    "time": {
     "inside": false,
@@ -2980,7 +2980,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 1252.796642
+    "nearestM": 1252.271124
    }
   },
   {
@@ -2993,7 +2993,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 1065.17559
+    "nearestM": 1064.151816
    }
   },
   {
@@ -3093,7 +3093,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 179.554935
+    "nearestM": 76.238355
    },
    "time": {
     "inside": false,
@@ -3105,8 +3105,8 @@
    "lng": 9.7746667,
    "note": "raster",
    "ban": {
-    "inside": false,
-    "nearestM": 370.731711
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -3119,7 +3119,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 161.33903
+    "nearestM": 87.283513
    },
    "time": {
     "inside": false,
@@ -3184,7 +3184,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 13.139419
+    "nearestM": 13.134046
    },
    "time": {
     "inside": false,
@@ -3301,7 +3301,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 354.240593
+    "nearestM": 311.686294
    },
    "time": {
     "inside": false,
@@ -3314,7 +3314,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 426.505948
+    "nearestM": 198.22176
    },
    "time": {
     "inside": false,
@@ -3327,7 +3327,7 @@
    "note": "raster",
    "ban": {
     "inside": false,
-    "nearestM": 368.140837
+    "nearestM": 292.066961
    },
    "time": {
     "inside": false,
@@ -3457,7 +3457,7 @@
    "note": "rand-ban",
    "ban": {
     "inside": false,
-    "nearestM": 2.943392
+    "nearestM": 2.867558
    },
    "time": {
     "inside": false,
@@ -3912,7 +3912,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 223.266278
+    "nearestM": 141.222009
    },
    "time": {
     "inside": true,
@@ -3925,7 +3925,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 217.625071
+    "nearestM": 137.36612
    },
    "time": {
     "inside": true,
@@ -3938,7 +3938,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 224.552788
+    "nearestM": 143.843473
    },
    "time": {
     "inside": true,
@@ -3951,7 +3951,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 216.29736
+    "nearestM": 134.61858
    },
    "time": {
     "inside": true,
@@ -3981,7 +3981,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 5.239263
+    "nearestM": 5.523196
    }
   },
   {
@@ -4007,7 +4007,7 @@
    },
    "time": {
     "inside": false,
-    "nearestM": 5.220544
+    "nearestM": 5.500334
    }
   },
   {
@@ -4120,7 +4120,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 5.46419
+    "nearestM": 5.611262
    },
    "time": {
     "inside": false,
@@ -4133,7 +4133,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 8.2358
+    "nearestM": 8.358476
    },
    "time": {
     "inside": false,
@@ -4146,7 +4146,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 11.654112
+    "nearestM": 11.792487
    },
    "time": {
     "inside": false,
@@ -4159,7 +4159,7 @@
    "note": "rand-time",
    "ban": {
     "inside": false,
-    "nearestM": 2.045878
+    "nearestM": 2.17725
    },
    "time": {
     "inside": false,
@@ -4223,12 +4223,12 @@
    "lng": 9.7427404,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 65.476131
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
-    "nearestM": 16.179739
+    "nearestM": 16.334179
    }
   },
   {
@@ -4236,8 +4236,8 @@
    "lng": 9.742593,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 74.566768
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -4249,8 +4249,8 @@
    "lng": 9.7426667,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 67.938106
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -4262,8 +4262,8 @@
    "lng": 9.7426667,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 72.144089
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -4275,8 +4275,8 @@
    "lng": 9.7320736,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 41.867782
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -4288,12 +4288,12 @@
    "lng": 9.7319264,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 51.793216
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
-    "nearestM": 22.705147
+    "nearestM": 23.378392
    }
   },
   {
@@ -4301,12 +4301,12 @@
    "lng": 9.732,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 47.439908
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
-    "nearestM": 17.577335
+    "nearestM": 18.120111
    }
   },
   {
@@ -4314,8 +4314,8 @@
    "lng": 9.732,
    "note": "rand-time",
    "ban": {
-    "inside": false,
-    "nearestM": 46.221089
+    "inside": true,
+    "nearestM": 0
    },
    "time": {
     "inside": false,
@@ -4375,16 +4375,16 @@
    }
   },
   {
-   "lat": 52.3595,
-   "lng": 9.74,
+   "lat": 52.3617,
+   "lng": 9.7399,
    "note": "Maschsee-Nordufer (Fixture-Position der Shots)",
    "ban": {
     "inside": false,
-    "nearestM": 108.958016
+    "nearestM": 104.088188
    },
    "time": {
     "inside": false,
-    "nearestM": 315.394174
+    "nearestM": 89.770806
    }
   },
   {
@@ -4406,7 +4406,7 @@
    "note": "Kroepcke",
    "ban": {
     "inside": false,
-    "nearestM": 316.865932
+    "nearestM": 228.56317
    },
    "time": {
     "inside": true,

@@ -35,7 +35,7 @@ const GRID = { minLng: 9.7, maxLng: 9.78, minLat: 52.35, maxLat: 52.39, n: 16 };
  * Innenstadt trifft sie nie.
  */
 const HAND = [
-  { lat: 52.3595, lng: 9.74, note: "Maschsee-Nordufer (Fixture-Position der Shots)" },
+  { lat: 52.3617, lng: 9.7399, note: "Maschsee-Nordufer (Fixture-Position der Shots)" },
   { lat: 52.366, lng: 9.718, note: "Kuechengarten Linden" },
   { lat: 52.3745, lng: 9.7386, note: "Kroepcke" },
   { lat: 54.2, lng: 7.2, note: "weit-Nordsee" },

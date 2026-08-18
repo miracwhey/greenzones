@@ -113,7 +113,26 @@ enum DebugEnvironment {
     /// Alle Fixture-Orte liegen nachweislich an Land und ausserhalb jeder Zone —
     /// gemessen gegen die OSM-Wasserflaeche und die gebauten Zonen, nicht
     /// geschaetzt. Die Vorgaenger lagen im Maschsee, was in jedem Bild auffiel.
-    static let fixtureCoordinate = CLLocationCoordinate2D(latitude: 52.3617, longitude: 9.7399)
+    ///
+    /// `GZ_AT=<lat>,<lng>` verlegt sie fuer ein Bild woandershin. Ohne diesen
+    /// Schalter laesst sich nur behaupten, dass die Zonen ganz Deutschland
+    /// abdecken — der Dateikopf der pmtiles sagt es, aber gesehen hat es
+    /// niemand ausserhalb von Hannover.
+    static var fixtureCoordinate: CLLocationCoordinate2D {
+        #if DEBUG
+        if let roh = ProcessInfo.processInfo.environment["GZ_AT"] {
+            let teile = roh.split(separator: ",")
+                .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            if teile.count == 2 {
+                return CLLocationCoordinate2D(latitude: teile[0], longitude: teile[1])
+            }
+        }
+        #endif
+        return defaultFixtureCoordinate
+    }
+
+    private static let defaultFixtureCoordinate =
+        CLLocationCoordinate2D(latitude: 52.3617, longitude: 9.7399)
 
     #if DEBUG
     private static let environment = ProcessInfo.processInfo.environment
