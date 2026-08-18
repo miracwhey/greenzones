@@ -290,16 +290,21 @@ struct RootView: View {
         }
     }
 
-    /// W5: Plus-FAB fuer Snaps. Blau gefuellt statt Glas — er ist die einzige
-    /// Handlung hier, die etwas erschafft.
+    /// W5: Snap-FAB. Blau gefuellt statt Glas — er ist die einzige Handlung
+    /// hier, die etwas erschafft.
+    ///
+    /// Kamera statt Ausloeser-Ring (18.08., Leon am Geraet): der Ring stammt aus
+    /// dem Spike-Mockup und sagt „jetzt ausloesen", der Knopf oeffnet aber erst
+    /// den Sucher. Gezeichnet als `VectorIcon` wie alle Strich-Symbole der App —
+    /// ein SF-Symbol an dieser einen Stelle wuerde als einziges aus der Reihe
+    /// tanzen (andere Strichstaerke, andere Rundungen).
     private var snapFab: some View {
         Button(action: { community.openCamera() }) {
-            ZStack {
-                Circle().strokeBorder(Color.white, lineWidth: 2.4)
-                    .frame(width: 24, height: 24)
-                Circle().fill(Color.white).frame(width: 14, height: 14)
-            }
-            .frame(width: 56, height: 56)
+            VectorIcon.camera
+                .stroke(Color.white,
+                        style: StrokeStyle(lineWidth: 1.9, lineCap: .round, lineJoin: .round))
+                .frame(width: 26, height: 26)
+                .frame(width: 56, height: 56)
             .background(GZ.accent, in: .circle)
             .shadow(color: GZ.accent.opacity(0.35), radius: 12, y: 6)
         }

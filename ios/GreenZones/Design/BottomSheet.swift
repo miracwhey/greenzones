@@ -123,8 +123,21 @@ private struct BottomSheetCard: ViewModifier {
 
     private static let grabberHeight: CGFloat = 18
     private static let cornerRadius: CGFloat = 22
+    /// Zusaetzliche Trefferflaeche unter dem Griff — unsichtbar, ohne Einfluss
+    /// auf das Layout. Der Griff ist 18 pt hoch, das ist als Ziel zu schmal
+    /// (Leon am Geraet: „manchmal zu schwer wegzuwischen"); mit dem Zuschlag
+    /// sind es 44 pt, die uebliche Mindestgroesse. Der Streifen liegt ueber dem
+    /// oberen Innenabstand und der Titelzeile — beides zeichnet nur, faengt
+    /// nichts, also faellt ein Tipp dort bis hierher durch. Ein Knopf in dieser
+    /// Zone behielte seinen Vorrang: er liegt in der Stapelfolge darueber.
+    private static let grabberHitSlop: CGFloat = 26
     /// Ab hier ist die Wischgeste ein Schliessen, darunter faehrt das Blatt zurueck.
-    private static let dismissThreshold: CGFloat = 90
+    private static let dismissThreshold: CGFloat = 70
+    /// … oder wenn der Wisch schnell genug war, um dort ANZUKOMMEN. Ein kurzer
+    /// schneller Wisch schliesst sonst nicht, obwohl er eindeutig gemeint war —
+    /// ein reines Wegmass fragt nur, wie weit der Finger kam, nicht wie
+    /// entschieden. Derselbe Wert wie im Betrachter, der es schon so macht.
+    private static let flingThreshold: CGFloat = 320
     /// Luft zwischen letzter Zeile und Home-Indikator.
     private static let bottomBreathingRoom: CGFloat = 8
     static let identifier = "gz.sheet"
@@ -170,18 +183,32 @@ private struct BottomSheetCard: ViewModifier {
 
     /// Griff und Wischflaeche. Die Geste haengt NUR hier: auf dem Inhalt wuerde
     /// sie mit dem Scrollen streiten und laengere Blaetter unbedienbar machen.
+    /// Sie greift dafuer ueber den sichtbaren Griff hinaus (`grabberHitSlop`).
     private var grabber: some View {
         Capsule()
             .fill(GZ.ink.opacity(0.18))
             .frame(width: 36, height: 5)
             .frame(maxWidth: .infinity)
             .frame(height: Self.grabberHeight)
+            // Erst die Flaeche nach unten aufziehen, dann als Trefferform
+            // festhalten, dann das Layout zuruecknehmen: der Streifen faengt
+            // Finger, verschiebt aber keine Zeile.
+            .padding(.bottom, Self.grabberHitSlop)
             .contentShape(Rectangle())
+            .padding(.bottom, -Self.grabberHitSlop)
             .gesture(
                 DragGesture()
                     .updating($drag) { value, state, _ in state = value.translation.height }
                     .onEnded { value in
-                        if value.translation.height > Self.dismissThreshold { dismiss() }
+                        if value.translation.height > Self.dismissThreshold
+                            || value.predictedEndTranslation.height > Self.flingThreshold {
+                            // Quittung fuer die Geste — das Blatt faehrt sonst
+                            // wortlos weg, und bei einem Wisch, der knapp nicht
+                            // gereicht hat, sieht das gleich aus wie einer, der
+                            // gar nicht angekommen ist.
+                            GZ.haptic()
+                            dismiss()
+                        }
                     }
             )
             .accessibilityHidden(true)

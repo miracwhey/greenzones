@@ -82,10 +82,17 @@ enum GZ {
     /// Die drei Federn als reine Zahlen. Von hier bedienen sich SwiftUI UND die
     /// UIKit-Ansichten der Karte — ein Pin, der seine eigene Feder mitbraechte,
     /// waere eine vierte, die niemand mitpflegt.
+    ///
+    /// Am Geraet gekuerzt (18.08., Leon: „Animationen insgesamt zu langsam").
+    /// Vorher 0.52 / 0.36 / 0.22 — die Werte kamen aus dem Prototyp am
+    /// Schreibtisch. Gekuerzt ist **nur** `response`, alle drei um denselben
+    /// Faktor (~0.73): das Verhaeltnis der drei Massen zueinander bleibt, und
+    /// weil `dampingFraction` unangetastet ist, ist es dieselbe Kurve auf einer
+    /// gestauchten Zeitachse — schneller, nicht anders.
     typealias Feder = (response: Double, damping: Double)
-    static let sheetFeder: Feder = (0.52, 0.90)
-    static let elementFeder: Feder = (0.36, 0.82)
-    static let microFeder: Feder = (0.22, 0.80)
+    static let sheetFeder: Feder = (0.38, 0.90)
+    static let elementFeder: Feder = (0.27, 0.82)
+    static let microFeder: Feder = (0.16, 0.80)
 
     /// Dieselbe Feder fuer eine UIKit-Ansicht. `bounce` ist die Gegengroesse zur
     /// Daempfung: `spring(response:dampingFraction:)` und
@@ -240,4 +247,13 @@ extension VectorIcon {
     static let banMark = VectorIcon(
         segments: [[CGPoint(x: 6, y: 6), CGPoint(x: 18, y: 18)]],
         circles: [(CGPoint(x: 12, y: 12), 8.5)])
+    /// Kamera des Snap-FAB: Gehaeuse mit Sucherbuckel, Objektiv als Kreis.
+    /// Der Buckel ist ein Polygonzug — `VectorIcon` kennt nur Linien und
+    /// Ellipsen; bei 24 pt und rundem Linienabschluss ist die fehlende Rundung
+    /// nicht zu sehen (im Bild geprueft).
+    static let camera = VectorIcon(
+        segments: [[CGPoint(x: 3, y: 7.5), CGPoint(x: 8.5, y: 7.5), CGPoint(x: 10, y: 5),
+                    CGPoint(x: 14, y: 5), CGPoint(x: 15.5, y: 7.5), CGPoint(x: 21, y: 7.5),
+                    CGPoint(x: 21, y: 19), CGPoint(x: 3, y: 19), CGPoint(x: 3, y: 7.5)]],
+        circles: [(CGPoint(x: 12, y: 13.25), 3.6)])
 }

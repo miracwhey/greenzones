@@ -86,6 +86,49 @@ final class BottomSheetUITests: XCTestCase {
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5), "Wischen am Griff schliesst nicht")
     }
 
+    /// Leons Beschwerde vom Geraet als Messung: „manchmal zu schwer
+    /// wegzuwischen". Ein Finger, der 40 pt unter der Blattkante ansetzt,
+    /// verfehlte den Griff und die Geste verpuffte; mit dem Trefferzuschlag
+    /// greift sie.
+    ///
+    /// **Die 40 pt sind gemessen, nicht gewaehlt.** Bei 30 pt ist der Test auch
+    /// mit `grabberHitSlop = 0` gruen — UIKit gibt jedem Ziel von sich aus etwas
+    /// Rand, der sichtbare Griff (18 pt) trifft also weiter, als er aussieht.
+    /// Eine Probe an dieser Stelle haette den Zuschlag bestaetigt, ohne ihn je
+    /// zu beruehren. Bei 40 pt kippt sie: ohne Zuschlag rot, mit gruen — beides
+    /// nachgestellt.
+    func testSwipeJustBelowTheGrabberClosesIt() {
+        let app = launch(route: "detail")
+        let sheet = sheet(in: app)
+
+        // Absolut ab Blattoberkante, nicht normalisiert: 40 pt sind 40 pt,
+        // egal wie hoch das Blatt gerade ist.
+        let belowGrabber = sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+            .withOffset(CGVector(dx: 0, dy: 40))
+        let below = sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+        belowGrabber.press(forDuration: 0.1, thenDragTo: below)
+
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5),
+                      "Wischen knapp unter dem Griff schliesst nicht")
+    }
+
+    // Der zweite Grund, warum es „zu schwer" war — die Schwelle war ein reines
+    // Wegmass, ein kurzer schneller Wisch kam nicht weit genug —, ist hier
+    // BEWUSST nicht geprueft: **XCUITest kann keinen schnellen Wisch erzeugen.**
+    //
+    // Gemessen, nicht vermutet. Bei `press(forDuration: 0.01, thenDragTo:,
+    // withVelocity: .fast)` ueber 55 pt meldete die Geste `weg=29.0,
+    // vorhersage=44.0` — die Vorhersage ist der Weg plus ein Nichts, es kommt
+    // keine Geschwindigkeit an. Und beim langsamen Wisch ueber die volle Hoehe
+    // stand `weg=258.3, vorhersage=230.8`: die Vorhersage faellt unter den Weg
+    // zurueck, weil die Hand am Ende steht. Ein Test dagegen wuerde nicht die
+    // Regel messen, sondern den Nachbau der Eingabe — und waere rot, obwohl
+    // der Code stimmt.
+    //
+    // Damit ist die Geschwindigkeits-Schwelle **am Geraet zu pruefen**, nicht
+    // hier. Die Konstruktion ist dieselbe wie im Betrachter, wo sie sich in
+    // Leons Hand bereits bewaehrt hat.
+
     /// Gegenprobe zum Wischen: auf dem Inhalt darf die Geste NICHT schliessen,
     /// sonst waere ein langes Blatt (Profil, Spot markieren) nicht scrollbar.
     func testSwipeOnTheContentKeepsTheSheetOpen() {
