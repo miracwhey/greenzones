@@ -15,6 +15,10 @@
 #   GZ_FRESH=1        App vorher deinstallieren (leere UserDefaults = Erststart)
 #   GZ_ONBOARDING_STEP=2  Onboarding faengt bei Schritt 2 an (0..3, nur fuer Bilder)
 #   GZ_INFO_OPEN=manage   Info-Blatt startet im Unterblatt „Karte & Daten"
+#   GZ_SHARE_OPEN=access|manage  Spot-Blatt startet im Zugangs- bzw.
+#                         Verwalten-Unterblatt (der Schalter steckt seit dem
+#                         18.08. in SpotDetailSheet, kam hier aber nie an)
+#   GZ_HINTS_RESET=1      In-Kontext-Hinweise wieder auf ungesehen
 #   GZ_ACCURACY=120   Genauigkeit der Fixture-Position in Metern
 #
 # WICHTIG: Die Env-Variablen gehen als SHELL-PRAEFIX an `simctl launch`.
@@ -70,6 +74,8 @@ SIMCTL_CHILD_GZ_HOUR="$HOUR" \
 SIMCTL_CHILD_GZ_ACCURACY="$ACCURACY" \
 SIMCTL_CHILD_GZ_ONBOARDING_STEP="${GZ_ONBOARDING_STEP:-0}" \
 SIMCTL_CHILD_GZ_INFO_OPEN="${GZ_INFO_OPEN:-}" \
+SIMCTL_CHILD_GZ_SHARE_OPEN="${GZ_SHARE_OPEN:-}" \
+SIMCTL_CHILD_GZ_HINTS_RESET="${GZ_HINTS_RESET:-}" \
     xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null
 
 # 5. Settle: Basemap kommt aus dem Netz, das Sheet oeffnet nach 2,2 s.
