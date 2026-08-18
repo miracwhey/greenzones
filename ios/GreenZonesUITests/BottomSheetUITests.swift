@@ -66,9 +66,18 @@ final class BottomSheetUITests: XCTestCase {
         let app = launch(route: "detail")
         let sheet = sheet(in: app)
 
-        // Ueber dem Blatt, auf der verdunkelten Karte — unterhalb des Suchfelds,
-        // sonst traefe der Tipp die Suche statt der Verdunkelung.
-        let above = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30))
+        // 40 pt ueber der Blattkante, auf der verdunkelten Karte.
+        //
+        // Frueher stand hier eine feste Zahl (30 % der Schirmhoehe). Die galt
+        // fuer das Blatt von damals: als es um die Sektion „Geteilt mit" wuchs,
+        // lag der Tipp IM Blatt und der Test war rot, ohne dass am Schliessen
+        // etwas kaputt war. Am Blatt gemessen haelt die Annahme auch beim
+        // naechsten Zuwachs.
+        let window = app.windows.firstMatch.frame
+        let above = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: window.midX, dy: sheet.frame.minY - 40))
+        XCTAssertGreaterThan(sheet.frame.minY - 40, window.minY + 120,
+                             "kein Platz mehr zwischen Suchfeld und Blattkante")
         above.tap()
 
         XCTAssertTrue(sheet.waitForNonExistence(timeout: 5), "Tippen daneben schliesst nicht")

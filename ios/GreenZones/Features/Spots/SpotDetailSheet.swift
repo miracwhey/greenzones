@@ -16,11 +16,14 @@ struct SpotDetailSheet: View {
     let userCoordinate: CLLocationCoordinate2D?
     let hour: Int
 
-    enum Mode { case view, hostTime, myTime, share }
+    enum Mode { case view, hostTime, myTime, share, access }
 
     @State private var mode: Mode = .view
     @State private var draft = Date()
     @State private var addTo: Set<String> = []
+    /// Auswahl im Zugangs-Blatt — Startwert sind die heutigen
+    /// Teilnehmer, damit Abwaehlen ueberhaupt moeglich ist.
+    @State private var access: Set<String> = []
     /// Bandanfang einmal einfrieren — sonst wandert „Jetzt" unter dem Finger.
     @State private var now: Date?
     /// W5: Person, deren Entfernen gerade nachgefragt wird — aus dem Spot bzw.
@@ -53,12 +56,22 @@ struct SpotDetailSheet: View {
         Group {
             switch mode {
             case .share: shareSheet
+            case .access: accessSheet
             case .hostTime: hostTimeSheet
             case .myTime: myTimeSheet
             case .view: detailSheet
             }
         }
         .task { if now == nil { now = model.now } }
+        // Shot-Schalter wie `GZ_ROUTE`: `GZ_SHARE_OPEN=1` faehrt das
+        // Zugangs-Blatt direkt an, damit es fotografierbar ist — ohne ihn gaebe
+        // es von diesem Blatt nur eine Behauptung.
+        .task {
+            guard ProcessInfo.processInfo.environment["GZ_SHARE_OPEN"] == "1",
+                  spot.isMine else { return }
+            access = Set(spot.participantIds)
+            mode = .access
+        }
         .task(id: spot.id) { await model.loadStatus(at: spot.coordinate) }
         // `.alert` statt `.confirmationDialog`: der schluckt unter iOS 26 den
         // Abbrechen-Knopf, wenn er aus einem Blatt heraus kommt.
@@ -120,7 +133,18 @@ struct SpotDetailSheet: View {
                 }
             }
 
-            if invitation == nil, !spot.participantIds.isEmpty {
+            // Wer den Spot sieht, ist eine DAUERHAFTE Eigenschaft des Spots.
+            // Bis zum 18.08. hing die Verwaltung an der Einladung: entfernen
+            // ging nur ueber das Personen-Menue unter „Wer kommt", und das gab
+            // es nur, solange eine Einladung lief. Ohne Einladung stand hier
+            // eine Reihe toter Chips (`onToggle: nil`), die wie Auswahl aussah.
+            // Deshalb steht die Sektion jetzt IMMER, unabhaengig von Einladung
+            // und Teilnehmerzahl.
+            if spot.isMine, !friends.isEmpty {
+                SPSection(text: "Geteilt mit")
+                sharedWithSection
+            } else if invitation == nil, !spot.participantIds.isEmpty {
+                // Fremder Spot: nur Anzeige, verwaltet wird er vom Gastgeber.
                 SPSection(text: "Geteilt mit")
                 participantChips(spot.participantIds)
             }
@@ -130,8 +154,12 @@ struct SpotDetailSheet: View {
             }
 
             if let invitation {
+                // Nur die Gemeinten — bei fuenf Leuten am Spot und zwei
+                // Eingeladenen waeren die anderen drei hier „offen", obwohl sie
+                // nie gefragt wurden.
                 let rows = rsvpEntries(invitation, friends: friends,
-                                       participantIds: spot.participantIds)
+                                       participantIds: invitation.invitees(
+                                           spotParticipants: spot.participantIds))
                 if !rows.isEmpty {
                     SPSection(text: "Wer kommt")
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
@@ -217,11 +245,15 @@ struct SpotDetailSheet: View {
                     model.sheet = .invite(spotId: spot.id)
                 }
             }
-            if spot.isMine, !shareable.isEmpty {
-                SPCTA(title: spot.zoneName != nil ? "Weiteren Freunden geben" : "Mit Freunden teilen",
-                      style: spot.zoneName != nil ? .outline : .blue) {
-                    addTo = Set(shareable.map(\.id))
-                    mode = .share
+            // Der frueher hier stehende CTA („Mit Freunden teilen" /
+            // „Weiteren Freunden geben") ist in die Sektion „Geteilt mit"
+            // gewandert: er konnte nur hinzufuegen und trug bei einem noch
+            // ungeteilten Spot ein anderes Wort als bei einem geteilten —
+            // wer „einladen" suchte, fand ihn nicht. Ohne Freunde bleibt der
+            // Weg unten (Link) der einzige, und der steht schon da.
+            if spot.isMine, friends.isEmpty, !spot.isLocalOnly {
+                SPCTA(title: "Freund einladen", style: .outline) {
+                    model.sheet = .friends(intent: .invite)
                 }
             }
             // Sackgassen-Regel: ohne Freunde fuehrt der Spot in den Einladen-Flow.
@@ -232,6 +264,76 @@ struct SpotDetailSheet: View {
             }
         }
         .padding(.top, 14)
+    }
+
+    // MARK: - MOCKUP: „Wer sieht diesen Spot" (Variante A vs. B)
+
+    /// Die Runde des Spots — und der Weg, sie zu aendern.
+    @ViewBuilder
+    private var sharedWithSection: some View {
+        if spot.participantIds.isEmpty {
+            SPNote(text: "Noch mit niemandem geteilt.")
+        } else {
+            participantChips(spot.participantIds)
+        }
+        SPCTA(title: "Wer sieht diesen Spot", style: .outline) {
+            access = Set(spot.participantIds)
+            mode = .access
+        }
+    }
+
+    /// Das Zugangs-Blatt: angehakt heisst „sieht den Spot". Abwaehlen ist hier
+    /// eine Vormerkung; scharf wird sie erst mit „Übernehmen", und wer
+    /// wegfaellt, wird vorher benannt.
+    private var accessSheet: some View {
+        let removed = spot.participantIds.filter { !access.contains($0) }
+        let added = access.subtracting(spot.participantIds)
+        return CommunitySheet(estimate: 460) {
+            SPTitle(text: "Wer sieht „\(spot.name)“?")
+            SPSubtitle(text: "Angehakte sehen den Spot dauerhaft auf ihrer Karte — mit allen Snaps, die hier liegen.")
+            SPChipRow(items: friends) { friend in
+                SPChip(name: friendLabel(friend), emoji: friend.emoji,
+                       color: SP.color(friend.color),
+                       selected: access.contains(friend.id)) {
+                    if access.remove(friend.id) == nil { access.insert(friend.id) }
+                }
+            }
+            if removed.isEmpty {
+                SPNote(text: "Der Spot liegt in eurem gemeinsamen iCloud-Bereich — nicht bei uns.")
+            } else {
+                SPNote(text: removalWarning(removed), tone: .no)
+            }
+            SPCTA(title: "Übernehmen", style: .blue,
+                  enabled: !removed.isEmpty || !added.isEmpty) {
+                applyAccess(added: Array(added), removed: removed)
+            }
+            SPGhost(title: "Zurück") { mode = .view }
+        }
+    }
+
+    private func removalWarning(_ removed: [String]) -> String {
+        let names = removed.map { id in
+            friends.first { $0.id == id }.map(friendLabel) ?? "Freund"
+        }
+        let list = names.count == 1
+            ? names[0]
+            : names.dropLast().joined(separator: ", ") + " und " + (names.last ?? "")
+        return "\(list) \(names.count == 1 ? "verliert" : "verlieren") den Zugang — auch zu den Snaps hier. Ihr bleibt befreundet."
+    }
+
+    private func applyAccess(added: [String], removed: [String]) {
+        let spotId = spot.id
+        if !added.isEmpty {
+            model.run { try await model.sync.shareSpot(spotId: spotId, friendIds: added) }
+        }
+        // Entfernen geht bewusst ZUERST in die Cloud (`removeSpotParticipant`):
+        // lokal jemanden auszutragen, waehrend er weiter Zugriff hat, waere eine
+        // Anzeige, die luegt. Anders als beim Loeschen eines eigenen Bildes ist
+        // das hier keine Entscheidung ueber das eigene Geraet.
+        for id in removed {
+            model.run { try await model.sync.removeSpotParticipant(spotId: spotId, userId: id) }
+        }
+        mode = .view
     }
 
     private func participantChips(_ ids: [String]) -> some View {
