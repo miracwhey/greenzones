@@ -39,7 +39,7 @@ SQLite über GRDB (`Kit/Store/AppDatabase.swift:44-50`). Vier Migrationssätze:
 | `invitation` | Termin an einem Spot: Zeit, Gastgeber, storniert | Verabredungen |
 | `invitation_invitee` | wer bei diesem Termin gemeint ist | soziale Auswahl |
 | `reply` | Zusage/Absage + **angekündigte Ankunftszeit** pro Person | wer wann wo sein wird |
-| `setting` | eigener Anzeigename, eigenes Emoji, `profileAsked`, `migratedV1` | eigener Name |
+| `setting` | eigener Anzeigename, eigenes Emoji, `profileAsked`, `migratedV1`, `seenHints` (welche In-Kontext-Hinweise schon dastanden) | eigener Name |
 | `snap` | pro Foto: Autor, Zeit, **Aufnahmekoordinate**, Spot-Bezug, Sichtbarkeit, Dateipfade, Upload-Zustand, `hidden` | Aufenthaltsorte mit Zeitstempel |
 | `snap_report` | welchen fremden Snap ich gemeldet habe | eigenes Meldeverhalten |
 | `snap_deletion` | offene Cloud-Löschaufträge | — |
@@ -242,11 +242,11 @@ CloudKit-Datenbank liegen im iCloud-Konto der Nutzer. Apple äußert sich zu
 CloudKit-Freigaben nirgends ausdrücklich, deshalb erklärt eine Zeile in den
 Review-Notes den Aufbau.
 
-**B10 — offen. Bestandsnutzer sehen kein Onboarding.**
-`shouldShowOnboarding` (`AppModel.swift:219`) ist `!onboarded &&
-!location.isAuthorized`. Build 4 ersetzt die TestFlight-App unter derselben
-Bundle-ID, dort ist die Ortung längst erlaubt — ein neues Onboarding käme bei
-niemandem an, der die App schon hat.
+**B10 — erledigt. Bestandsnutzer hätten kein Onboarding gesehen.**
+`shouldShowOnboarding` war `!onboarded && !location.isAuthorized`. Build 4
+ersetzt die TestFlight-App unter derselben Bundle-ID, dort ist die Ortung längst
+erlaubt — das Onboarding wäre bei niemandem angekommen, der die App schon hat.
+Die Frage hängt jetzt allein am eigenen Zähler `gz_onboarded_v2`.
 
 ---
 

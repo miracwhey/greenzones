@@ -52,6 +52,8 @@ struct FriendsSheet: View {
                 ? "Noch niemand — teilt einen Link, dann seht ihr eure Spots gemeinsam."
                 : "\(friends.count) \(friends.count == 1 ? "Freund" : "Freunde") · \(shared.count) \(shared.count == 1 ? "gemeinsamer Spot" : "gemeinsame Spots")")
 
+            ContextHintView(hint: .friends, settings: model.settings)
+
             selfRow
 
             if !friends.isEmpty { SPSection(text: "Deine Freunde") }

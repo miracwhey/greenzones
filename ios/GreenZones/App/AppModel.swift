@@ -201,6 +201,13 @@ final class AppModel {
         if ProcessInfo.processInfo.environment["GZ_OFFLINE_RESET"] == "1" {
             offlineMap.resetForTesting()
         }
+        // Die In-Kontext-Hinweise stehen genau einmal. Fuer Bilder und Tests
+        // muss sich dieses „einmal" zuruecksetzen lassen — sonst zeigt jeder
+        // Lauf nach dem ersten einen Bildschirm ohne Hinweis und beweist nichts.
+        if ProcessInfo.processInfo.environment["GZ_HINTS_RESET"] == "1" {
+            let settings = community.settings
+            Task { try? await settings.set([SettingKey.seenHints: ""]) }
+        }
         applyDebugSearchFixtures()
         if DebugEnvironment.usesFixtures {
             CommunityFixtures.seed(community, route: DebugEnvironment.route, clock: clock)

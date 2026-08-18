@@ -21,6 +21,7 @@ struct SnapAlbumSection: View {
             // Zaehler in der Sektion (Lock D): ohne Wischen sichtbar, wie viel
             // da ist. Bei leerem Album waere „· 0" nur Buchhaltung.
             SPSection(text: snaps.isEmpty ? "Album" : "Album · \(snaps.count)")
+            ContextHintView(hint: .album, settings: model.settings)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     SnapCTATile { model.openCamera(spotId: spot.id) }

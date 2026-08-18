@@ -140,6 +140,10 @@ struct SnapCameraView: View {
 
             VStack(spacing: 0) {
                 topBar
+                // Beim ersten Mal steht unter dem Kontext-Chip, was das
+                // Onboarding zu Snaps gesagt hat — danach nie wieder.
+                ContextHintView(hint: .camera, settings: model.settings, style: .overlay)
+                    .padding(.top, 12)
                 Spacer(minLength: 0)
                 if canRestrictToSpot { audiencePicker }
                 bottomBar

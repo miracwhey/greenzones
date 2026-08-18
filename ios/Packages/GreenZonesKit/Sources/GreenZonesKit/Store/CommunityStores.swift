@@ -333,6 +333,10 @@ public enum SettingKey {
     public static let emoji = "emoji"
     public static let profileAsked = "profileAsked"
     public static let migratedV1 = "migratedV1"
+    /// Welche In-Kontext-Hinweise schon einmal dastanden — kommagetrennt in
+    /// EINEM Feld statt ein Schluessel je Hinweis: die Menge ist eine Sache,
+    /// und ein zweiter Ort waere eine zweite Wahrheit.
+    public static let seenHints = "seenHints"
 }
 
 @MainActor
@@ -341,6 +345,10 @@ public final class SettingsStore {
     public private(set) var profile = Profile()
     /// „Profil einrichten" nach einem Beitritt wurde beantwortet oder uebersprungen.
     public private(set) var profileAsked = false
+    /// Hinweise, die der Nutzer schon gesehen hat. Das Onboarding erklaert die
+    /// Regeln einmal am Stueck; hier steht, wo sie im Handeln noch einmal
+    /// aufgetaucht sind — jede genau einmal.
+    public private(set) var seenHints: Set<String> = []
 
     @ObservationIgnored private let database: AppDatabase
     @ObservationIgnored private let observer = StoreObserver()
@@ -359,6 +367,14 @@ public final class SettingsStore {
 
     public func setProfileAsked(_ asked: Bool) async throws {
         try await set([SettingKey.profileAsked: asked ? "1" : "0"])
+    }
+
+    /// Einen Hinweis als gezeigt vermerken. Idempotent — der Aufrufer steht in
+    /// einem `task`, der bei jedem Aufbau der Ansicht laeuft.
+    public func markHintSeen(_ id: String) async throws {
+        guard !seenHints.contains(id) else { return }
+        let next = seenHints.union([id]).sorted().joined(separator: ",")
+        try await set([SettingKey.seenHints: next])
     }
 
     public func value(_ key: String) -> String? {
@@ -391,5 +407,10 @@ public final class SettingsStore {
         if next != profile { profile = next }
         let asked = fresh[SettingKey.profileAsked] == "1"
         if asked != profileAsked { profileAsked = asked }
+        let hints = Set((fresh[SettingKey.seenHints] ?? "")
+            .split(separator: ",")
+            .map { String($0) }
+            .filter { !$0.isEmpty })
+        if hints != seenHints { seenHints = hints }
     }
 }

@@ -27,6 +27,8 @@ struct NewSpotSheet: View {
             SPTitle(text: "Spot markieren")
             SPSubtitle(text: "Ein fester Ort für dich und deine Freunde — bleibt auf der Karte.")
 
+            ContextHintView(hint: .newSpot, settings: model.settings)
+
             SPSection(text: "Name")
             SPTextField(leadingEmoji: model.draft.emoji,
                         placeholder: "Unsere Bank",

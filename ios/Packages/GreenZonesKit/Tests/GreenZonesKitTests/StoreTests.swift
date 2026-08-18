@@ -367,4 +367,24 @@ struct StoreTests {
         #expect(reader.profile == Profile(displayName: "Leon", emoji: "🌿"))
         #expect(reader.profileAsked)
     }
+
+    @Test("Gesehene Hinweise ueberleben das Neuoeffnen, und zwar einzeln")
+    func seenHints() async throws {
+        let path = tempDatabasePath()
+        let store = SettingsStore(try database(path))
+        #expect(store.seenHints.isEmpty)
+
+        try await store.markHintSeen("camera")
+        try await store.markHintSeen("album")
+        // Zweimal derselbe Hinweis darf die Menge nicht verdoppeln — der
+        // Aufrufer steht in einem `task`, der bei jedem Aufbau laeuft.
+        try await store.markHintSeen("camera")
+        #expect(store.seenHints == ["album", "camera"])
+
+        let reader = SettingsStore(try database(path))
+        #expect(reader.seenHints == ["album", "camera"])
+        // Was nicht vermerkt ist, gilt als ungesehen: der Hinweis steht beim
+        // ersten Mal, sonst waere er nie zu sehen.
+        #expect(!reader.seenHints.contains("friends"))
+    }
 }
