@@ -18,16 +18,25 @@ struct InviteSheet: View {
     @State private var now: Date?
     @State private var time = Date()
     @State private var sending = false
+    /// Wen dieser Termin meint. Vorausgewaehlt ist die ganze Runde — der
+    /// haeufige Fall bleibt ein Tipp, das Abwaehlen ist die Ausnahme.
+    @State private var chosen: Set<String> = []
+    @State private var seeded = false
 
     private var status: ZoneStatus? { model.status(at: spot.coordinate) }
     private var frozenNow: Date { now ?? model.now }
     private var isNow: Bool { time.timeIntervalSince(frozenNow) < Tape.nowZone }
 
     private var names: [String] {
-        spot.participantIds.map { id in
+        chosen.sorted().map { id in
             model.friends.friends.first { $0.id == id }.map(friendLabel) ?? "Freund"
         }
     }
+
+    /// Ohne Angehakte gibt es niemanden zu fragen. Nur wenn der Spot ueberhaupt
+    /// keine Runde hat, ist „einladen" trotzdem sinnvoll: die Einladung wartet
+    /// dann auf die, die spaeter beitreten.
+    private var canSend: Bool { !chosen.isEmpty || spot.participantIds.isEmpty }
 
     var body: some View {
         CommunitySheet(estimate: 640) {
@@ -44,6 +53,11 @@ struct InviteSheet: View {
                              return !spotAllowedAt(status, at: candidate)
                          })
 
+            // Bis zum 18.08. stand hier eine Reihe fester Chips: die Einladung
+            // hing am Spot und ging damit zwangslaeufig an ALLE, die ihn sehen.
+            // Leon: „Ich kann fuenf Kollegen haben und davon zwei einladen
+            // wollen." Wer den Spot dauerhaft sieht, bleibt eine Eigenschaft
+            // des Spots — wen ich heute frage, gehoert dem Termin.
             SPSection(text: "Wer")
             if spot.participantIds.isEmpty {
                 SPNote(text: "Noch niemand hat den Spot angenommen — die Einladung wartet dort auf sie.")
@@ -53,15 +67,19 @@ struct InviteSheet: View {
                     SPChip(name: friend.map(friendLabel) ?? "Freund",
                            emoji: friend?.emoji,
                            color: SP.color(friend?.color),
-                           selected: true,
-                           onToggle: nil)
+                           selected: chosen.contains(item.id)) {
+                        if chosen.remove(item.id) == nil { chosen.insert(item.id) }
+                    }
                 }
             }
 
-            SPNote(text: "Geteilt wird der Spot — nie dein Live-Standort.")
+            // „bekommen Bescheid", nicht „nur sie sehen es": die Einladung liegt
+            // in der geteilten Spot-Zone, und ein Share deckt die ganze Zone ab.
+            // Was hier steht, muss halten, was die Technik hergibt.
+            SPNote(text: "Nur die Angehakten bekommen Bescheid. Geteilt wird der Spot — nie dein Live-Standort.")
 
             SPCTA(title: isNow ? "Jetzt einladen" : "Für \(Tape.fmtClock(time)) einladen",
-                  style: .blue, enabled: !sending, action: send)
+                  style: .blue, enabled: !sending && canSend, action: send)
             SPGhost(title: "Abbrechen") { model.closeSheet() }
         }
         .task {
@@ -69,21 +87,28 @@ struct InviteSheet: View {
                 now = model.now
                 time = model.now
             }
+            // Einmal vorbelegen, danach gehoert die Auswahl dem Nutzer — sonst
+            // stellt ein Neuzeichnen sein Abwaehlen zurueck.
+            if !seeded {
+                seeded = true
+                chosen = Set(spot.participantIds)
+            }
         }
         .task(id: spot.id) { await model.loadStatus(at: spot.coordinate) }
     }
 
     private func send() {
         sending = true
-        let chosen = isNow ? model.now : time
+        let at = isNow ? model.now : time
         let label = isNow ? "jetzt" : "für \(Tape.fmtClock(time))"
         let receivers = names
+        let invitees = chosen.sorted()
         let spotId = spot.id
         Task {
             do {
-                try await model.sync.invite(spotId: spotId, time: chosen)
+                try await model.sync.invite(spotId: spotId, time: at, inviteeIds: invitees)
                 model.notice("Einladung \(label)"
-                             + (receivers.isEmpty ? "" : " · \(receivers.joined(separator: ", ")) sehen sie"))
+                             + (receivers.isEmpty ? "" : " · \(receivers.joined(separator: ", "))"))
                 model.closeSheet()
             } catch {
                 sending = false

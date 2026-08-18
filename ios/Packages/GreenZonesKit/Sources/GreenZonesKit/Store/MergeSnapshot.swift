@@ -158,5 +158,8 @@ private func fromCloudInvitation(_ cloud: CloudInvitation, spotId: String,
                        Reply(participantId: mapSelf($0.participantUserID),
                              status: $0.status,
                              arrivalTime: $0.arrivalTime)
-                   }))
+                   }),
+               // Der Host bestimmt die Runde; die Cloud ist dafuer die Wahrheit.
+               // Leer bleibt leer und heisst weiterhin „alle Spot-Mitglieder".
+               inviteeIds: cloud.inviteeUserIDs.map(mapSelf).sorted())
 }

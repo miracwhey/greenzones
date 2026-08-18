@@ -105,9 +105,14 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
         try guardCall("deleteSpot")
     }
 
+    /// Wen die zuletzt geschriebene Einladung meint — sonst waere „ist die
+    /// Auswahl ueberhaupt rausgegangen" nicht pruefbar.
+    private(set) var savedInvitees: [String: [String]] = [:]
+
     func saveInvitation(spotZone: String, id: String, time: Date, createdAt: Date,
-                        cancelled: Bool) async throws {
+                        cancelled: Bool, inviteeUserIDs: [String]) async throws {
         try guardCall("saveInvitation")
+        savedInvitees[id] = inviteeUserIDs
     }
 
     func saveReply(spotZone: String, invitationId: String, status: ReplyStatus,

@@ -92,7 +92,8 @@ private struct EventComposer {
         let fresh = all.filter { found in
             guard let modified = found.record.modificationDate,
                   now.timeIntervalSince(modified) < freshWindow else { return false }
-            return !isMe(found.record.lastModifiedUserRecordID, myID: myID)
+            guard !isMe(found.record.lastModifiedUserRecordID, myID: myID) else { return false }
+            return concernsMe(found.record, myID: myID, in: all)
         }
 
         let event = fresh
@@ -249,6 +250,39 @@ private struct EventComposer {
         }
         formatter.dateFormat = "EE HH:mm"
         return formatter.string(from: date)
+    }
+
+    /// Betrifft dieses Ereignis mich?
+    ///
+    /// Seit dem 18.08. gilt eine Einladung einer Teilmenge der Spot-Runde. Alle
+    /// Spot-Mitglieder KOENNEN den Record lesen — ein Share deckt die ganze Zone
+    /// ab —, aber gemeint sind nur die Genannten. Ohne diesen Filter waere die
+    /// Mitteilung der lauteste Weg, die Trennung zu verraten: „Marcel lädt ein"
+    /// auf dem Sperrbildschirm von jemandem, der in der App nichts davon sieht.
+    ///
+    /// Die Antwort auf eine Einladung erbt deren Kreis — sonst käme „Tara kommt
+    /// um 21:00" zu einem Termin, den es fuer mich nicht gibt.
+    ///
+    /// Leeres Feld heisst „alle" (Alt-Bestand), genau wie lokal.
+    private func concernsMe(_ record: CKRecord, myID: String, in all: [FoundRecord]) -> Bool {
+        switch record.recordType {
+        case CKSchema.typeInvitation:
+            return invitationConcernsMe(record, myID: myID)
+        case CKSchema.typeReply:
+            guard let invitationId = record["invitationId"] as? String else { return true }
+            guard let invitation = all.first(where: {
+                $0.record.recordType == CKSchema.typeInvitation
+                    && $0.record.recordID.recordName == invitationId
+            })?.record else { return true }
+            return invitationConcernsMe(invitation, myID: myID)
+        default:
+            return true
+        }
+    }
+
+    private func invitationConcernsMe(_ record: CKRecord, myID: String) -> Bool {
+        guard let invitees = record["inviteeIds"] as? [String], !invitees.isEmpty else { return true }
+        return invitees.contains(myID) || isMe(record.creatorUserRecordID, myID: myID)
     }
 
     private func isMe(_ recordID: CKRecord.ID?, myID: String) -> Bool {

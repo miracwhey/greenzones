@@ -26,7 +26,7 @@ public protocol CloudGateway: Sendable {
 
     /// Upsert Invitation (anlegen, Zeit aendern, absagen). Nur eigene Records.
     func saveInvitation(spotZone: String, id: String, time: Date, createdAt: Date,
-                        cancelled: Bool) async throws
+                        cancelled: Bool, inviteeUserIDs: [String]) async throws
     /// Upsert der EIGENEN Reply zu einer Invitation.
     func saveReply(spotZone: String, invitationId: String, status: ReplyStatus,
                    arrivalTime: Date?) async throws
@@ -157,7 +157,7 @@ public struct NoCloudGateway: CloudGateway {
     public func deleteSpot(zoneName: String) async throws { throw SyncError.noAccount }
 
     public func saveInvitation(spotZone: String, id: String, time: Date, createdAt: Date,
-                               cancelled: Bool) async throws {
+                               cancelled: Bool, inviteeUserIDs: [String]) async throws {
         throw SyncError.noAccount
     }
 

@@ -113,9 +113,19 @@ public struct Invitation: Equatable, Sendable, Identifiable {
     public var createdAt: Date
     public var cancelled: Bool
     public var replies: [Reply]
+    /// Wer bei DIESEM Termin gemeint ist — eine Teilmenge der Spot-Runde.
+    ///
+    /// Zwei Ebenen (Leon, 18.08.): wer den Spot dauerhaft sieht, ist eine
+    /// Eigenschaft des Spots; wen man heute fragt, eine des Termins. Man kann
+    /// fuenf Leute am Spot haben und zwei davon einladen.
+    ///
+    /// **Leer heisst „alle Spot-Mitglieder".** So waren alle Einladungen vor
+    /// dem 18.08. gemeint — ein Pflichtfeld haette den Bestand entwertet und
+    /// jede alte Einladung fuer niemanden mehr sichtbar gemacht.
+    public var inviteeIds: [String]
 
     public init(id: String, spotId: String, hostId: String, time: Date, createdAt: Date,
-                cancelled: Bool, replies: [Reply] = []) {
+                cancelled: Bool, replies: [Reply] = [], inviteeIds: [String] = []) {
         self.id = id
         self.spotId = spotId
         self.hostId = hostId
@@ -123,10 +133,23 @@ public struct Invitation: Equatable, Sendable, Identifiable {
         self.createdAt = createdAt
         self.cancelled = cancelled
         self.replies = replies
+        self.inviteeIds = inviteeIds
     }
 
     public func reply(of participantId: String) -> Reply? {
         replies.first { $0.participantId == participantId }
+    }
+
+    /// Der EINE Leser der Regel oben. Wer sie umgeht und `inviteeIds` direkt
+    /// liest, bekommt bei Alt-Einladungen eine leere Liste und blendet sie
+    /// damit fuer alle aus.
+    public func invitees(spotParticipants: [String]) -> [String] {
+        inviteeIds.isEmpty ? spotParticipants : inviteeIds
+    }
+
+    /// Ist diese Person gemeint? Der Gastgeber immer — er hat eingeladen.
+    public func concerns(_ userId: String, spotParticipants: [String]) -> Bool {
+        userId == hostId || invitees(spotParticipants: spotParticipants).contains(userId)
     }
 }
 

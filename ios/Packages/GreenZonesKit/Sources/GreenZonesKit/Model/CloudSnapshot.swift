@@ -95,9 +95,12 @@ public struct CloudInvitation: Equatable, Sendable {
     public var createdAt: Date
     public var cancelled: Bool
     public var replies: [CloudReply]
+    /// userRecordIDs der Gemeinten. Leer = alle Spot-Mitglieder (Alt-Bestand).
+    public var inviteeUserIDs: [String]
 
     public init(id: String, spotZone: String, hostUserID: String, time: Date,
-                createdAt: Date, cancelled: Bool, replies: [CloudReply]) {
+                createdAt: Date, cancelled: Bool, replies: [CloudReply],
+                inviteeUserIDs: [String] = []) {
         self.id = id
         self.spotZone = spotZone
         self.hostUserID = hostUserID
@@ -105,6 +108,7 @@ public struct CloudInvitation: Equatable, Sendable {
         self.createdAt = createdAt
         self.cancelled = cancelled
         self.replies = replies
+        self.inviteeUserIDs = inviteeUserIDs
     }
 }
 

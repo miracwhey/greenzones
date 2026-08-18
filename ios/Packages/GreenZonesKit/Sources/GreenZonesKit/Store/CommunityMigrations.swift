@@ -73,6 +73,21 @@ public enum CommunityMigrations {
                 t.column("value", .text).notNull()
             }
         },
+        DBMigration("community_v2") { db in
+            // Wer bei DIESEM Termin gemeint ist (Leon, 18.08.): die Spot-Runde
+            // ist dauerhaft, die Einladung gilt einer Teilmenge davon.
+            //
+            // Eigene Tabelle wie `spot_participant` — dasselbe Muster fuer
+            // dieselbe Sache. Eine LEERE Menge heisst „alle Spot-Mitglieder";
+            // so bleiben die Einladungen lesbar, die vor dieser Migration
+            // entstanden sind (siehe `Invitation.invitees(spotParticipants:)`).
+            try db.create(table: "invitation_invitee") { t in
+                t.column("invitationId", .text).notNull()
+                    .references("invitation", onDelete: .cascade)
+                t.column("userId", .text).notNull()
+                t.primaryKey(["invitationId", "userId"])
+            }
+        },
     ]
 }
 
@@ -166,7 +181,7 @@ extension Reply {
 }
 
 extension Invitation {
-    init?(row: Row, replies: [Reply]) {
+    init?(row: Row, replies: [Reply], inviteeIds: [String] = []) {
         guard let id = dbString(row, "id"),
               let spotId = dbString(row, "spotId"),
               let hostId = dbString(row, "hostId"),
@@ -179,7 +194,8 @@ extension Invitation {
                   time: Date(epochMillis: time),
                   createdAt: Date(epochMillis: createdAt),
                   cancelled: dbInt(row, "cancelled") == 1,
-                  replies: replies)
+                  replies: replies,
+                  inviteeIds: inviteeIds)
     }
 }
 
@@ -212,8 +228,18 @@ public enum CommunityQueries {
             guard let invitationId = dbString(row, "invitationId"), let reply = Reply(row: row) else { continue }
             replies[invitationId, default: []].append(reply)
         }
+        var invitees: [String: [String]] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT * FROM invitation_invitee ORDER BY userId") {
+            guard let invitationId = dbString(row, "invitationId"),
+                  let userId = dbString(row, "userId") else { continue }
+            invitees[invitationId, default: []].append(userId)
+        }
         return try Row.fetchAll(db, sql: "SELECT * FROM invitation ORDER BY createdAt, id")
-            .compactMap { Invitation(row: $0, replies: replies[dbString($0, "id") ?? ""] ?? []) }
+            .compactMap { row in
+                let id = dbString(row, "id") ?? ""
+                return Invitation(row: row, replies: replies[id] ?? [],
+                                  inviteeIds: invitees[id] ?? [])
+            }
     }
 
     public static func settings(_ db: Database) throws -> [String: String] {
@@ -273,6 +299,19 @@ public enum CommunityQueries {
                         invitation.cancelled ? 1 : 0])
         for reply in invitation.replies {
             try upsert(db, invitationId: invitation.id, reply: reply)
+        }
+        try writeInvitees(db, invitationId: invitation.id, userIds: invitation.inviteeIds)
+    }
+
+    /// Eingeladene einer Einladung setzen (erst raeumen, dann schreiben — die
+    /// Menge ist die Wahrheit, nicht die Summe aller je geschriebenen Zeilen).
+    static func writeInvitees(_ db: Database, invitationId: String, userIds: [String]) throws {
+        try db.execute(sql: "DELETE FROM invitation_invitee WHERE invitationId = ?",
+                       arguments: [invitationId])
+        for userId in Set(userIds).sorted() {
+            try db.execute(sql: """
+                INSERT INTO invitation_invitee (invitationId, userId) VALUES (?, ?)
+                """, arguments: [invitationId, userId])
         }
     }
 

@@ -287,10 +287,15 @@ public final class SyncCoordinator {
 
     /// Einladung anlegen — bei geteiltem Spot erst in der Cloud, dann lokal.
     @discardableResult
-    public func invite(spotId: String, time: Date) async throws -> Invitation {
+    /// - Parameter inviteeIds: wer bei diesem Termin gemeint ist. LEER heisst
+    ///   „alle Spot-Mitglieder" — dasselbe Wort wie im Bestand, damit ein
+    ///   Aufrufer ohne Auswahl nicht versehentlich niemanden einlaedt.
+    public func invite(spotId: String, time: Date,
+                       inviteeIds: [String] = []) async throws -> Invitation {
         let invitation = Invitation(id: UUID().uuidString, spotId: spotId, hostId: SELF_ID,
                                     time: time.millisecondPrecision,
-                                    createdAt: clock.now.millisecondPrecision, cancelled: false)
+                                    createdAt: clock.now.millisecondPrecision, cancelled: false,
+                                    inviteeIds: inviteeIds)
         try await mirror(invitation)
         try await invites.add(invitation)
         return invitation
@@ -334,7 +339,8 @@ public final class SyncCoordinator {
         guard let zone = spots.spot(id: invitation.spotId)?.zoneName else { return }
         try await gateway.saveInvitation(spotZone: zone, id: invitation.id,
                                          time: invitation.time, createdAt: invitation.createdAt,
-                                         cancelled: invitation.cancelled)
+                                         cancelled: invitation.cancelled,
+                                         inviteeUserIDs: invitation.inviteeIds)
         Task { await self.refresh() }
     }
 

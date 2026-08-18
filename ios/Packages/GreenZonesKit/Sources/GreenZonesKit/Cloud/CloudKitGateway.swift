@@ -341,7 +341,7 @@ public actor CloudKitGateway: CloudGateway {
     // MARK: - Einladungen und Antworten
 
     public func saveInvitation(spotZone: String, id: String, time: Date, createdAt: Date,
-                               cancelled: Bool) async throws {
+                               cancelled: Bool, inviteeUserIDs: [String]) async throws {
         try await requireAccount()
         do {
             guard let located = try await zoneIndex()[spotZone] else { throw SyncError.notFound }
@@ -352,6 +352,11 @@ public actor CloudKitGateway: CloudGateway {
             record["time"] = time
             record["createdAt"] = createdAt
             record["cancelled"] = cancelled ? 1 : 0
+            // Leere Liste NICHT als leeres Array schreiben: CloudKit macht
+            // daraus ein Feld, das es gibt, und ein Leser koennte „niemand
+            // gemeint" daraus lesen. Nicht gesetzt heisst „alle" — dieselbe
+            // Regel wie lokal.
+            record["inviteeIds"] = inviteeUserIDs.isEmpty ? nil : inviteeUserIDs.sorted()
             _ = try await (located.isMine ? privateDB : sharedDB)
                 .modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
         } catch {
@@ -882,7 +887,8 @@ public actor CloudKitGateway: CloudGateway {
                                    time: record["time"] as? Date ?? Date(timeIntervalSince1970: 0),
                                    createdAt: record["createdAt"] as? Date ?? Date(timeIntervalSince1970: 0),
                                    cancelled: ((record["cancelled"] as? Int) ?? 0) != 0,
-                                   replies: repliesByInvitation[id] ?? [])
+                                   replies: repliesByInvitation[id] ?? [],
+                                   inviteeUserIDs: (record["inviteeIds"] as? [String]) ?? [])
         }
     }
 

@@ -234,8 +234,23 @@ final class CommunityModel {
 
     func spot(id: String) -> Spot? { spots.spot(id: id) }
 
+    /// Die laufende Einladung dieses Spots — sofern sie MICH betrifft.
+    ///
+    /// Seit dem 18.08. gilt eine Einladung einer Teilmenge der Spot-Runde
+    /// (Leon: „fuenf Kollegen, davon zwei einladen"). Wer nicht gemeint ist,
+    /// sieht hier nichts — und bekommt auch keine Mitteilung. Der Filter sitzt
+    /// an dieser einen Stelle, weil jede Ansicht die Einladung von hier holt.
+    ///
+    /// **Grenze, die ehrlich bleiben muss:** die Einladung liegt in der
+    /// geteilten Spot-Zone, und ein Share deckt die ganze Zone ab. Das hier ist
+    /// eine Entscheidung der App darueber, was sie zeigt und meldet — keine
+    /// Sperre von iCloud. Deshalb sagt die Oberflaeche „bekommen Bescheid",
+    /// nicht „nur sie sehen es".
     func activeInvitation(spotId: String) -> Invitation? {
-        invites.activeFor(spotId: spotId, now: now)
+        guard let invitation = invites.activeFor(spotId: spotId, now: now) else { return nil }
+        let participants = spots.spot(id: spotId)?.participantIds ?? []
+        guard invitation.concerns(SELF_ID, spotParticipants: participants) else { return nil }
+        return invitation
     }
 
     /// Spot-Marker der Karte (Variante A). Ring `ok` bei ≤ 75 m; der Faecher

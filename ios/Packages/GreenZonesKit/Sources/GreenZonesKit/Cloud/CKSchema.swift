@@ -67,7 +67,10 @@ public enum CKSchema {
         public static let spotOffer = ["spotShareURL", "spotName", "spotEmoji"]
         public static let feedOffer = ["feedShareURL"]
         public static let spot = ["name", "emoji", "lng", "lat", "createdAt"]
-        public static let invitation = ["time", "createdAt", "cancelled"]
+        // `inviteeIds`: wer bei DIESEM Termin gemeint ist (leer = alle
+        // Spot-Mitglieder). Leser und Schreiber teilen sich diese eine
+        // Liste — ein Feld, das nur einer von beiden kennt, kaeme nie an.
+        public static let invitation = ["time", "createdAt", "cancelled", "inviteeIds"]
         public static let reply = ["invitationId", "status", "arrivalTime"]
         public static let feed = ["createdAt"]
         public static let report = ["snapId", "createdAt"]
