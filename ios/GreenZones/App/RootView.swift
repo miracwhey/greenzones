@@ -139,7 +139,14 @@ struct RootView: View {
         }
         .gzSheet(isPresented: $model.infoOpen) {
             InfoSheetView(onClose: { model.infoOpen = false },
-                          onClearRecents: { model.search.clearRecents() })
+                          onClearRecents: { model.search.clearRecents() },
+                          offline: model.offlineMap,
+                          // Ohne Standort gibt es keinen Mittelpunkt — dann
+                          // bietet das Blatt das Sichern gar nicht erst an,
+                          // statt einen Knopf zu zeigen, der nichts tut.
+                          onDownloadArea: model.location.state.coordinate.map { center in
+                              { model.offlineMap.download(around: center) }
+                          })
         }
         // W3: genau EIN Community-Sheet (SheetState-Union wie v1).
         .gzSheet(item: Binding(get: { community.presentedSheet },

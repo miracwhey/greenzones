@@ -21,6 +21,8 @@ final class AppModel {
     // W3: Community (Spots, Einladungen, Freunde, Profil) — eigenes Modell,
     // damit die Composition Root nicht zum Sammelbecken wird.
     let community: CommunityModel
+    /// Kartenbild ohne Netz: Zwischenspeicher + gesichertes Gebiet.
+    let offlineMap = OfflineMapStore()
     private let clock: GZClock
     private let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "status")
 

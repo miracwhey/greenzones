@@ -137,7 +137,16 @@ Kachel-Adresse darin trägt einen Datumsstempel des Datensatzes und würde fest
 eingebacken irgendwann auf einen abgeräumten Stand zeigen.
 
 Ohne Netz bleiben Rechtsstatus, Zonenflächen, Ortssuche und alle lokalen Daten
-nutzbar — nur das Kartenbild fehlt.
+nutzbar. Für das Kartenbild gibt es zwei Vorräte (`Services/OfflineMapStore.swift`):
+der Zwischenspeicher von MapLibre, jetzt auf 400 MB gesetzt statt im
+unkonfigurierten Standard, und ein **auf Wunsch gesichertes Gebiet** von 20 × 20 km
+um den eigenen Standort bis Zoom 14 (~70 MB, im Info-Blatt unter „Karte
+offline"). Gemessene Grundlage: eine Kachel wiegt bei Zoom 14 im Stadtgebiet
+~350 KB, bei Zoom 13 ~86 KB; ganz Deutschland bis Zoom 14 wären ~20 GB und
+scheidet damit aus.
+
+Das gesicherte Gebiet ist eine Kopie fremder Kacheln auf dem Gerät — es
+verlässt es nicht und ändert an §3 nichts.
 
 ### 3.3 `photon.komoot.io` — die Adresssuche
 

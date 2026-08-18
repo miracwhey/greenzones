@@ -13,6 +13,10 @@ struct InfoSheetView: View {
     /// „Zuletzt gesucht" leeren. Der Verlauf lag seit W2 in der Datenbank, ohne
     /// dass ihn irgendein Weg in der App wieder losgeworden waere.
     var onClearRecents: (() -> Void)?
+    /// Kartenbild fuer die Umgebung sichern. Ohne Standort gibt es keinen
+    /// Mittelpunkt und damit kein Gebiet — dann bleibt der Abschnitt weg.
+    var offline: OfflineMapStore?
+    var onDownloadArea: (() -> Void)?
 
     @State private var recentsCleared = false
 
@@ -32,6 +36,7 @@ struct InfoSheetView: View {
                 Text("GreenZones hat keinen Server. Spots, Freunde, Termine und Snaps liegen auf deinem Gerät und in deiner iCloud — außer den Freunden, denen du sie gibst, kommt niemand daran.\n\nDein Standort wird nur geteilt, wenn du selbst einen Spot oder Snap anlegst; im Bild steht er nie. Das Kartenbild lädt von OpenFreeMap, Adressen sucht Komoot — und nur, wenn du es verlangst.")
             }
             clearRecentsRow
+            offlineSection
             section("KEIN RECHTSRAT") {
                 Text("Diese App ist eine Orientierungshilfe ohne Gewähr auf Richtigkeit oder Vollständigkeit. OpenStreetMap kennt nicht jede Einrichtung. Verantwortung bleibt bei dir.")
             }
@@ -80,6 +85,91 @@ struct InfoSheetView: View {
             .accessibilityIdentifier("gz.info.clearRecents")
             .padding(.bottom, 14)
         }
+    }
+
+    /// Kartenbild ohne Netz.
+    ///
+    /// Die Zonen liegen im Bundle und stehen ohne Empfang — das Kartenbild
+    /// darunter kommt aus dem Netz. Wer unterwegs ohne Verbindung ist, sieht
+    /// sonst farbige Flaechen auf grauem Grund. Hier laesst sich die Umgebung
+    /// vorher sichern.
+    @ViewBuilder
+    private var offlineSection: some View {
+        if let offline, let onDownloadArea {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("KARTE OFFLINE")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(0.72)
+                    .foregroundStyle(GZ.ink2)
+
+                switch offline.state {
+                case .none:
+                    Text("Zonen und Ortssuche laufen immer ohne Netz — nur das Kartenbild lädt nach.")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(GZ.ink)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(action: onDownloadArea) {
+                        Text("Umgebung sichern (20 km, ca. 70 MB)")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(GZ.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                    .accessibilityIdentifier("gz.info.offlineDownload")
+
+                case .downloading(let fraction, let bytes):
+                    // Prozent UND Menge: der Anteil springt, weil die erwartete
+                    // Zahl waehrend des Laufs noch steigt — die Megabyte
+                    // wachsen dagegen stetig und zeigen, dass es laeuft.
+                    ProgressView(value: fraction)
+                        .tint(GZ.accent)
+                        .padding(.top, 4)
+                    Text("Lädt … \(Int(fraction * 100)) % · \(Self.megabytes(bytes))")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(GZ.ink2)
+
+                case .ready(let bytes):
+                    Text("Umgebung gesichert · \(Self.megabytes(bytes)). Die Karte steht jetzt auch ohne Netz.")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(GZ.ink)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { offline.removeAll() } label: {
+                        Text("Gesicherte Karte löschen")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(GZ.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+
+                case .failed(let message):
+                    Text("Sichern fehlgeschlagen: \(message)")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(GZ.ban)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(action: onDownloadArea) {
+                        Text("Erneut versuchen")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(GZ.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 14)
+        }
+    }
+
+    private static func megabytes(_ bytes: UInt64) -> String {
+        let mb = Double(bytes) / 1_048_576
+        return mb < 10 ? String(format: "%.1f MB", mb) : String(format: "%.0f MB", mb)
     }
 
     /// Die Quellen-Links sind Teil des Lizenztexts — als echte Links, nicht als
