@@ -39,7 +39,36 @@ public enum SnapMigrations {
                 t.column("createdAt", .integer).notNull()
             }
         },
+        DBMigration("snap.v2") { db in
+            // Auftraege fuer die Cloud, deren Snap lokal schon weg ist.
+            //
+            // Loeschen ging bis zum 18.08. zuerst in die Cloud: ohne Konto oder
+            // Netz warf der Aufruf, und der Snap blieb liegen — der Knopf tat
+            // dann nichts. Jetzt gilt die Entscheidung sofort auf dem Geraet,
+            // und der Auftrag wartet hier, bis er durch ist. Dieselbe Regel wie
+            // beim Upload, nur andersherum: nichts vortaeuschen, aber auch
+            // nichts vom Netz abhaengig machen, was lokal entschieden ist.
+            //
+            // Der Auftrag ueberlebt den Snap absichtlich als eigene Zeile — an
+            // einer geloeschten Zeile kann nichts mehr haengen.
+            try db.create(table: "snap_deletion") { t in
+                t.column("recordName", .text).primaryKey()
+                t.column("zoneName", .text).notNull()
+                t.column("queuedAt", .integer).notNull()
+            }
+        },
     ]
+}
+
+/// Ein wartender Loeschauftrag.
+public struct SnapDeletion: Equatable, Sendable {
+    public let zoneName: String
+    public let recordName: String
+
+    public init(zoneName: String, recordName: String) {
+        self.zoneName = zoneName
+        self.recordName = recordName
+    }
 }
 
 extension Snap {
@@ -194,6 +223,40 @@ public final class SnapStore {
         }
         files.delete(snap)
         reload()
+    }
+
+    // MARK: - Wartende Loeschauftraege
+
+    /// Loeschauftrag vormerken. Wird beim naechsten Durchlauf der Outbox an die
+    /// Cloud gereicht und dort wieder gestrichen.
+    public func queueDeletion(zoneName: String, recordName: String, at date: Date) async throws {
+        try await database.writer.write { db in
+            try db.execute(sql: """
+                INSERT INTO snap_deletion (recordName, zoneName, queuedAt) VALUES (?, ?, ?)
+                ON CONFLICT(recordName) DO NOTHING
+                """, arguments: [recordName, zoneName, Int(date.timeIntervalSince1970 * 1000)])
+        }
+    }
+
+    /// Auftraege alt→neu: der erste Versuch gilt der aeltesten Entscheidung.
+    public func pendingDeletions() throws -> [SnapDeletion] {
+        try database.writer.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT recordName, zoneName FROM snap_deletion ORDER BY queuedAt, recordName
+                """)
+            .compactMap { row in
+                guard let record = dbString(row, "recordName"),
+                      let zone = dbString(row, "zoneName") else { return nil }
+                return SnapDeletion(zoneName: zone, recordName: record)
+            }
+        }
+    }
+
+    public func clearDeletion(recordName: String) async throws {
+        try await database.writer.write { db in
+            try db.execute(sql: "DELETE FROM snap_deletion WHERE recordName = ?",
+                           arguments: [recordName])
+        }
     }
 
     /// Wurde dieser Snap von mir schon gemeldet?

@@ -175,7 +175,7 @@ struct SnapCoordinatorTests {
         #expect(gateway.reportedSnaps == ["fremd"], "zweite Meldung darf nicht nochmal rausgehen")
     }
 
-    @Test("Eigenen Snap löschen: erst die Cloud, dann Zeile und Dateien")
+    @Test("Eigenen Snap löschen: Zeile, Dateien und der Cloud-Record")
     func deleteRemovesEverywhere() async throws {
         let gateway = FakeGateway()
         let (coordinator, store, files, base) = try makeCoordinator(gateway: gateway)
@@ -188,5 +188,108 @@ struct SnapCoordinatorTests {
         #expect(gateway.deletedSnaps == [snap.id])
         #expect(store.snap(id: snap.id) == nil)
         #expect(!files.exists(files.originalURL(id: snap.id).path))
+        #expect(try store.pendingDeletions().isEmpty, "erledigter Auftrag muss gestrichen sein")
+    }
+
+    /// Leons Fall am Gerät: er will ein Bild loswerden. Ohne Konto ging der
+    /// alte Weg (erst Cloud, dann lokal) im ersten Schritt zu Bruch — der Snap
+    /// blieb liegen, der Knopf tat nichts. Jetzt ist er sofort weg, und die
+    /// Zusage „auch bei allen anderen" wartet als Auftrag.
+    @Test("Ohne Konto ist der Snap trotzdem sofort weg — der Auftrag wartet")
+    func deleteWorksOfflineAndQueuesTheCloudPart() async throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gz-coord-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let files = SnapFiles(base: base)
+        let database = try AppDatabase.inMemory(migrations: SnapMigrations.all)
+        let store = SnapStore(database, files: files)
+        let coordinator = SnapCoordinator(store: store, gateway: NoCloudGateway(), files: files)
+
+        try await store.save(Snap(id: "mein", authorId: SELF_ID, createdAt: Date(),
+                                  lat: 52.36, lng: 9.74, zoneName: "feed-me",
+                                  recordName: "mein", uploadState: .done))
+        try await coordinator.delete(try #require(store.snap(id: "mein")))
+
+        #expect(store.snap(id: "mein") == nil, "lokal muss er sofort weg sein")
+        #expect(try store.pendingDeletions().map(\.recordName) == ["mein"])
+        #expect(coordinator.error == nil, "kein Konto ist der Normalfall, keine Störung")
+    }
+
+    @Test("Der wartende Auftrag geht raus, sobald die Cloud wieder da ist")
+    func queuedDeletionRunsOnTheNextFlush() async throws {
+        let gateway = FakeGateway()
+        gateway.fails["deleteSnap"] = .network
+        let (coordinator, store, _, base) = try makeCoordinator(gateway: gateway)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        try await store.save(Snap(id: "mein", authorId: SELF_ID, createdAt: Date(),
+                                  lat: 52.36, lng: 9.74, zoneName: "feed-me",
+                                  recordName: "mein", uploadState: .done))
+        try await coordinator.delete(try #require(store.snap(id: "mein")))
+        #expect(gateway.deletedSnaps.isEmpty)
+        #expect(try store.pendingDeletions().count == 1, "der Auftrag darf nicht verfallen")
+
+        gateway.fails.removeValue(forKey: "deleteSnap")
+        await coordinator.flush()
+
+        #expect(gateway.deletedSnaps == ["mein"])
+        #expect(try store.pendingDeletions().isEmpty)
+    }
+
+    /// Auf Leons Gerät liegt eine Datenbank, die `snap.v1` schon hinter sich
+    /// hat und Snaps enthält. Der neue Schritt muss darauf aufsetzen, ohne den
+    /// Bestand anzufassen — sonst startet die App nach dem Update entweder
+    /// nicht mehr oder steht ohne Bilder da. Deshalb mit einer Datei-DB in zwei
+    /// Öffnungen geprüft, nicht mit einer frischen im Speicher: nur so gibt es
+    /// überhaupt ein „vorher".
+    @Test("Der neue Migrationsschritt setzt auf eine bestehende v1-Datenbank auf")
+    func migrationAddsToAnExistingDatabase() async throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gz-migration-\(UUID().uuidString).sqlite").path
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let v1 = try #require(SnapMigrations.all.first)
+        #expect(v1.id == "snap.v1")
+        let before = try AppDatabase(path: path, migrations: [v1])
+        let oldStore = SnapStore(before, files: SnapFiles())
+        try await oldStore.save(Snap(id: "alt", authorId: SELF_ID, createdAt: Date(),
+                                     lat: 52.36, lng: 9.74, uploadState: .done))
+
+        // Zweite Öffnung mit dem vollen Satz — der Aufstieg, den das Update macht.
+        let after = try AppDatabase(path: path, migrations: SnapMigrations.all)
+        let store = SnapStore(after, files: SnapFiles())
+
+        #expect(store.snap(id: "alt") != nil, "der Bestand hat den Aufstieg nicht überlebt")
+        #expect(try store.pendingDeletions().isEmpty)
+        try await store.queueDeletion(zoneName: "feed-me", recordName: "alt", at: Date())
+        #expect(try store.pendingDeletions().map(\.recordName) == ["alt"],
+                "die neue Tabelle steht nach dem Aufstieg nicht bereit")
+    }
+
+    /// Der Abzug ist älter als die Entscheidung. Ohne den offenen Auftrag legt
+    /// `mergeSnaps` den gelöschten Snap als Neuzugang wieder an — er ist lokal
+    /// keine bekannte eigene Zeile mehr, also greift „eigene folgen dem Gerät"
+    /// nicht. Das Bild wäre nach dem nächsten Sync zurück.
+    @Test("Ein Abzug holt einen gelöschten Snap mit offenem Auftrag nicht zurück")
+    func snapshotDoesNotResurrectADeletedSnap() async throws {
+        let gateway = FakeGateway()
+        gateway.fails["deleteSnap"] = .network
+        let (coordinator, store, _, base) = try makeCoordinator(gateway: gateway)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        try await store.save(Snap(id: "mein", authorId: SELF_ID, createdAt: Date(),
+                                  lat: 52.36, lng: 9.74, zoneName: "feed-me",
+                                  recordName: "mein", uploadState: .done))
+        try await coordinator.delete(try #require(store.snap(id: "mein")))
+
+        let cloud = CloudSnap(id: "mein", zoneName: "feed-me", authorUserID: "me",
+                              createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                              lat: 52.36, lng: 9.74, spotZone: nil,
+                              spotName: nil, spotEmoji: nil, inSpotZone: false)
+        await coordinator.apply(CloudSnapshot(status: .available, userID: "me", friends: [],
+                                              spots: [], invitations: [], snaps: [cloud]),
+                                spots: [])
+
+        #expect(store.snap(id: "mein") == nil, "der Abzug hat den gelöschten Snap zurückgeholt")
     }
 }

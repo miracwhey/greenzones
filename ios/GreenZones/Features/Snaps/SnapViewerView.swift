@@ -165,20 +165,27 @@ struct SnapViewerView: View {
                     .background(Color.white.opacity(0.16), in: .capsule)
             }
             Spacer(minLength: 0)
-            Button {
-                model.closeCover()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(Color.white.opacity(0.16)))
+            // Die beiden Wege am Bild stehen sichtbar in der Kopfzeile. Bis zum
+            // 18.08. gab es sie NUR im Kontextmenue des Fotos (langer Druck) —
+            // Leon am Geraet: er hatte einen Snap gemacht, drueckte auf das Bild
+            // und fand keinen Weg, es wieder loszuwerden. Eine Handlung, die man
+            // nur findet, wenn man sie schon kennt, gibt es fuer den Benutzer
+            // nicht. Das Kontextmenue bleibt als zweiter, gewohnter Weg.
+            if let current {
+                if !current.isMine {
+                    chromeButton(icon: "flag", label: "Snap melden",
+                                 identifier: "gz.viewer.report") { reporting = current }
+                }
+                if model.canDelete(current) {
+                    chromeButton(icon: "trash", label: "Snap löschen",
+                                 identifier: "gz.viewer.delete") { deleting = current }
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Schließen")
-            // Eigener Bezeichner: „Schließen" heisst auch der Ghost-Knopf im
-            // Blatt darunter — ein Test wuerde sonst den falschen treffen.
-            .accessibilityIdentifier("gz.viewer.close")
+            chromeButton(icon: "xmark", label: "Schließen",
+                         // Eigener Bezeichner: „Schließen" heisst auch der
+                         // Ghost-Knopf im Blatt darunter — ein Test wuerde sonst
+                         // den falschen treffen.
+                         identifier: "gz.viewer.close") { model.closeCover() }
         }
         .padding(.leading, 16)
         .padding(.trailing, 8)
@@ -191,6 +198,25 @@ struct SnapViewerView: View {
         .environment(\.colorScheme, .dark)
         .padding(.horizontal, 14)
         .padding(.top, 8)
+    }
+
+    /// Runder Knopf der Kopfzeile — dieselbe Groesse und dasselbe Glas fuer
+    /// alle drei, damit keiner wichtiger aussieht als der andere.
+    private func chromeButton(icon: String, label: String, identifier: String,
+                              action: @escaping () -> Void) -> some View {
+        Button {
+            GZ.haptic()
+            action()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Color.white.opacity(0.16)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
     }
 
     private var dismissDrag: some Gesture {

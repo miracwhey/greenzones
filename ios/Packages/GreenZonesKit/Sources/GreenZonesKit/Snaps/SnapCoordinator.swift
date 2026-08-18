@@ -100,6 +100,8 @@ public final class SnapCoordinator {
     }
 
     private func flushPending() async {
+        await flushDeletions()
+
         let pending = store.outbox
         guard !pending.isEmpty else { return }
         uploading = true
@@ -118,6 +120,16 @@ public final class SnapCoordinator {
             do {
                 try await store.setUploadState(id: snap.id, .uploading)
                 let upload = try await gateway.uploadSnap(snap, original: original, thumb: thumb)
+                // Wurde er waehrend des Uploads geloescht, kennt der Bestand ihn
+                // nicht mehr — der Record ist aber gerade erst entstanden und
+                // laege sonst fuer immer in der Zone, sichtbar fuer alle
+                // anderen. Das Zeitfenster ist schmal, die Folge waere still.
+                guard store.snap(id: snap.id) != nil else {
+                    try await store.queueDeletion(zoneName: upload.zoneName,
+                                                  recordName: upload.recordName, at: clock.now)
+                    await flushDeletions()
+                    continue
+                }
                 try await store.setUploadState(id: snap.id, .done,
                                                zoneName: upload.zoneName,
                                                recordName: upload.recordName)
@@ -133,6 +145,29 @@ public final class SnapCoordinator {
         }
     }
 
+    /// Wartende Loeschauftraege abarbeiten. Was durch ist, wird gestrichen; was
+    /// nicht durchgeht, bleibt stehen und kommt beim naechsten Lauf wieder.
+    private func flushDeletions() async {
+        guard let deletions = try? store.pendingDeletions(), !deletions.isEmpty else { return }
+        for deletion in deletions {
+            do {
+                try await gateway.deleteSnap(zoneName: deletion.zoneName,
+                                             recordName: deletion.recordName)
+                try await store.clearDeletion(recordName: deletion.recordName)
+            } catch {
+                // Ohne Konto ist das der Normalzustand, kein Fehler (SPEC 10.3)
+                // — der Auftrag wartet einfach weiter.
+                if (error as? SyncError) != .noAccount {
+                    logger.error("""
+                        Loeschauftrag \(deletion.recordName, privacy: .public) offen: \
+                        \(String(describing: error), privacy: .public)
+                        """)
+                }
+                break
+            }
+        }
+    }
+
     // MARK: - Empfangen
 
     /// Snaps aus dem Vollabzug übernehmen und fehlende Vorschaubilder holen.
@@ -142,7 +177,9 @@ public final class SnapCoordinator {
             spot.zoneName.map { ($0, spot.id) }
         }, uniquingKeysWith: { a, _ in a })
 
-        let merge = mergeSnaps(snapshot.snaps, local: store.snaps, myUserID: snapshot.userID) {
+        let open = Set(((try? store.pendingDeletions()) ?? []).map(\.recordName))
+        let merge = mergeSnaps(snapshot.snaps, local: store.snaps, myUserID: snapshot.userID,
+                               pendingDeletions: open) {
             byZone[$0]
         }
         do {
@@ -213,13 +250,22 @@ public final class SnapCoordinator {
 
     // MARK: - Löschen, Melden
 
-    /// Eigenen Snap löschen — erst in der Cloud, dann lokal. Als Spot-Owner geht
-    /// das auch für fremde Snaps in der eigenen Zone (Zone-Owner-Recht).
+    /// Eigenen Snap löschen — sofort lokal, die Cloud holt auf. Als Spot-Owner
+    /// geht das auch für fremde Snaps in der eigenen Zone (Zone-Owner-Recht).
+    ///
+    /// Die Reihenfolge war bis zum 18.08. umgekehrt: erst Cloud, dann lokal.
+    /// Ohne Konto oder Netz warf der erste Schritt, der zweite lief nie — der
+    /// Löschknopf tat dann schlicht nichts, und der einzige Hinweis war ein
+    /// Toast. Ein Bild loszuwerden ist aber eine Entscheidung über das eigene
+    /// Gerät; sie darf nicht am Netz hängen. Der Cloud-Teil der Zusage („auch
+    /// bei allen anderen weg") geht deshalb als Auftrag in die Outbox und wird
+    /// nachgeholt — genau wie der Upload, nur andersherum.
     public func delete(_ snap: Snap) async throws {
         if let zone = snap.zoneName, let record = snap.recordName {
-            try await gateway.deleteSnap(zoneName: zone, recordName: record)
+            try await store.queueDeletion(zoneName: zone, recordName: record, at: clock.now)
         }
         try await store.remove(id: snap.id)
+        await flush()
     }
 
     /// Melden: lokal sofort ausblenden, Meldung in die Zone des Snaps legen.

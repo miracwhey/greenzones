@@ -23,13 +23,23 @@ public struct SnapMerge: Equatable, Sendable {
     public var isEmpty: Bool { upserts.isEmpty && removals.isEmpty }
 }
 
+/// - Parameter pendingDeletions: Record-Namen, deren Loeschauftrag noch offen
+///   ist. Ohne sie kaeme ein gerade geloeschter Snap beim naechsten Vollabzug
+///   zurueck: lokal ist er weg, in der Zone steht er noch, und Regel 2 greift
+///   nur fuer eigene Snaps, die der Bestand noch KENNT — ein geloeschter ist
+///   dort keiner mehr und wuerde als Neuzugang angelegt. Der Auftrag ist die
+///   juengere Entscheidung und schlaegt den Abzug.
 public func mergeSnaps(_ cloud: [CloudSnap], local: [Snap], myUserID: String,
+                       pendingDeletions: Set<String> = [],
                        spotIdForZone: (String) -> String?) -> SnapMerge {
     let existing = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     var upserts: [Snap] = []
     var seen = Set<String>()
 
     for entry in cloud {
+        // Bewusst NICHT in `seen`: liegt lokal noch eine Zeile dazu, soll sie
+        // gehen, nicht bleiben.
+        if pendingDeletions.contains(entry.id) { continue }
         seen.insert(entry.id)
         let mine = entry.authorUserID == myUserID
         // Der eigene Snap ist lokal die Wahrheit: er traegt Dateien, Zustand und

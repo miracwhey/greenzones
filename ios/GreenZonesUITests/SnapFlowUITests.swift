@@ -141,6 +141,40 @@ final class SnapFlowUITests: XCTestCase {
                       "Ohne Konto muss der Snap sichtbar auf den Upload warten")
     }
 
+    /// Der Weg, ein Bild loszuwerden, muss ohne Vorwissen zu finden sein: ein
+    /// sichtbarer Knopf in der Kopfzeile des Betrachters, nicht ein langer
+    /// Druck auf das Foto (Leons Befund am Geraet).
+    ///
+    /// Der Test laeuft OHNE Konto — dem Normalzustand im Fixture-Betrieb. Damit
+    /// prueft er zugleich, dass die Entscheidung nicht am Netz haengt: frueher
+    /// ging der Cloud-Aufruf zuerst, warf, und das Bild blieb stehen.
+    func testDeleteFromViewerHeaderRemovesTheSnap() {
+        let app = launch(route: "detail")
+        _ = sheet(in: app)
+        XCTAssertTrue(app.staticTexts["ALBUM · 4"].waitForExistence(timeout: 15),
+                      "Ausgangslage des Albums fehlt")
+
+        let photo = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Tara · ")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 10), "Album-Kachel fehlt")
+        photo.tap()
+
+        let delete = app.buttons["gz.viewer.delete"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 10),
+                      "Loeschen ist im Betrachter nicht sichtbar")
+        delete.tap()
+
+        // `.alert`, nicht `.confirmationDialog` — Letzterer verschluckt unter
+        // iOS 26 den Abbrechen-Knopf.
+        let confirm = app.alerts.buttons["Löschen"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Rueckfrage fehlt")
+        confirm.tap()
+
+        app.buttons["gz.viewer.close"].tap()
+        XCTAssertTrue(app.staticTexts["ALBUM · 3"].waitForExistence(timeout: 10),
+                      "Der Snap ist nach dem Loeschen noch im Album")
+    }
+
     /// Ziehen nach unten schliesst den Betrachter (Spike-Geste). Ein Screenshot
     /// beweist davon nichts — die Geste muss laufen.
     func testDragDownDismissesViewer() {
