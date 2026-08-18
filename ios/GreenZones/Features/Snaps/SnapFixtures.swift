@@ -54,7 +54,7 @@ enum SnapFixtures {
                 Plan(file: "snap4", author: SELF_ID, minutesAgo: 3 * 24 * 60, spot: "s2",
                      scope: .feed, upload: .pending),
             ]
-        case .freesnap, .viewerPin:
+        case .freesnap, .viewerPin, .freeSnapLand:
             // Freie Snaps stehen als eigene Pins auf der Karte.
             planned = [
                 Plan(file: "snap3", author: SELF_ID, minutesAgo: 40, spot: nil, scope: .feed,

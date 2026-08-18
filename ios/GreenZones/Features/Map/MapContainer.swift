@@ -32,6 +32,13 @@ struct MapContainer: UIViewRepresentable {
     var centerSink: MapCenterSink?
     /// W6: Lage der freien Snap-Pins auf dem Schirm — Herkunft des Morphs.
     var pinRectSink: MapPinRectSink?
+    /// W6: Dieser Pin bleibt unsichtbar — sein Bild ist gerade unterwegs
+    /// (aus dem Sucher zu ihm hin oder von ihm ins Vollbild). Ohne das laege
+    /// dasselbe Foto zweimal da.
+    var hiddenSnapId: String?
+    /// Der Pop-in folgt einem Flug — dann uebernimmt der Pin nur noch, statt
+    /// aus dem Nichts zu springen.
+    var popInIsLanding = false
     /// W5: GENAU dieser Pin ploppt auf — der gerade aufgenommene. Alles andere
     /// erscheint ruhig: beim Start liegt der ganze Bestand an, und eine Karte,
     /// auf der zwanzig Pins gleichzeitig hereinspringen, zappelt nur.
@@ -74,6 +81,14 @@ struct MapContainer: UIViewRepresentable {
             guard let mapView, let coordinator else { return nil }
             return coordinator.photoRect(ofFreeSnap: id, in: mapView)
         }
+        pinRectSink?.readAt = { [weak mapView] coordinate in
+            guard let mapView else { return nil }
+            let point = mapView.convert(coordinate, toPointTo: mapView)
+            guard mapView.bounds.insetBy(dx: -60, dy: -60).contains(point) else { return nil }
+            let frame = FreeSnapPinView.photoFrame(atAnchor: point)
+            return MorphRect(rect: mapView.convert(frame, to: nil),
+                             cornerRadius: frame.width / 2)
+        }
         return mapView
     }
 
@@ -83,6 +98,8 @@ struct MapContainer: UIViewRepresentable {
         coordinator.onSelectFreeSnap = onSelectFreeSnap
         coordinator.onPopInPlayed = onPopInPlayed
         coordinator.popInSnapId = popInSnapId
+        coordinator.hiddenSnapId = hiddenSnapId
+        coordinator.popInIsLanding = popInIsLanding
         coordinator.applyAppearance(dark: dark, on: mapView)
         coordinator.applyTimeActive(timeActive, on: mapView)
         coordinator.syncPins(pins, on: mapView)
@@ -112,6 +129,8 @@ struct MapContainer: UIViewRepresentable {
         var onPopInPlayed: ((String) -> Void)?
         /// W5: der eine frisch aufgenommene Snap, dessen Pin aufploppen soll.
         var popInSnapId: String?
+        var hiddenSnapId: String?
+        var popInIsLanding = false
 
         private var pins: [SpotPinState] = []
         private var freePins: [FreeSnapPinState] = []
@@ -247,7 +266,21 @@ struct MapContainer: UIViewRepresentable {
                         || annotation.coordinate.longitude != state.longitude {
                         annotation.coordinate = state.coordinate
                     }
-                    (mapView.view(for: annotation) as? FreeSnapPinView)?.configure(state)
+                    let view = mapView.view(for: annotation) as? FreeSnapPinView
+                    view?.configure(state)
+                    view?.alpha = state.id == hiddenSnapId ? 0 : 1
+                    // Auch ein Pin, der schon steht, kann noch aufploppen: bei
+                    // einem frisch aufgenommenen Snap entsteht er beim START des
+                    // Fluges (der Bestand aendert sich sofort), aber ploppen soll
+                    // er erst bei der ANKUNFT. Zwischen beidem liegt die ganze
+                    // Bewegung — und die Stelle, die nur beim Anlegen prueft,
+                    // sieht davon nichts.
+                    if state.id == popInSnapId, let view {
+                        view.alpha = 1
+                        view.playPopIn(landing: popInIsLanding)
+                        let id = state.id
+                        DispatchQueue.main.async { [weak self] in self?.onPopInPlayed?(id) }
+                    }
                     continue
                 }
                 let annotation = FreeSnapAnnotation(state: state)
@@ -404,8 +437,11 @@ struct MapContainer: UIViewRepresentable {
                 if let state = freePins.first(where: { $0.id == free.snapID }) {
                     view.configure(state)
                 }
+                // Sein Bild ist noch unterwegs zu ihm — er zeigt sich erst, wenn
+                // es angekommen ist (dann ploppt er, siehe `popInSnapId`).
+                view.alpha = free.snapID == hiddenSnapId ? 0 : 1
                 if pendingPopIn.remove(free.snapID) != nil {
-                    view.playPopIn()
+                    view.playPopIn(landing: popInIsLanding)
                     // Quittung erst im naechsten Durchlauf: waehrend SwiftUI
                     // gerade aktualisiert, waere das Setzen eines Zustands ein
                     // Schreibzugriff mitten im Zeichnen.

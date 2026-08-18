@@ -49,6 +49,10 @@ enum SPScreen {
     static var bottomInset: CGFloat { keyWindow?.safeAreaInsets.bottom ?? 0 }
     static var topInset: CGFloat { keyWindow?.safeAreaInsets.top ?? 0 }
 
+    /// Die ganze Fensterflaeche. Der Sucher der Kamera fuellt sie formatfuellend
+    /// aus — dort faengt der Flug eines frisch aufgenommenen Snaps an.
+    static var bounds: CGRect { CGRect(x: 0, y: 0, width: width, height: height) }
+
     /// Die Flaeche zwischen den Systemraendern — dort zeichnet der Betrachter
     /// sein Bild, und dorthin zielt der Morph.
     ///

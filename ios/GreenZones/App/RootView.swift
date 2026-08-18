@@ -58,6 +58,10 @@ struct RootView: View {
                          target: model.target?.result.coordinate,
                          centerSink: community.mapCenter,
                          pinRectSink: community.mapPinRects,
+                         // Sein Bild ist gerade unterwegs — der Pin zeigt sich
+                         // erst, wenn es angekommen ist.
+                         hiddenSnapId: community.morphInFlight ? community.morphSnapId : nil,
+                         popInIsLanding: community.popInIsLanding,
                          popInSnapId: community.popInSnapId,
                          onSelectSpot: { community.sheet = .detail(spotId: $0) },
                          onSelectFreeSnap: { community.openViewer(.free(snapId: $0)) },
@@ -195,7 +199,7 @@ struct RootView: View {
                let image = community.thumbs.image(id: snapId) {
                 SnapFlier(image: image,
                           from: origin,
-                          to: .contain(image: image.size, in: SPScreen.contentBounds),
+                          to: morphTarget(for: image.size),
                           progress: morphProgress)
                     .opacity(community.morphInFlight ? 1 : 0)
             }
@@ -206,7 +210,20 @@ struct RootView: View {
         .onChange(of: community.morphInFlight) { _, flying in
             guard flying, let snapId = community.morphSnapId else { return }
             morphFrom = community.snapRect(snapId)
-            let opening = morphProgress < 0.5
+            let opening = community.morphDirection == .toFullscreen
+            // Der Flug aus dem Sucher faengt OBEN an: erst den Stand setzen,
+            // damit der Flieger einen Vorzustand hat, und die Feder einen Frame
+            // spaeter loslaufen lassen. Ohne die Pause entstuende er mitten in
+            // der Animation und staende sofort am Ziel — genau der Fehler, der
+            // beim Blatt und beim Betrachter schon zweimal drin war.
+            if !opening, morphProgress < 1 {
+                morphProgress = 1
+                DispatchQueue.main.async {
+                    withAnimation(GZ.elementSpring) { morphProgress = 0 }
+                        completion: { community.morphReturned() }
+                }
+                return
+            }
             withAnimation(GZ.elementSpring) {
                 morphProgress = opening ? 1 : 0
             } completion: {
@@ -316,6 +333,18 @@ struct RootView: View {
         #else
         return nil
         #endif
+    }
+
+    /// Das obere Ende des Weges. Der Betrachter zeigt das GANZE Bild, der Sucher
+    /// einen formatfuellenden Ausschnitt ueber den ganzen Schirm — zwei
+    /// verschiedene Flaechen. Mit der falschen spraenge das Foto im ersten Frame.
+    private func morphTarget(for size: CGSize) -> MorphRect {
+        switch community.morphTop {
+        case .viewer:
+            return .contain(image: size, in: SPScreen.contentBounds)
+        case .viewfinder:
+            return MorphRect(rect: SPScreen.bounds, cornerRadius: 0)
+        }
     }
 
     /// Liegt gerade ein Blatt ueber der Karte? Entscheidet, wo der Toast steht.

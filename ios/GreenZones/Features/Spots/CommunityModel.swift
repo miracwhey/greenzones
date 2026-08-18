@@ -100,6 +100,25 @@ final class CommunityModel {
     /// sonst laegen zwei Fotos uebereinander und der Weg waere umsonst.
     private(set) var morphInFlight = false
 
+    /// Wohin das Bild gerade unterwegs ist. Frueher aus dem Stand geraten
+    /// („steht er unten, geht es hoch") — das trug, solange jeder Flug im
+    /// Vollbild endete. Der frisch aufgenommene Snap faengt aber IM Vollbild an
+    /// und will zur Karte, und dort waere die Vermutung falsch herum.
+    enum MorphDirection { case toFullscreen, toOrigin }
+    private(set) var morphDirection: MorphDirection = .toFullscreen
+
+    /// Welches Vollbild am oberen Ende des Weges steht. Der Betrachter zeigt das
+    /// GANZE Bild, der Sucher einen formatfuellenden Ausschnitt — zwei
+    /// verschiedene Flaechen. Mit der falschen sprigne das Foto im ersten Frame.
+    enum MorphTop { case viewer, viewfinder }
+    private(set) var morphTop: MorphTop = .viewer
+    /// Nach der Landung soll der Pin aufploppen — der Snap, um den es geht.
+    @ObservationIgnored private var popInAfterMorph: String?
+    /// Der Pop-in folgt einem Flug: das Foto steht dann schon in voller Groesse
+    /// da, der Pin uebernimmt nur noch. Ein Sprung aus dem Nichts waere hier
+    /// eine zweite Ankunft fuer dasselbe Bild.
+    private(set) var popInIsLanding = false
+
     /// Wo die Bilder liegen — Bestand, Aufnahme und Fixture-Laeufe teilen sich
     /// dieselbe Basis.
     @ObservationIgnored let files: SnapFiles
@@ -295,11 +314,19 @@ final class CommunityModel {
         snapRects[id] ?? mapPinRects.read?(id)
     }
 
+    /// Wo der Pin eines Snaps liegen WIRD — fuer den Flug aus dem Sucher, bevor
+    /// die Karte ihn gezeichnet hat.
+    func snapRect(at coordinate: CLLocationCoordinate2D) -> MorphRect? {
+        mapPinRects.readAt?(coordinate)
+    }
+
     func openViewer(_ source: SnapSource, index: Int = 0, report: Bool = false) {
         let snaps = visibleSnaps(source)
         let opened = snaps.indices.contains(index) ? snaps[index] : nil
         let origin = opened.map(\.id).flatMap { snapRect($0) != nil ? $0 : nil }
         morphSnapId = origin
+        morphDirection = .toFullscreen
+        morphTop = .viewer
         morphInFlight = origin != nil
         cover = .viewer(source: source, index: index, report: report)
     }
@@ -310,6 +337,14 @@ final class CommunityModel {
     /// Das Bild ist zurueck in der Kachel. Das Vollbild ist da laengst weg —
     /// hier faellt nur noch die Herkunft.
     func morphReturned() {
+        // Der Pin uebernimmt vom fliegenden Bild und setzt sich — erst jetzt,
+        // nicht schon beim Ausloesen: sonst ploppt er, waehrend das Bild noch
+        // unterwegs zu ihm ist, und beide zeigen dasselbe Foto.
+        if let id = popInAfterMorph {
+            popInSnapId = id
+            popInIsLanding = true
+            popInAfterMorph = nil
+        }
         morphSnapId = nil
         morphInFlight = false
         cover = nil
@@ -322,6 +357,7 @@ final class CommunityModel {
         // stehen, schrumpfte das Bild in eine leere Flaeche statt zurueck ins
         // Blatt. Genau so sah es im ersten Rueckweg-Bild aus.
         if let id = morphSnapId, snapRect(id) != nil {
+            morphDirection = .toOrigin
             morphInFlight = true
             cover = nil
         } else {
@@ -352,9 +388,33 @@ final class CommunityModel {
         do {
             let snap = try await snapSync.capture(data, at: position, spot: spot, scope: scope)
             await thumbs.load([snap])
+            #if DEBUG
+            // Die Startmarke fuer die Bildabnahme steht HIER, nicht vor dem
+            // Aufruf: davor liefe die Bildverarbeitung mit in die Messung, und
+            // die dauert laenger als mancher Frame, den sie messen soll. Und vor
+            // dem Guard, weil auch der Spot-Fall gemessen wird — dort waechst
+            // der Faecher des vorhandenen Pins.
+            DebugEnvironment.motionGo()
+            #endif
             // Nur freie Snaps ploppen: am Spot waechst stattdessen der Faecher
             // des bestehenden Pins (SpotPinView.playStackGrow).
-            popInSnapId = snap.isFree ? snap.id : nil
+            guard snap.isFree else { return }
+            // Wenn die Karte sagen kann, wo der Pin landen wird, fliegt das Bild
+            // aus dem Sucher dorthin und der Pin ploppt erst bei der Ankunft.
+            // Kann sie es nicht (Punkt ausserhalb des Schirms), ploppt er sofort
+            // — ein Bild, das aus dem Bildrand heraus einschwebt, waere eine
+            // Herkunft, die niemand gesehen hat.
+            if let target = snapRect(at: snap.coordinate) {
+                popInAfterMorph = snap.id
+                noteSnapRect(snap.id, target)
+                morphSnapId = snap.id
+                morphDirection = .toOrigin
+                morphTop = .viewfinder
+                morphInFlight = true
+            } else {
+                popInSnapId = snap.id
+                popInIsLanding = false
+            }
         } catch {
             notice("Das Foto konnte nicht gespeichert werden.")
         }
@@ -367,16 +427,26 @@ final class CommunityModel {
     /// die ist beim Anlegen laengst verschwunden.
     func captureAndClose(_ data: Data, at coordinate: CLLocationCoordinate2D?, spot: Spot?,
                          scope: SnapScope) {
-        closeCover()
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(340))
-            await self?.capture(data, at: coordinate, spot: spot, scope: scope)
+            guard let self else { return }
+            // ERST aufnehmen, DANN den Sucher raeumen. Vorher lief es umgekehrt:
+            // die Kamera ging sofort zu, die Bildverarbeitung brauchte ihre Zeit,
+            // und der Pin erschien danach aus dem Nichts. Jetzt steht der Sucher,
+            // bis das Bild ihn verlaesst — es fliegt ueber ihm hinweg, waehrend
+            // er ausblendet.
+            await self.capture(data, at: coordinate, spot: spot, scope: scope)
+            // NICHT `dismissCover`: das raeumt auch die Herkunft ab und wuerde
+            // den gerade gestarteten Flug mitnehmen. Hier geht nur der Sucher.
+            self.cover = nil
         }
     }
 
     /// Das Aufploppen ist ein Ereignis, kein Zustand: die Karte quittiert es,
     /// damit ein zweiter Render den Pin nicht erneut hereinspringen laesst.
-    func consumePopIn() { popInSnapId = nil }
+    func consumePopIn() {
+        popInSnapId = nil
+        popInIsLanding = false
+    }
 
     /// Loeschen darf der Autor — und der Gastgeber in seiner eigenen Spot-Zone
     /// (Zone-Owner-Recht, SPEC 7). Fremde Feed-Snaps am eigenen Spot liegen in
@@ -438,5 +508,9 @@ final class MapCenterSink {
 @MainActor
 final class MapPinRectSink {
     var read: ((String) -> MorphRect?)?
+    /// Dieselbe Flaeche fuer einen Punkt, an dem noch kein Pin steht: ein frisch
+    /// aufgenommener Snap fliegt aus dem Sucher an seinen Platz, bevor die Karte
+    /// ihn gezeichnet hat.
+    var readAt: ((CLLocationCoordinate2D) -> MorphRect?)?
     init() {}
 }

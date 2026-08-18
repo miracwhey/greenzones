@@ -222,7 +222,10 @@ Ziel rechnet dieselbe Funktion: cover → contain ist ein Ausschnittwechsel, das
 `SPScreen.contentBounds` — nie der volle Schirm, sonst springt es im Übergabe-Frame. Herkunft steht im Register
 (`CommunityModel.noteSnapRect` / `MapPinRectSink`), nicht im Aufruf: die Karte kann ihre Pin-Lage nur auf Nachfrage
 liefern, und sie ändert sich zwischen Hin- und Rückweg. Wisch-Dismiss geht ohne Rückmorph (die Geste hat das Bild
-bereits bewegt).
+bereits bewegt). Der frisch aufgenommene Snap laeuft denselben Weg rueckwaerts: vom Sucher (formatfuellend über
+`SPScreen.bounds`) an seinen Pin, dessen Lage aus der Koordinate gerechnet wird — beim Start des Fluges existiert er
+noch nicht. Der Pin bleibt unsichtbar, solange sein Bild unterwegs ist, und ploppt erst bei der Ankunft; nach einem Flug
+ohne Sprung aus dem Nichts, weil das Foto schon in voller Groesse dasteht.
 Wording konsumneutral (nur „Spot", „Snap", „Freunde"; Store-Fassade), Legal-Texte aus v1 (`StatusBar.tsx`, `ZoneList.tsx`, `InfoSheet.tsx`) wörtlich.
 
 | Screen | Referenz (bindend) | Hinweise |

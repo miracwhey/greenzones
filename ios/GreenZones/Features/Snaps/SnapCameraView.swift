@@ -144,6 +144,12 @@ struct SnapCameraView: View {
                 if canRestrictToSpot { audiencePicker }
                 bottomBar
             }
+            // Das Chrome raeumt zuerst: gleich verlaesst das Bild den Sucher und
+            // fliegt an seinen Platz auf der Karte — es soll nicht unter Knoepfen
+            // wegfliegen, die noch dastehen. Die Verlaeufe bleiben: sie gehoeren
+            // zum Sucher, nicht zur Bedienung, und verschwinden mit ihm.
+            .opacity(busy ? 0 : 1)
+            .animation(GZ.microSpring, value: busy)
             Color.white
                 .opacity(flash ? 1 : 0)
                 .ignoresSafeArea()

@@ -62,6 +62,9 @@ enum DebugRoute: String {
     /// Bewegung A: ein Snap kommt am Spot dazu — der Faecher des Pins macht ihm
     /// Platz, der Pin nimmt den Stoss auf, der Zaehler quittiert.
     case spotSnap = "spot_snap"
+    /// Bewegung C: Ausloeser → Karte. Das Bild verlaesst den Sucher und fliegt
+    /// an seinen Platz, der Pin uebernimmt dort.
+    case freeSnapLand = "free_snap_land"
 
     /// Routen, deren zu messender Uebergang NICHT der erste Zustandswechsel
     /// ist: `viewer_tile` oeffnet zuerst das Blatt und erst danach den
@@ -69,6 +72,7 @@ enum DebugRoute: String {
     /// Bildwerkzeug ab dem Blatt und traefe den Morph nie.
     var announcesMotionItself: Bool {
         self == .viewerTile || self == .viewerTileBack || self == .spotSnap
+            || self == .freeSnapLand
     }
 
     /// Alle Routen, die mit offener Suche starten.
@@ -80,7 +84,7 @@ enum DebugRoute: String {
     var needsSnaps: Bool {
         switch self {
         case .detail, .manage, .solo, .viewer, .viewerTile, .report, .camera, .cameraSpot,
-             .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .mapSpots:
+             .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .freeSnapLand, .mapSpots:
             return true
         default:
             return false

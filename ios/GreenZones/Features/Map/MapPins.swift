@@ -331,15 +331,24 @@ final class SpotPinView: MLNAnnotationView {
 final class FreeSnapPinView: MLNAnnotationView {
     static let reuseID = "gz.freesnap"
 
-    private static let stage = CGSize(width: 44, height: 50)
+    static let stage = CGSize(width: 44, height: 50)
     /// Spitze des Stiels — der eigentliche Ankerpunkt des Pins.
-    private static let tipY: CGFloat = 44
+    static let tipY: CGFloat = 44
     private static let photoSize: CGFloat = 32
 
     /// Wo das Foto im Pin sitzt. Der Morph in den Betrachter geht von genau
     /// dieser Flaeche aus — nicht von der Buehne, die auch den Stiel umfasst.
     static let photoFrame = CGRect(x: (stage.width - photoSize) / 2, y: 0,
                                    width: photoSize, height: photoSize)
+
+    /// Dieselbe Flaeche, aber aus der Ankerposition gerechnet statt aus einer
+    /// vorhandenen Ansicht gelesen. Ein frisch aufgenommener Snap fliegt aus dem
+    /// Sucher an seinen Platz, bevor sein Pin ueberhaupt gezeichnet ist — waere
+    /// die Rechnung an die Ansicht gebunden, gaebe es in genau dem Moment kein
+    /// Ziel. Der Anker ist die Stielspitze.
+    static func photoFrame(atAnchor point: CGPoint) -> CGRect {
+        photoFrame.offsetBy(dx: point.x - stage.width / 2, dy: point.y - tipY)
+    }
 
     private let content = UIView()
     private let photo = makeRoundPhotoView(size: 32, ring: 1.5)
@@ -389,12 +398,32 @@ final class FreeSnapPinView: MLNAnnotationView {
     }
 
     /// Frisch aufgenommen: der Pin ploppt an der Aufnahme-Position auf.
-    func playPopIn() {
+    /// Der Pin setzt sich. Zwei Faelle, ein Aufruf:
+    ///
+    /// - **Nach einem Flug** (`landing`): das Bild ist gerade aus dem Sucher
+    ///   hierher gewandert und uebergibt. Ein Sprung aus dem Nichts waere hier
+    ///   falsch — das Foto steht bereits in voller Groesse da, es waere eine
+    ///   zweite Ankunft fuer dasselbe Bild. Bleibt ein kurzer Federstoss, der
+    ///   die Landung quittiert.
+    ///
+    ///   Der Prototyp laesst hier zusaetzlich den Stiel nachwachsen. Drei
+    ///   Anlaeufe (Layer-Transform mit und ohne eigene Bounds, mit Anker am
+    ///   Stielansatz) kamen im Bild nie an — 40 ms nach der Landung stand er
+    ///   jedesmal voll da. Statt den Effekt stehen zu lassen und Wirkung zu
+    ///   behaupten, ist er hier NICHT drin.
+    /// - **Ohne Flug**: der Pin kommt aus dem Nichts (etwa weil die Stelle beim
+    ///   Ausloesen ausserhalb des Schirms lag) und springt wie bisher herein.
+    func playPopIn(landing: Bool = false) {
+        if landing {
+            content.transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
+            GZ.uiAnimate(GZ.microFeder) { [weak self] in
+                self?.content.transform = .identity
+            }
+            return
+        }
         content.transform = CGAffineTransform(scaleX: 0.15, y: 0.15)
-        UIView.animate(withDuration: 0.5, delay: 0,
-                       usingSpringWithDamping: 0.85, initialSpringVelocity: 0.6,
-                       options: [.allowUserInteraction]) {
-            self.content.transform = .identity
+        GZ.uiAnimate(GZ.elementFeder) { [weak self] in
+            self?.content.transform = .identity
         }
     }
 }
