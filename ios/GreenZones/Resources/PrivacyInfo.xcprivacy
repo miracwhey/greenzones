@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Grundlage: docs/datenlandkarte.md. Wer hier etwas aendert, aendert dort mit —
+  und umgekehrt. Jeder Eintrag ist am Code belegt, keiner vorsichtshalber
+  gesetzt: ein Manifest, das mehr behauptet als die App tut, ist genauso falsch
+  wie eines, das etwas verschweigt.
+
+  NSPrivacyCollectedDataTypes ist leer. Apple definiert „erfassen" als
+  Uebertragung vom Geraet, die dem Anbieter oder seinen Partnern Zugriff gibt.
+  GreenZones hat keinen Server: Community-Daten liegen in der iCloud des
+  Nutzers (private und geteilte Datenbank, keine oeffentliche), der Betreiber
+  kommt nicht daran. Ortssuche und Kartenbild gehen ohne Kennung raus und
+  werden nirgends einem Nutzer zugeordnet.
+
+  NSPrivacyAccessedAPITypes: nur UserDefaults. Geprueft und ohne Treffer:
+  Dateizeitstempel, Systemstartzeit, freier Speicherplatz, aktive Tastaturen.
+  Die `creationDate`-Fundstellen im Code sind CKRecord-Felder, keine
+  Dateiattribute.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1: ausschliesslich app-eigene Daten im eigenen Bundle
+				     (Onboarding-Stand, eigener Anzeigename und Emoji, Uebernahme
+				     der v1-Schluessel). Keine App-Group, kein Teilen. -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

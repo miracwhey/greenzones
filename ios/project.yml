@@ -83,8 +83,13 @@ targets:
         CADisableMinimumFrameDurationOnPhone: true
         UIBackgroundModes:
           - remote-notification
-        NSLocationWhenInUseUsageDescription: GreenZones nutzt deinen Standort, um dir live anzuzeigen, ob Cannabis-Konsum an deinem Ort gerade erlaubt ist. Dein Standort bleibt auf dem Gerät.
-        NSCameraUsageDescription: Für Snaps an deinen Spots und auf der Karte.
+        # Der Satz muss stimmen, auch im Randfall: die LAUFENDE Ortung bleibt
+        # wirklich auf dem Gerät, aber ein Spot und ein Snap tragen den Ort, an
+        # dem sie entstanden sind, in die geteilte iCloud. Die frühere Fassung
+        # endete auf „Dein Standort bleibt auf dem Gerät." — das war für die
+        # Ortung wahr und für alles Geteilte falsch.
+        NSLocationWhenInUseUsageDescription: GreenZones nutzt deinen Standort, um dir live anzuzeigen, ob Cannabis-Konsum an deinem Ort gerade erlaubt ist. Die laufende Ortung bleibt dabei auf dem Gerät. Nur wenn du selbst einen Spot anlegst oder einen Snap aufnimmst, wird dieser eine Ort mitgespeichert und mit den Freunden geteilt, die ihn sehen dürfen.
+        NSCameraUsageDescription: Für Snaps an deinen Spots und auf der Karte. GreenZones nimmt nur live in der App auf und greift nie auf deine Fotomediathek zu; Ort und Gerät stehen nicht im Bild.
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
