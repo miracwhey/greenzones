@@ -6,21 +6,21 @@ Diese Erklärung beschreibt, was die iOS-App **GreenZones** mit Daten tut. Sie
 ist am Code erhoben und deckt sich Zeile für Zeile mit der internen
 Datenlandkarte (`docs/datenlandkarte.md`).
 
-⚠️ **Vor der Veröffentlichung auszufüllen:** Name und ladungsfähige Anschrift
-des Verantwortlichen sowie eine Kontaktadresse. Ohne diese Angaben ist die
-Erklärung nach Art. 13 DSGVO unvollständig. Die Stellen sind mit `[…]`
-markiert.
+**Veröffentlicht unter <https://miracwhey.github.io/greenzones-web/datenschutz.html>.**
+Diese Datei ist die Quelle; die HTML-Fassung liegt in `web/` und wird aus dem
+Repo `miracwhey/greenzones-web` ausgeliefert. Wer hier etwas ändert, ändert
+`web/datenschutz.html` mit.
 
 ---
 
 ## 1. Verantwortlicher
 
 ```
-[Vor- und Nachname]
-[Straße und Hausnummer]
-[PLZ und Ort]
+Leon Karim Valentin
+Ihmepassage 6
+30449 Hannover
 Deutschland
-E-Mail: [kontakt@…]
+E-Mail: leonkarim007@gmail.com
 ```
 
 Eine Datenschutzbeauftragte oder einen Datenschutzbeauftragten gibt es nicht;

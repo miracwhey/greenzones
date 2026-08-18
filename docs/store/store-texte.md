@@ -110,20 +110,22 @@ laufen, wie iOS es kann.
 
 | Feld | Wert | Stand |
 |---|---|---|
-| **Support-URL** | offen | ⚠️ Pflicht — braucht eine erreichbare Seite |
-| **Datenschutz-URL** | offen | ⚠️ Pflicht — Text liegt in `docs/store/datenschutz.md`, Hosting fehlt |
-| **Marketing-URL** | — | freiwillig, kann leer bleiben |
+| **Support-URL** | `https://miracwhey.github.io/greenzones-web/` | ✅ live |
+| **Datenschutz-URL** | `https://miracwhey.github.io/greenzones-web/datenschutz.html` | ✅ live |
+| **Marketing-URL** | — | freiwillig, bleibt leer |
 
-**Zu entscheiden (Leon):** wo die beiden Seiten liegen. Drei Wege, ohne neuen
-Aufwand:
-1. **GitHub Pages** in einem kleinen öffentlichen Repo (`greenzones-web`) —
-   kostenlos, kein Konto mehr nötig, Datei ist Markdown/HTML. ⚠️ Öffentlich
-   heißt: Name und Kontaktadresse stehen im Netz (siehe Identitäts-Gate).
-2. **Vercel** unter einer eigenen Domain — Leon hat dort schon Projekte.
-3. Unterseite auf einer bestehenden Seite.
+**Entschieden 18.08. (Leon: „schau selbst was gut für uns ist"):** GitHub Pages
+aus dem öffentlichen Repo `miracwhey/greenzones-web`. Quelle liegt in `web/`
+dieses Repos und wird von dort kopiert.
 
-Beide Adressen dürfen dieselbe Seite sein, solange dort eine Kontaktmöglichkeit
-steht — Apple prüft, dass die Support-URL erreichbar ist und Hilfe anbietet.
+Vercel schied aus: der Account meldet beim Deploy `402 — Your team has an
+overdue balance`. Cloudflare Pages hätte ein weiteres Konto und `wrangler`
+gebraucht. GitHub Pages kostet nichts, das Konto steht, und die Seite ist ohne
+Buildschritt statisch.
+
+Die Startseite ist zugleich Support-Seite (häufige Fragen + Kontakt) und trägt
+die Anbieterangaben nach §5 DDG; die Erklärung liegt eine Seite weiter. Beide
+in hell und dunkel, sie folgen dem System.
 
 ---
 
@@ -144,7 +146,7 @@ API-Nutzung nur `UserDefaults` mit Grund `CA92.1`.
 
 Im Fragebogen ist **eine** Frage einschlägig: Hinweise auf Drogen oder Alkohol.
 
-**Empfehlung: „Selten/schwach" (Infrequent/Mild) → Einstufung 17+.**
+**Von Leon bestätigt (18.08.): „Selten/schwach" (Infrequent/Mild) → 17+.**
 
 Warum nicht „keine": die App nennt Cannabis beim Namen und bezieht sich auf das
 Konsumcannabisgesetz. Eine Einstufung, die das verschweigt, wäre angreifbar —
