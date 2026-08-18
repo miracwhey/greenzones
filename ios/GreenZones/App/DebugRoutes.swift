@@ -128,6 +128,13 @@ enum DebugEnvironment {
         environment["GZ_ROUTE"].flatMap(DebugRoute.init(rawValue:)) ?? .map
     }
 
+    /// `GZ_ONBOARDING_STEP=<0…3>`: mit welchem Schritt das Onboarding startet.
+    /// Nur fuer Beweisbilder — die vier Schritte sind sonst nur durch Tippen
+    /// erreichbar, und ein Bild vom ersten belegt nichts ueber die anderen drei.
+    static var onboardingStep: Int {
+        environment["GZ_ONBOARDING_STEP"].flatMap(Int.init) ?? 0
+    }
+
     // MARK: - Bewegung fotografieren
 
     /// `GZ_UI_SETTLE=<s>`: wie lange die Karte stehen darf, bevor die Route
@@ -202,6 +209,7 @@ enum DebugEnvironment {
     #else
     static var usesFixtures: Bool { false }
     static var route: DebugRoute { .map }
+    static var onboardingStep: Int { 0 }
     static func photonSource() -> any PhotonSource { PhotonClient() }
     #endif
 }

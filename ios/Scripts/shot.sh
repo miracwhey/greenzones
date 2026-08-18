@@ -13,6 +13,7 @@
 #   GZ_SKIP_BUILD=1   nicht neu bauen/installieren (mehrere Shots hintereinander)
 #   GZ_FIXTURES=0     echte Ortung statt Fixture-Punkt (fuer das Onboarding)
 #   GZ_FRESH=1        App vorher deinstallieren (leere UserDefaults = Erststart)
+#   GZ_ONBOARDING_STEP=2  Onboarding faengt bei Schritt 2 an (0..3, nur fuer Bilder)
 #   GZ_ACCURACY=120   Genauigkeit der Fixture-Position in Metern
 #
 # WICHTIG: Die Env-Variablen gehen als SHELL-PRAEFIX an `simctl launch`.
@@ -66,6 +67,7 @@ SIMCTL_CHILD_GZ_ROUTE="$ROUTE" \
 SIMCTL_CHILD_GZ_FIXTURES="$FIXTURES" \
 SIMCTL_CHILD_GZ_HOUR="$HOUR" \
 SIMCTL_CHILD_GZ_ACCURACY="$ACCURACY" \
+SIMCTL_CHILD_GZ_ONBOARDING_STEP="${GZ_ONBOARDING_STEP:-0}" \
     xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null
 
 # 5. Settle: Basemap kommt aus dem Netz, das Sheet oeffnet nach 2,2 s.

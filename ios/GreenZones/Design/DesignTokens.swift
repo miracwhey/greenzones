@@ -260,4 +260,11 @@ extension VectorIcon {
                     CGPoint(x: 14, y: 5), CGPoint(x: 15.5, y: 7.5), CGPoint(x: 21, y: 7.5),
                     CGPoint(x: 21, y: 19), CGPoint(x: 3, y: 19), CGPoint(x: 3, y: 7.5)]],
         circles: [(CGPoint(x: 12, y: 13.25), 3.6)])
+    /// Globus: Umriss plus zwei Meridiane — steht fuer „geht ins Netz".
+    static let globe = VectorIcon(
+        segments: [[CGPoint(x: 3.5, y: 12), CGPoint(x: 20.5, y: 12)],
+                   [CGPoint(x: 12, y: 3.5), CGPoint(x: 8.4, y: 7), CGPoint(x: 7.4, y: 12),
+                    CGPoint(x: 8.4, y: 17), CGPoint(x: 12, y: 20.5), CGPoint(x: 15.6, y: 17),
+                    CGPoint(x: 16.6, y: 12), CGPoint(x: 15.6, y: 7), CGPoint(x: 12, y: 3.5)]],
+        circles: [(CGPoint(x: 12, y: 12), 8.5)])
 }

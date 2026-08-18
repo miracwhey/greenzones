@@ -184,7 +184,8 @@ struct RootView: View {
             switch cover {
             case .onboarding:
                 OnboardingView(onAllow: { model.finishOnboarding() },
-                               onSkip: { model.finishOnboarding() })
+                               onSkip: { model.finishOnboarding() },
+                               locationAlreadyAuthorized: model.locationAlreadyAuthorized)
             case .camera(let spotId):
                 SnapCameraView(model: community, spotId: spotId,
                                userCoordinate: model.location.state.coordinate)

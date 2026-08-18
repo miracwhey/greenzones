@@ -251,6 +251,36 @@ struct SyncCoordinatorTests {
         #expect(h.gateway.calls.contains("ensureNotificationPermission"))
     }
 
+    /// Der Erststart nach dem Update ist genau dieser Fall: der v1-Import bringt
+    /// Freunde mit, also ist die Bedingung „mit dem ersten Freund" sofort
+    /// erfuellt — und der Systemdialog stand ueber dem Onboarding, das ihn
+    /// erklaeren soll. Das Tor haelt ihn zurueck, bis der Weg frei ist, und
+    /// holt ihn dann nach.
+    @Test("solange der Aufrufer den Bildschirm braucht, fragt der Sync nichts")
+    func permissionsWaitForTheGate() async throws {
+        let h = try CommunityHarness()
+        h.sync.asksAllowed = false
+        try await h.friends.replaceAll([Friend(id: TARA, name: "Tara", emoji: "",
+                                               color: "#7C5CFF", friendshipZone: "friend-t")])
+        // Ohne Konto merged nichts — sonst raeumte der leere Snapshot die
+        // Freundin gleich wieder weg, und der zweite Teil des Tests pruefte
+        // nur noch, dass ohne Freunde nicht gefragt wird.
+        h.gateway.account = .noAccount
+        h.gateway.next = .empty(status: .noAccount)
+
+        await h.sync.start()
+        try await settle()
+        #expect(!h.gateway.calls.contains("ensureNotificationPermission"),
+                "Erlaubnis wurde trotz geschlossenem Tor erfragt")
+        #expect(h.sync.state.profilePrompt == false)
+
+        h.sync.asksAllowed = true
+        try await settle()
+        #expect(h.gateway.calls.contains("ensureNotificationPermission"),
+                "nach dem Öffnen wurde nicht nachgeholt")
+        #expect(h.sync.state.profilePrompt)
+    }
+
     @Test("ein zweiter Wunsch waehrend eines laufenden Fetches wird nachgeholt, nicht parallel gefeuert")
     func refreshIsSerialised() async throws {
         // v1 haengt an `cloudChanged`/`appStateChange`; die Listener bringt W4.

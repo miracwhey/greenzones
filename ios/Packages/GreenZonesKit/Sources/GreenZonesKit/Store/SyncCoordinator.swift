@@ -165,8 +165,13 @@ public final class SyncCoordinator {
 
     /// Mitteilungs-Erlaubnis erst erfragen, wenn es etwas mitzuteilen gibt: mit
     /// dem ersten Freund. Bewertet am LOKALEN Bestand (wie der Profil-Prompt).
+    ///
+    /// Und nicht, solange der Aufrufer den Bildschirm noch für etwas anderes
+    /// braucht (`asksAllowed`). Beim Erststart mit v1-Bestand kamen Freunde aus
+    /// dem Import — der Systemdialog stand dann 0,15 s nach dem Start über dem
+    /// Onboarding, das ihn erklären sollte. Im Bild gesehen, nicht vermutet.
     private func maybeAskNotificationPermission() {
-        guard !friends.friends.isEmpty else { return }
+        guard asksAllowed, !friends.friends.isEmpty else { return }
         Task { [gateway] in
             // Ohne Erlaubnis bleibt alles nutzbar — es gibt nur keine Banner.
             _ = try? await gateway.ensureNotificationPermission()
@@ -175,8 +180,26 @@ public final class SyncCoordinator {
 
     private func evaluateProfilePrompt() {
         let hasFriends = !friends.friends.isEmpty
-        let prompt = hasFriends && !settings.profile.isSet && !settings.profileAsked
+        let prompt = asksAllowed && hasFriends && !settings.profile.isSet && !settings.profileAsked
         patch { $0.profilePrompt = prompt }
+    }
+
+    /// Darf der Koordinator gerade von sich aus etwas verlangen — Systemdialog
+    /// oder Profil-Aufforderung?
+    ///
+    /// Der Sync laeuft ab dem Start, das Onboarding steht darueber. Ohne dieses
+    /// Tor faellt beides zusammen: Freunde aus dem v1-Import erfuellen die
+    /// Bedingung sofort, und die Erlaubnisfrage steht ueber dem Bildschirm, der
+    /// sie begruenden soll. Der Aufrufer macht das Tor auf, wenn der Weg frei
+    /// ist (`AppModel.finishOnboarding`).
+    public var asksAllowed = true {
+        didSet {
+            guard asksAllowed, asksAllowed != oldValue else { return }
+            // Nachholen, was das Tor zurueckgehalten hat — sonst kaeme die Frage
+            // erst beim naechsten Abzug, also womoeglich nie.
+            evaluateProfilePrompt()
+            maybeAskNotificationPermission()
+        }
     }
 
     // MARK: - Spots teilen

@@ -55,7 +55,17 @@ final class AppModel {
     private var previousKind: StatusKind = .wait
     private var cloudObserver: (any NSObjectProtocol)?
 
-    static let onboardedKey = "gz_onboarded"
+    /// Der Schluessel traegt die Fassung des Onboardings, nicht nur ein „schon
+    /// gesehen".
+    ///
+    /// Vorher hiess er `gz_onboarded` und die Frage lautete zusaetzlich „ist die
+    /// Ortung noch ungefragt?" — wer sie erlaubt hatte, sah nie ein Onboarding.
+    /// Build 4 ersetzt die TestFlight-App unter derselben Bundle-ID, dort ist
+    /// die Erlaubnis laengst erteilt: die vier neuen Schritte waeren bei
+    /// niemandem angekommen, der die App schon hat. Mit der Fassung im Namen
+    /// bekommt jeder das neue Onboarding einmal, und der naechste Umbau kann es
+    /// genauso.
+    static let onboardedKey = "gz_onboarded_v2"
 
     init() {
         #if DEBUG
@@ -170,6 +180,13 @@ final class AppModel {
 
     func start() {
         startTick()
+        // Dasselbe Prinzip wie bei der Ortung unten, nur fuer alles, was der
+        // Sync von sich aus verlangen wuerde: solange das Onboarding steht,
+        // fragt niemand sonst etwas. Beim Erststart mit v1-Bestand bringt der
+        // Import Freunde mit, und ohne dieses Tor stuende die
+        // Mitteilungs-Erlaubnis Sekundenbruchteile spaeter ueber dem ersten
+        // Schritt — im Bild gesehen.
+        community.sync.asksAllowed = !shouldShowOnboarding
         // W2: Der Index wird vorgewaermt, nicht erst beim ersten Tastendruck
         // geoeffnet — sonst haengt der erste Buchstabe an einem Dateizugriff.
         search.prewarm()
@@ -214,17 +231,26 @@ final class AppModel {
         }
     }
 
-    /// Erlaubnis wurde noch nie gefragt? Dann fragt sie das Onboarding, sonst
-    /// laeuft die Ortung direkt weiter (v1: erteilte Permission = kein Onboarding).
-    var shouldShowOnboarding: Bool {
-        !onboarded && !location.isAuthorized
-    }
+    /// Das Onboarding haengt allein daran, ob DIESE Fassung schon gelaufen ist.
+    ///
+    /// Vorher stand hier zusaetzlich `&& !location.isAuthorized` — eine erteilte
+    /// Ortungserlaubnis unterdrueckte es. Das passte, solange das Onboarding nur
+    /// die Standortfrage war; jetzt erklaert es Spots, Freunde und Snaps, und
+    /// die haben mit der Ortung nichts zu tun.
+    var shouldShowOnboarding: Bool { !onboarded }
+
+    /// Steht die Erlaubnis schon, gibt es im ersten Schritt nichts zu fragen —
+    /// der Knopf heisst dann „Weiter" statt „Standort freigeben".
+    var locationAlreadyAuthorized: Bool { location.isAuthorized }
 
     /// Beide Knoepfe starten die Ortung: `start()` fragt bei `notDetermined`
     /// selbst nach der Erlaubnis — wie `ensurePermission()` in v1.
     func finishOnboarding() {
         onboarded = true
         location.start()
+        // Jetzt ist der Bildschirm frei: was der Sync zurueckgehalten hat
+        // (Mitteilungs-Erlaubnis, Profil-Aufforderung), darf kommen.
+        community.sync.asksAllowed = true
     }
 
     func recenter() {
