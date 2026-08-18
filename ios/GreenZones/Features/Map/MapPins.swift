@@ -213,9 +213,15 @@ final class SpotPinView: MLNAnnotationView {
         circleGroup.addSubview(circle)
     }
 
+    /// Versatz zwischen zwei Fotos im Faecher. Um genau diesen Weg rutschen die
+    /// vorhandenen zur Seite, wenn ein neuer dazukommt — eine eigene Zahl liefe
+    /// vom Faecher weg, sobald jemand die Anordnung anfasst.
+    private static let fanStep = CGSize(width: 10, height: 7)
+
     /// Zwei 22-pt-Foto-Kreise, oben rechts aufgefaechert.
     private func buildFan() {
-        let centers = [CGPoint(x: 58, y: 20), CGPoint(x: 68, y: 27)]
+        let centers = [CGPoint(x: 58, y: 20),
+                       CGPoint(x: 58 + Self.fanStep.width, y: 20 + Self.fanStep.height)]
         // Rueckwaerts anlegen: Index 0 (neuester) landet oben auf dem Faecher.
         for index in stride(from: centers.count - 1, through: 0, by: -1) {
             let photo = makeRoundPhotoView(size: 22, ring: 1.5)
@@ -254,19 +260,63 @@ final class SpotPinView: MLNAnnotationView {
 
         // Neuer Snap am Spot: der vordere Thumbnail waechst herein — aber nicht
         // beim ersten Aufbau, sonst zappelt die Karte beim Start.
-        let grew = configured && state.frontSnapID != nil && state.frontSnapID != lastFrontSnapID
-        lastFrontSnapID = state.frontSnapID
+        //
+        // Erst wenn sein BILD da ist. `configure` laeuft zweimal: einmal, sobald
+        // der Snap im Bestand steht (Vorschau noch nicht geladen, der Halter
+        // also versteckt), und nochmal, wenn das Bild kommt. Wurde die Id schon
+        // beim ersten Mal abgehakt, lief die ganze Bewegung auf einem
+        // unsichtbaren Halter ab, und beim zweiten Mal gab es nichts mehr zu
+        // zeigen — im Bild gesehen: der neue Thumbnail stand sofort voll da.
+        let hasFrontPhoto = state.stackPhotos.first != nil
+        let grew = configured && hasFrontPhoto
+            && state.frontSnapID != nil && state.frontSnapID != lastFrontSnapID
+        if hasFrontPhoto || state.frontSnapID == nil { lastFrontSnapID = state.frontSnapID }
         configured = true
         if grew { playStackGrow() }
     }
 
+    /// Ein Snap ist an diesem Spot dazugekommen (Szene A des abgenommenen
+    /// Prototyps). Vier Teile, in dieser Ordnung:
+    ///
+    /// 1. Die vorhandenen Fotos machen PLATZ — sie rutschen um genau den
+    ///    Versatz zur Seite, den der Faecher zwischen zwei Kacheln haelt. Ohne
+    ///    das erscheint der Neue in einem fertigen Bild, statt sich einzureihen.
+    /// 2. Der Neue kommt einen kurzen Weg: `.62 → 1` mit leichtem Fall liest
+    ///    sich als Ankunft, ein Sprung aus dem Nichts (etwa `.15`) als Effekt.
+    ///    Vorher startete er bei `.4` ohne Weg und ohne Deckkraft.
+    /// 3. Der Pin nimmt den Stoss auf, leicht versetzt.
+    /// 4. Der Zaehler quittiert ihn, nochmal versetzt.
+    ///
+    /// Sekundaerbewegungen laufen auf der Mikro-Feder: sie sind Antwort, nicht
+    /// Hauptsache, und duerfen die Ankunft nicht ueberdauern.
     private func playStackGrow() {
         guard let front = photoHolders.first else { return }
-        front.transform = CGAffineTransform(scaleX: 0.4, y: 0.4)
-        UIView.animate(withDuration: 0.45, delay: 0,
-                       usingSpringWithDamping: 0.85, initialSpringVelocity: 0.5,
-                       options: [.allowUserInteraction]) {
+        let shift = CGSize(width: Self.fanStep.width, height: Self.fanStep.height)
+
+        for holder in photoHolders.dropFirst() where !holder.isHidden {
+            holder.transform = CGAffineTransform(translationX: -shift.width, y: -shift.height)
+            GZ.uiAnimate(GZ.elementFeder) { holder.transform = .identity }
+        }
+
+        front.alpha = 0
+        front.transform = CGAffineTransform(translationX: 0, y: -5).scaledBy(x: 0.62, y: 0.62)
+        GZ.uiAnimate(GZ.elementFeder) {
+            front.alpha = 1
             front.transform = .identity
+        }
+
+        GZ.uiAnimate(GZ.microFeder, delay: 0.07) { [weak self] in
+            self?.circleGroup.transform = CGAffineTransform(translationX: 0, y: -4)
+        } completion: { [weak self] in
+            GZ.uiAnimate(GZ.microFeder) { self?.circleGroup.transform = .identity }
+        }
+
+        if let chip = countChip, !chip.isHidden {
+            GZ.uiAnimate(GZ.microFeder, delay: 0.12) {
+                chip.transform = CGAffineTransform(scaleX: 1.22, y: 1.22)
+            } completion: {
+                GZ.uiAnimate(GZ.microFeder) { chip.transform = .identity }
+            }
         }
     }
 

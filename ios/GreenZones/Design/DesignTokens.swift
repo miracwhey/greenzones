@@ -71,13 +71,36 @@ enum GZ {
     // Druckpunkt) unter `microSpring`.
 
     /// Blatt — traeger, kein Nachwippen. Bottom-Sheets, Vollbild-Ruckfeder.
-    static let sheetSpring = gzSpring(0.52, 0.90)
+    static let sheetSpring = gzSpring(sheetFeder)
 
     /// Element — Kachel, Pin, Band, Morph. Die Feder der wandernden Dinge.
-    static let elementSpring = gzSpring(0.36, 0.82)
+    static let elementSpring = gzSpring(elementFeder)
 
     /// Mikro — Toast, Zaehler, Marke, Druckpunkt. Kurz genug, um nicht zu warten.
-    static let microSpring = gzSpring(0.22, 0.80)
+    static let microSpring = gzSpring(microFeder)
+
+    /// Die drei Federn als reine Zahlen. Von hier bedienen sich SwiftUI UND die
+    /// UIKit-Ansichten der Karte — ein Pin, der seine eigene Feder mitbraechte,
+    /// waere eine vierte, die niemand mitpflegt.
+    typealias Feder = (response: Double, damping: Double)
+    static let sheetFeder: Feder = (0.52, 0.90)
+    static let elementFeder: Feder = (0.36, 0.82)
+    static let microFeder: Feder = (0.22, 0.80)
+
+    /// Dieselbe Feder fuer eine UIKit-Ansicht. `bounce` ist die Gegengroesse zur
+    /// Daempfung: `spring(response:dampingFraction:)` und
+    /// `animate(springDuration:bounce:)` beschreiben denselben gedaempften
+    /// Oszillator, nur anders benannt. Die Zeitlupe gilt hier genauso — sonst
+    /// waere die halbe Bewegung der Karte nicht fotografierbar.
+    static func uiAnimate(_ feder: Feder, delay: Double = 0,
+                          _ body: @escaping () -> Void,
+                          completion: (() -> Void)? = nil) {
+        UIView.animate(springDuration: feder.response * slowmo,
+                       bounce: 1 - feder.damping,
+                       delay: delay * slowmo,
+                       options: [.allowUserInteraction],
+                       animations: body) { _ in completion?() }
+    }
 
     /// Zeitlupe fuer die Bildabnahme: `GZ_SLOWMO=<faktor>` dehnt jede Feder um
     /// diesen Faktor. Eine Feder mit `response × N` ist **dieselbe Kurve**, nur
@@ -96,8 +119,8 @@ enum GZ {
         #endif
     }()
 
-    private static func gzSpring(_ response: Double, _ damping: Double) -> Animation {
-        .spring(response: response * slowmo, dampingFraction: damping)
+    private static func gzSpring(_ feder: Feder) -> Animation {
+        .spring(response: feder.response * slowmo, dampingFraction: feder.damping)
     }
 
     /// `--shadow-1` / `--shadow-2` aus theme.css.

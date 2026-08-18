@@ -165,6 +165,17 @@ enum CommunityFixtures {
                 model.sheet = .friends(intent: .edit)
             case .welcome, .mapSpots, .map, .statusDetail, .info:
                 break
+            case .spotSnap:
+                // Der echte Aufnahmeweg, nur ohne Kamera: dasselbe `capture`,
+                // das der Ausloeser ruft. Die Startmarke faellt DANACH — vorher
+                // liefe die Bildverarbeitung mit in die Messung, und der Faecher
+                // haette sich noch gar nicht geruehrt.
+                if let spot = model.spot(id: "s1"), let data = SnapFixtures.data("snap2") {
+                    Task { @MainActor in
+                        await model.capture(data, at: spot.coordinate, spot: spot, scope: .spot)
+                        DebugEnvironment.motionGo()
+                    }
+                }
             // W5: Karte mit freien Snap-Pins — kein Blatt, die Pins sind der Prüfling.
             case .freesnap:
                 break

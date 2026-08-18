@@ -59,12 +59,17 @@ enum DebugRoute: String {
     /// seine Kachel zurueck. Eigene Route, weil die Startmarke nur EINMAL faellt
     /// — sie gehoert hier ans Schliessen, nicht ans Oeffnen.
     case viewerTileBack = "viewer_tile_back"
+    /// Bewegung A: ein Snap kommt am Spot dazu — der Faecher des Pins macht ihm
+    /// Platz, der Pin nimmt den Stoss auf, der Zaehler quittiert.
+    case spotSnap = "spot_snap"
 
     /// Routen, deren zu messender Uebergang NICHT der erste Zustandswechsel
     /// ist: `viewer_tile` oeffnet zuerst das Blatt und erst danach den
     /// Betrachter. Sie setzen die Startmarke selbst — sonst zaehlte das
     /// Bildwerkzeug ab dem Blatt und traefe den Morph nie.
-    var announcesMotionItself: Bool { self == .viewerTile || self == .viewerTileBack }
+    var announcesMotionItself: Bool {
+        self == .viewerTile || self == .viewerTileBack || self == .spotSnap
+    }
 
     /// Alle Routen, die mit offener Suche starten.
     var opensSearch: Bool {
@@ -75,7 +80,7 @@ enum DebugRoute: String {
     var needsSnaps: Bool {
         switch self {
         case .detail, .manage, .solo, .viewer, .viewerTile, .report, .camera, .cameraSpot,
-             .freesnap, .viewerPin, .viewerTileBack, .mapSpots:
+             .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .mapSpots:
             return true
         default:
             return false
