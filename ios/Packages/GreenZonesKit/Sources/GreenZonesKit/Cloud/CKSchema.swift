@@ -24,8 +24,6 @@ public enum CKSchema {
     public static let replyRecordPrefix = "reply-"
     /// v2: `feedoffer-<userRecordID>` — je Person genau einer je Friendship-Zone.
     public static let feedOfferRecordPrefix = "feedoffer-"
-    /// v2: `report-<snapId>-<userRecordID>` — je Meldendem genau einer je Snap.
-    public static let reportRecordPrefix = "report-"
 
     public static let typeFriendship = "Friendship"
     public static let typeProfile = "Profile"
@@ -37,7 +35,11 @@ public enum CKSchema {
     public static let typeFeedOffer = "FeedOffer"
     public static let typeFeed = "Feed"
     public static let typeSnap = "Snap"
-    public static let typeReport = "Report"
+    // `Report` gab es hier bis zum 18.08. Der Record wurde in die Zone des
+    // gemeldeten Snaps geschrieben — die dem Gemeldeten gehört, samt Absender im
+    // recordName. Gelesen hat ihn nie jemand: ohne Server gibt es keine Stelle,
+    // die moderiert. Melden wirkt jetzt lokal (ausblenden) und über das
+    // Blockieren der Person; der Record ist ersatzlos weg.
 
     public static let friendshipRecordName = "friendship"
     public static let spotRecordName = "spot"
@@ -73,7 +75,6 @@ public enum CKSchema {
         public static let invitation = ["time", "createdAt", "cancelled", "inviteeIds"]
         public static let reply = ["invitationId", "status", "arrivalTime"]
         public static let feed = ["createdAt"]
-        public static let report = ["snapId", "createdAt"]
         /// Snap ohne Bilder.
         public static let snap = ["createdAt", "lat", "lng", "spotZone", "spotName", "spotEmoji"]
         /// Die schweren Felder — nur auf Anforderung.
@@ -83,7 +84,7 @@ public enum CKSchema {
         public static let lightweight: [String] = {
             var seen = Set<String>()
             return (friendship + profile + spotOffer + feedOffer + spot + invitation
-                    + reply + feed + report + snap).filter { seen.insert($0).inserted }
+                    + reply + feed + snap).filter { seen.insert($0).inserted }
         }()
     }
 
@@ -118,10 +119,6 @@ public enum CKSchema {
 
     public static func replyRecordName(invitationId: String, userID: String) -> String {
         replyRecordPrefix + invitationId + "-" + userID
-    }
-
-    public static func reportRecordName(snapId: String, userID: String) -> String {
-        reportRecordPrefix + snapId + "-" + userID
     }
 
     /// Ziel-Zone eines Offers aus seinem recordName. Der Empfaenger erkennt damit

@@ -335,7 +335,7 @@ final class CommunityModel {
         mapPinRects.readAt?(coordinate)
     }
 
-    func openViewer(_ source: SnapSource, index: Int = 0, report: Bool = false) {
+    func openViewer(_ source: SnapSource, index: Int = 0, hide: Bool = false) {
         let snaps = visibleSnaps(source)
         let opened = snaps.indices.contains(index) ? snaps[index] : nil
         let origin = opened.map(\.id).flatMap { snapRect($0) != nil ? $0 : nil }
@@ -343,7 +343,7 @@ final class CommunityModel {
         morphDirection = .toFullscreen
         morphTop = .viewer
         morphInFlight = origin != nil
-        cover = .viewer(source: source, index: index, report: report)
+        cover = .viewer(source: source, index: index, hide: hide)
     }
 
     /// Das Bild ist angekommen — ab jetzt zeigt der Betrachter seines.

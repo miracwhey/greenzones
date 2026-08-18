@@ -219,6 +219,10 @@ extension VectorIcon {
     static let chevronUp = VectorIcon(segments: [[CGPoint(x: 6, y: 14),
                                                   CGPoint(x: 12, y: 8),
                                                   CGPoint(x: 18, y: 14)]])
+    /// „m9 6 6 6-6 6" — dieselbe Ecke, um 90° gedreht.
+    static let chevronRight = VectorIcon(segments: [[CGPoint(x: 9, y: 6),
+                                                     CGPoint(x: 15, y: 12),
+                                                     CGPoint(x: 9, y: 18)]])
     /// Schloss der Verbotszone: „M4 10h16v9H4zM8 10V7a4 4 0 0 1 8 0v3"
     /// (Buegel als Polygonzug angenaehert — bei 17 pt nicht unterscheidbar).
     static let lock = VectorIcon(segments: [

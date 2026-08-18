@@ -26,15 +26,15 @@ enum SnapCover: Identifiable, Equatable {
     /// `spotId` gesetzt = der Snap gehoert explizit zu diesem Spot, egal wie
     /// weit weg man steht (Leon-Korrektur: kein Naehe-Zwang aus dem Sheet).
     case camera(spotId: String?)
-    /// `report` faehrt den Melden-Dialog direkt an (Screenshot-Schalter). Der
+    /// `hide` faehrt den Ausblenden-Dialog direkt an (Screenshot-Schalter). Der
     /// Wert reist IM Item mit — ein daneben liegender `@State` kaeme im
     /// Praesentations-Closure zu spaet an.
-    case viewer(source: SnapSource, index: Int, report: Bool)
+    case viewer(source: SnapSource, index: Int, hide: Bool)
 
     var id: String {
         switch self {
         case .camera(let spotId): return "camera-\(spotId ?? "free")"
-        case .viewer(let source, let index, let report): return "viewer-\(source.key)-\(index)-\(report)"
+        case .viewer(let source, let index, let hide): return "viewer-\(source.key)-\(index)-\(hide)"
         }
     }
 }

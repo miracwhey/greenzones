@@ -13,6 +13,9 @@ enum DebugRoute: String {
     case search
     case searchResults = "search_results"
     case searchOffline = "search_offline"
+    /// Der Zustand, in dem die Adresssuche angeboten, aber noch nicht gelaufen
+    /// ist — das Bild, das die App beim Tippen jetzt zeigt.
+    case searchOffer = "search_offer"
     case target
     case targetDetail = "target_detail"
 
@@ -44,8 +47,8 @@ enum DebugRoute: String {
     /// Kamera aus dem Spot-Blatt: Kontext-Chip + Sichtbarkeits-Schalter.
     case cameraSpot = "camera_spot"
     case viewer
-    /// Betrachter mit offenem Melden-Dialog.
-    case report
+    /// Betrachter mit offenem Ausblenden-Dialog.
+    case hideSnap = "hide"
     /// Bewegung B: Betrachter geht aus der Album-Kachel hervor. Eigene Route,
     /// weil `viewer` ihn ohne Blatt darunter oeffnet — dort gibt es keine
     /// Kachel, aus der etwas hervorgehen koennte, und die vorhandenen
@@ -81,12 +84,20 @@ enum DebugRoute: String {
     /// Alle Routen, die mit offener Suche starten.
     var opensSearch: Bool {
         self == .search || self == .searchResults || self == .searchOffline
+            || self == .searchOffer
+    }
+
+    /// Routen, die den Zustand NACH dem Druck auf „Nach Adressen suchen"
+    /// zeigen. `search_offer` gehoert bewusst nicht dazu — sie zeigt das
+    /// Angebot selbst.
+    var autoSearchesOnline: Bool {
+        self == .searchResults || self == .searchOffline
     }
 
     /// Routen, die Snaps im Bestand brauchen.
     var needsSnaps: Bool {
         switch self {
-        case .detail, .manage, .solo, .viewer, .viewerTile, .report, .camera, .cameraSpot,
+        case .detail, .manage, .solo, .viewer, .viewerTile, .hideSnap, .camera, .cameraSpot,
              .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .freeSnapLand, .toastMap,
              .mapSpots:
             return true

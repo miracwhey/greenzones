@@ -157,9 +157,15 @@ struct SnapCoordinatorTests {
         #expect(files.exists(stored.thumbPath), "Vorschaubild nicht auf der Platte")
     }
 
-    @Test("Melden blendet sofort aus und meldet genau einmal")
-    func reportHidesFirstAndReportsOnce() async throws {
+    /// Ausblenden ist eine Entscheidung ueber das eigene Geraet und darf an
+    /// nichts haengen, was das Netz braucht. Bis zum 18.08. stand daneben ein
+    /// „Melden", das einen Record in die Zone des Gemeldeten schrieb — ohne
+    /// Konto warf es, und gelesen hat ihn nie jemand. Der Test haelt fest, dass
+    /// ein Gateway, das bei JEDEM Aufruf wirft, am Ausblenden nichts aendert.
+    @Test("Ausblenden trägt ohne Konto und ohne Netz")
+    func hideWorksWithoutTheCloud() async throws {
         let gateway = FakeGateway()
+        gateway.failEverything = true
         let (coordinator, store, _, base) = try makeCoordinator(gateway: gateway)
         defer { try? FileManager.default.removeItem(at: base) }
 
@@ -168,11 +174,14 @@ struct SnapCoordinatorTests {
                                   recordName: "fremd", uploadState: .done))
         let snap = try #require(store.snap(id: "fremd"))
 
-        try await coordinator.report(snap)
-        try await coordinator.report(snap)
+        try await coordinator.hide(snap)
+        try await coordinator.hide(snap)
 
         #expect(store.snap(id: "fremd")?.hidden == true)
-        #expect(gateway.reportedSnaps == ["fremd"], "zweite Meldung darf nicht nochmal rausgehen")
+        // Kein einziger Aufruf, egal welcher: Ausblenden geht niemanden ausser
+        // mich an. Ein Test auf eine EINZELNE Methode waere hier wertlos —
+        // `reportSnap` gibt es nicht mehr, die Zahl bliebe immer 0.
+        #expect(gateway.calls.isEmpty, "Ausblenden hat die Cloud angefasst: \(gateway.calls)")
     }
 
     @Test("Eigenen Snap löschen: Zeile, Dateien und der Cloud-Record")

@@ -54,6 +54,13 @@ struct SearchBarView: View {
             if let initialQuery {
                 text = initialQuery
                 controller.setQuery(initialQuery)
+                #if DEBUG
+                // Die Adress-Routen zeigen, was NACH dem Druck steht. Ohne
+                // diesen Anstoss faende der Shot nur noch das Angebot vor —
+                // die Zustaende `loading`, `results`, `unavailableOffline` und
+                // `error` waeren nicht mehr fotografierbar.
+                if DebugEnvironment.route.autoSearchesOnline { controller.searchOnline() }
+                #endif
             }
         }
         .onChange(of: selected) { _, new in
@@ -98,6 +105,10 @@ struct SearchBarView: View {
                 .tint(GZ.accent)
                 .focused($focused)
                 .submitLabel(.search)
+                // Die Taste trug ihre Lupe schon, tat aber nichts. Jetzt loest
+                // sie genau das aus, was der Knopf in der Liste auch tut — wer
+                // „Suchen" drueckt, meint die Adresssuche.
+                .onSubmit { controller.searchOnline() }
                 .autocorrectionDisabled()
                 .onChange(of: focused) { _, isFocused in
                     if isFocused { open = true }
@@ -173,6 +184,40 @@ struct SearchBarView: View {
         // `idle` heisst: Query zu kurz fuer die Adresssuche — kein Fehler, keine Sektion.
         case .idle:
             EmptyView()
+        // Angebot statt Automatik: die Adresssuche fragt einen fremden Dienst,
+        // also fragt sie vorher hier nach. Der Knopf sagt, wohin es geht — „im
+        // Internet suchen" waere eine Auskunft ueber die Technik, nicht ueber
+        // den Empfaenger.
+        case .offerable:
+            section("Adressen & Straßen")
+            Button {
+                GZ.haptic()
+                controller.searchOnline()
+            } label: {
+                HStack(spacing: 10) {
+                    addressIcon
+                        .frame(width: 16, height: 16)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Nach Adressen suchen")
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundStyle(GZ.accent)
+                        Text("Fragt Komoot — nur mit diesem Wort")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(GZ.ink3)
+                    }
+                    Spacer(minLength: 0)
+                    // Ohne Pfeil sieht die Zeile aus wie die Ortstreffer
+                    // darueber und liest sich als Hinweis statt als Handlung.
+                    VectorIcon.chevronRight
+                        .stroke(GZ.ink3, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .frame(width: 7, height: 12)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("gz.search.online")
         case .loading:
             section("Adressen & Straßen")
             note { AnyView(spinner) } text: { "Adressen laden…" }

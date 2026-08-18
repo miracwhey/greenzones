@@ -197,14 +197,18 @@ struct SnapStoreTests {
         #expect(!FileManager.default.fileExists(atPath: url.path), "Datei blieb liegen")
     }
 
-    @Test("Melden wird genau einmal vermerkt")
-    func reportIsRecordedOnce() async throws {
+    /// Ausblenden ist die einzige verbliebene Entscheidung ueber ein fremdes
+    /// Bild — sie muss den Weg durch den Store ueberstehen, sonst ist das Bild
+    /// beim naechsten Lesen wieder da.
+    @Test("Ausblenden steht im Bestand und bleibt")
+    func hideIsRecorded() async throws {
         let (store, base) = try makeStore()
         defer { try? FileManager.default.removeItem(at: base) }
         try await store.save(localSnap("x", author: "u2"))
-        #expect(try store.isReported(id: "x") == false)
-        try await store.markReported(id: "x", at: Date(timeIntervalSince1970: 1))
-        try await store.markReported(id: "x", at: Date(timeIntervalSince1970: 2))
-        #expect(try store.isReported(id: "x"))
+        #expect(store.snap(id: "x")?.hidden == false)
+        try await store.hide(id: "x")
+        #expect(store.snap(id: "x")?.hidden == true)
+        try await store.hide(id: "x")
+        #expect(store.snap(id: "x")?.hidden == true)
     }
 }

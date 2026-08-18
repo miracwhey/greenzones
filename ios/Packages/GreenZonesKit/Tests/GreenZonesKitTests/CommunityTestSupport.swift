@@ -9,11 +9,15 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
     var account: CKAccountStatus = .available
     /// Methodenname → Fehler, den der naechste Aufruf wirft.
     var fails: [String: SyncError] = [:]
+    /// „Kein Konto, kein Netz" fuer JEDEN Aufruf — fuer Wege, die auch ohne
+    /// Cloud vollstaendig durchlaufen muessen.
+    var failEverything = false
     private(set) var calls: [String] = []
     private(set) var offers: [(zoneName: String, friendshipZones: [String])] = []
 
     private func guardCall(_ name: String) throws {
         calls.append(name)
+        if failEverything { throw SyncError.noAccount }
         if let error = fails[name] { throw error }
     }
 
@@ -43,7 +47,6 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
     /// Hochgeladene Snaps in der Reihenfolge des Aufrufs.
     private(set) var uploadedSnaps: [String] = []
     private(set) var deletedSnaps: [String] = []
-    private(set) var reportedSnaps: [String] = []
     /// Was `fetchThumbs` liefern soll — je Snap-Id.
     var thumbs: [String: Data] = [:]
 
@@ -57,11 +60,6 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
     func deleteSnap(zoneName: String, recordName: String) async throws {
         try guardCall("deleteSnap")
         deletedSnaps.append(recordName)
-    }
-
-    func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
-        try guardCall("reportSnap")
-        reportedSnaps.append(snapId)
     }
 
     func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data] {

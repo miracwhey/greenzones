@@ -5,14 +5,14 @@ import SwiftUI
 enum RootCover: Identifiable, Equatable {
     case onboarding
     case camera(spotId: String?)
-    case viewer(source: SnapSource, index: Int, report: Bool)
+    case viewer(source: SnapSource, index: Int, hide: Bool)
 
     var id: String {
         switch self {
         case .onboarding: return "onboarding"
         case .camera(let spotId): return "camera-\(spotId ?? "free")"
-        case .viewer(let source, let index, let report):
-            return "viewer-\(source.key)-\(index)-\(report)"
+        case .viewer(let source, let index, let hide):
+            return "viewer-\(source.key)-\(index)-\(hide)"
         }
     }
 }
@@ -38,8 +38,8 @@ struct RootView: View {
         if model.shouldShowOnboarding { return .onboarding }
         switch community.cover {
         case .camera(let spotId): return .camera(spotId: spotId)
-        case .viewer(let source, let index, let report):
-            return .viewer(source: source, index: index, report: report)
+        case .viewer(let source, let index, let hide):
+            return .viewer(source: source, index: index, hide: hide)
         case nil: return nil
         }
     }
@@ -138,7 +138,8 @@ struct RootView: View {
             }
         }
         .gzSheet(isPresented: $model.infoOpen) {
-            InfoSheetView { model.infoOpen = false }
+            InfoSheetView(onClose: { model.infoOpen = false },
+                          onClearRecents: { model.search.clearRecents() })
         }
         // W3: genau EIN Community-Sheet (SheetState-Union wie v1).
         .gzSheet(item: Binding(get: { community.presentedSheet },
@@ -187,9 +188,9 @@ struct RootView: View {
             case .camera(let spotId):
                 SnapCameraView(model: community, spotId: spotId,
                                userCoordinate: model.location.state.coordinate)
-            case .viewer(let source, let index, let report):
+            case .viewer(let source, let index, let hide):
                 SnapViewerView(model: community, source: source, startIndex: index,
-                               autoReport: report)
+                               autoHide: hide)
             }
         }
         // Das wandernde Bild liegt UEBER dem Vollbild: es soll bis zum letzten
@@ -339,7 +340,7 @@ struct RootView: View {
     private var debugSearchQuery: String? {
         #if DEBUG
         let route = DebugEnvironment.route
-        return route == .searchResults || route == .searchOffline
+        return route == .searchResults || route == .searchOffline || route == .searchOffer
             ? DebugEnvironment.fixtureQuery : nil
         #else
         return nil

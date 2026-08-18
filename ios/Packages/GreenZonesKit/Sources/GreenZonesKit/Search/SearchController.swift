@@ -6,7 +6,14 @@ import os
 ///
 /// Ablauf pro Tastendruck:
 ///  1. Offline-Index antwortet sofort (Actor, nicht Main-Thread).
-///  2. Photon wird 300 ms debounced hinterhergeschickt.
+///  2. Mehr passiert nicht. Die Adresssuche ueber einen fremden Dienst laeuft
+///     erst, wenn jemand `searchOnline()` ausloest.
+///
+/// Bis zum 18.08. schickte v1s Verhalten ab drei Zeichen 300 ms nach dem
+/// Tippen automatisch eine Anfrage hinterher — beim Tippen eines Strassennamens
+/// also mehrere Praefixe an einen Dritten, ohne dass jemand danach gefragt
+/// haette. Der Debounce war dafuer da; ohne Automatik braucht es ihn nicht mehr.
+///
 /// Jede Antwort traegt die Sequenz ihres Query-Standes; aeltere Antworten werden
 /// verworfen. Fehler beider Quellen landen in einem sichtbaren State.
 @MainActor
@@ -16,7 +23,6 @@ public final class SearchController {
     // Tests ohne MainActor-Hop lesbar sind — sie sind Konstanten, kein Zustand.
     public nonisolated static let minQueryOffline = 2
     public nonisolated static let minQueryOnline = 3
-    public nonisolated static let debounceMilliseconds = 300
     public nonisolated static let offlineLimit = 6
 
     /// Was die UI rendert. Wird nur ueber `emit()` gesetzt.
@@ -25,7 +31,6 @@ public final class SearchController {
     private let offlineSource: any OfflineIndexSource
     private let photon: any PhotonSource
     private let recentsStore: RecentsStore
-    private let debounceMilliseconds: Int
     private let offlineLimit: Int
     private let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "search")
 
@@ -42,17 +47,15 @@ public final class SearchController {
     /// Query-Aenderung neu befragt (`setUserPos`).
     private var offlineSeq = 0
     private var offlinePending = false
-    private var debounceTask: Task<Void, Never>?
+    private var onlineTask: Task<Void, Never>?
 
     public init(offline: any OfflineIndexSource,
                 photon: any PhotonSource,
                 recents recentsStore: RecentsStore,
-                debounceMilliseconds: Int = SearchController.debounceMilliseconds,
                 offlineLimit: Int = SearchController.offlineLimit) {
         self.offlineSource = offline
         self.photon = photon
         self.recentsStore = recentsStore
-        self.debounceMilliseconds = debounceMilliseconds
         self.offlineLimit = offlineLimit
         recents = recentsStore.list()
         state = buildState()
@@ -70,7 +73,7 @@ public final class SearchController {
 
     public func setQuery(_ value: String) {
         query = value
-        cancelDebounce()
+        cancelOnline()
         // Jede Query-Aenderung entwertet laufende Photon-Antworten.
         requestID &+= 1
 
@@ -86,20 +89,29 @@ public final class SearchController {
         ensureIndex()
         recomputeOffline()
 
-        if length >= Self.minQueryOnline {
-            online = .loading
-            let id = requestID
-            let pending = value
-            let delay = debounceMilliseconds
-            debounceTask = Task { [weak self] in
-                do { try await Task.sleep(for: .milliseconds(delay)) } catch { return }
-                guard !Task.isCancelled, let self else { return }
-                await self.runPhoton(pending, id: id)
-            }
-        } else {
-            online = .idle
-        }
+        // Tippen fragt NIEMANDEN im Netz. Es macht die Adresssuche nur
+        // verfuegbar — ausgeloest wird sie von `searchOnline()`.
+        online = length >= Self.minQueryOnline ? .offerable : .idle
 
+        emit()
+    }
+
+    /// Adresssuche starten — der Knopf, den `OnlineState.offerable` anbietet.
+    ///
+    /// Ohne Debounce: hier hat jemand gedrueckt, das ist bereits die Absicht.
+    /// Der Sequenz-Guard bleibt, weil waehrend der Anfrage weitergetippt werden
+    /// kann und eine Antwort zum alten Text nichts mehr wert ist.
+    public func searchOnline() {
+        let pending = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard pending.count >= Self.minQueryOnline else { return }
+        cancelOnline()
+        requestID &+= 1
+        online = .loading
+        let id = requestID
+        onlineTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runPhoton(pending, id: id)
+        }
         emit()
     }
 
@@ -120,10 +132,22 @@ public final class SearchController {
 
     public func clear() {
         query = ""
-        cancelDebounce()
+        cancelOnline()
         requestID &+= 1
         resetOffline()
         online = .idle
+        emit()
+    }
+
+    /// „Zuletzt gesucht" leeren.
+    ///
+    /// `RecentsStore.clear()` gab es seit W2, aufgerufen hat es nur ein Test —
+    /// in der App war der Verlauf nicht loeschbar. Der X-Knopf in der Suchleiste
+    /// ruft `clear()` und leert nur das Eingabefeld; das hier ist der andere
+    /// Weg und traegt deshalb einen anderen Namen.
+    public func clearRecents() {
+        recentsStore.clear()
+        recents = recentsStore.list()
         emit()
     }
 
@@ -136,7 +160,7 @@ public final class SearchController {
     }
 
     public func destroy() {
-        cancelDebounce()
+        cancelOnline()
         requestID &+= 1
         offlineSeq &+= 1
         offlinePending = false
@@ -144,9 +168,9 @@ public final class SearchController {
 
     // MARK: - Intern
 
-    private func cancelDebounce() {
-        debounceTask?.cancel()
-        debounceTask = nil
+    private func cancelOnline() {
+        onlineTask?.cancel()
+        onlineTask = nil
     }
 
     /// Laedt den Index beim ERSTEN Bedarf (oder per `prewarm`), nie im Init.
@@ -234,7 +258,10 @@ public final class SearchController {
         let deduped = dedupedOnline()
         let onlineSettledEmpty: Bool
         switch deduped {
-        case .idle: onlineSettledEmpty = true
+        // `offerable` heisst: es laeuft nichts und es kam nichts. Genau wie
+        // `idle` darf das ein „nichts gefunden" sein — die Adresssuche steht
+        // dann als Angebot daneben, statt es zu verzoegern.
+        case .idle, .offerable: onlineSettledEmpty = true
         case .results(let results): onlineSettledEmpty = results.isEmpty
         default: onlineSettledEmpty = false
         }

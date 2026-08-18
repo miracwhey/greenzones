@@ -268,18 +268,17 @@ public final class SnapCoordinator {
         await flush()
     }
 
-    /// Melden: lokal sofort ausblenden, Meldung in die Zone des Snaps legen.
+    /// Ausblenden: das Bild verschwindet und bleibt weg.
     ///
-    /// Die Reihenfolge ist Absicht — wer meldet, will das Bild **jetzt** nicht
-    /// mehr sehen. Ob die Meldung rausging, ändert daran nichts.
-    public func report(_ snap: Snap) async throws {
-        try await store.hide(id: snap.id)
-        guard let zone = snap.zoneName, !(try store.isReported(id: snap.id)) else { return }
-        try await gateway.reportSnap(zoneName: zone, snapId: snap.id, at: clock.now)
-        try await store.markReported(id: snap.id, at: clock.now)
-    }
-
-    /// Nur ausblenden, ohne Meldung.
+    /// Es gab hier bis zum 18.08. daneben ein „Melden“, das einen `Report` in
+    /// die Zone des Snaps schrieb. Gelesen hat ihn nie jemand — ohne Server
+    /// gibt es keine Stelle, die moderiert —, und die Zone gehört dem
+    /// Gemeldeten, der den Record samt Absender lesen konnte. Geblieben ist,
+    /// was wirkt: das Bild ist weg, und wer gar nichts mehr von jemandem sehen
+    /// will, entfernt die Person (`SyncCoordinator.removeFriend`).
+    ///
+    /// `hidden` überlebt jeden Cloud-Abzug (`MergeSnaps`, Regel 3) — die
+    /// Entscheidung hält, auch wenn der Snap in der Zone stehen bleibt.
     public func hide(_ snap: Snap) async throws {
         try await store.hide(id: snap.id)
     }

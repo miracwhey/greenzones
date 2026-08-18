@@ -132,6 +132,12 @@ public enum PhotonOutcome: Sendable, Equatable {
 public enum OnlineState: Sendable, Equatable {
     /// Query zu kurz fuer online (< `minQueryOnline`) — kein Fehler.
     case idle
+    /// Lang genug fuer eine Adresssuche, aber es hat noch niemand danach
+    /// gefragt. Bis zum 18.08. lief hier automatisch eine Anfrage an einen
+    /// fremden Dienst — jedes Praefix beim Tippen war eine eigene. Wer die
+    /// Adresssuche will, sagt es jetzt selbst; bis dahin bleibt die Suche auf
+    /// dem Geraet.
+    case offerable
     case loading
     case results([SearchResult])
     /// Geraet ist offline — Adresssuche nicht verfuegbar.

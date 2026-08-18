@@ -4,20 +4,16 @@ import Testing
 @testable import GreenZonesKit
 
 /// Kern-Port von `client/src/lib/search/__tests__/controller.test.ts`:
-/// Sequenz-Guards, Mindestlängen, Debounce, AND→OR über die echte Fixture,
+/// Sequenz-Guards, Mindestlängen, AND→OR über die echte Fixture,
 /// alle Störungs-States und die Recents-Sektion.
 @Suite("SearchController — Zustandsmaschine")
 @MainActor
 struct SearchControllerTests {
-    /// Kurzer Debounce: die Tests prüfen die REIHENFOLGE, nicht die Wanduhr.
-    static let debounce = 40
-
     private func manualHarness() throws -> (SearchController, ManualOffline, ManualPhoton) {
         let offline = ManualOffline()
         let photon = ManualPhoton()
         let controller = SearchController(offline: offline, photon: photon,
-                                          recents: RecentsStore(database: try makeSearchDatabase()),
-                                          debounceMilliseconds: Self.debounce)
+                                          recents: RecentsStore(database: try makeSearchDatabase()))
         return (controller, offline, photon)
     }
 
@@ -25,8 +21,7 @@ struct SearchControllerTests {
         let index = PlacesIndex(url: try SearchFixture.makeDatabase())
         let photon = ManualPhoton()
         let recents = RecentsStore(database: try makeSearchDatabase())
-        let controller = SearchController(offline: index, photon: photon, recents: recents,
-                                          debounceMilliseconds: Self.debounce)
+        let controller = SearchController(offline: index, photon: photon, recents: recents)
         return (controller, photon, recents)
     }
 
@@ -36,7 +31,6 @@ struct SearchControllerTests {
     func constants() {
         #expect(SearchController.minQueryOffline == 2)
         #expect(SearchController.minQueryOnline == 3)
-        #expect(SearchController.debounceMilliseconds == 300)
         #expect(SearchController.offlineLimit == 6)
     }
 
@@ -119,51 +113,82 @@ struct SearchControllerTests {
         #expect(await photon.calls.isEmpty)
     }
 
-    @Test("3 Zeichen: online wird angefragt")
+    @Test("3 Zeichen: online wird ANGEBOTEN, nicht angefragt")
     func threeCharacters() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("han")
-        try await TestWait.until("Photon gefragt") { await photon.calls == ["han"] }
+        await TestWait.settle()
+        #expect(controller.state.online == .offerable)
+        #expect(await photon.calls.isEmpty)
     }
 
-    // MARK: - Debounce
+    // MARK: - Der fremde Dienst wird nur auf Ansage gefragt
 
-    @Test("schnelle Tippfolge erzeugt genau einen Photon-Aufruf")
-    func debounce() async throws {
+    /// Die Kernzusage: Tippen erreicht niemanden im Netz. Vorher ging ab drei
+    /// Zeichen jedes Praefix als eigene Anfrage an einen fremden Geocoder.
+    @Test("keine Tippfolge, egal wie lang, erzeugt einen Photon-Aufruf")
+    func typingNeverCallsPhoton() async throws {
+        let (controller, photon, _) = try await fixtureHarness()
+        for prefix in ["han", "hann", "hannov", "hannover", "hannover ha"] {
+            controller.setQuery(prefix)
+        }
+        await TestWait.settle()
+        #expect(await photon.calls.isEmpty)
+        #expect(controller.state.online == .offerable)
+    }
+
+    @Test("der Knopf fragt genau einmal und mit dem aktuellen Text")
+    func explicitSearchAsksOnce() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("han")
-        controller.setQuery("hann")
         controller.setQuery("hannov")
-        #expect(await photon.calls.isEmpty)
+        controller.searchOnline()
         try await TestWait.until("ein Aufruf") { await photon.calls == ["hannov"] }
         await TestWait.settle()
         #expect(await photon.calls == ["hannov"])
+    }
+
+    @Test("zu kurzer Text: der Knopf tut nichts")
+    func explicitSearchNeedsEnoughText() async throws {
+        let (controller, photon, _) = try await fixtureHarness()
+        controller.setQuery("ha")
+        controller.searchOnline()
+        await TestWait.settle()
+        #expect(await photon.calls.isEmpty)
     }
 
     @Test("während des Wartens ist der Online-Zustand 'loading'")
     func loadingWhileWaiting() async throws {
         let (controller, _, _) = try await fixtureHarness()
         controller.setQuery("hannover")
+        controller.searchOnline()
         #expect(controller.state.online == .loading)
     }
 
-    @Test("clear stoppt den anstehenden Aufruf")
-    func clearStopsPending() async throws {
+    // Ohne Debounce ist die Anfrage nach dem Druck sofort unterwegs — „stoppen"
+    // heisst jetzt: ihre Antwort zaehlt nicht mehr.
+    @Test("clear entwertet die laufende Anfrage")
+    func clearVoidsPending() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("hannover")
+        controller.searchOnline()
+        try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         controller.clear()
+        await photon.settle(0, .ok([SearchFixture.result("Zu spaet")]))
         await TestWait.settle()
-        #expect(await photon.calls.isEmpty)
         if case .idle = controller.state {} else { Issue.record("erwartet: idle") }
     }
 
-    @Test("destroy stoppt den anstehenden Aufruf")
-    func destroyStopsPending() async throws {
+    @Test("destroy entwertet die laufende Anfrage")
+    func destroyVoidsPending() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("hannover")
+        controller.searchOnline()
+        try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         controller.destroy()
+        await photon.settle(0, .ok([SearchFixture.result("Zu spaet")]))
         await TestWait.settle()
-        #expect(await photon.calls.isEmpty)
+        #expect(controller.state.online != .results([SearchFixture.result("Zu spaet")]))
     }
 
     // MARK: - Sequenz-Guards
@@ -176,8 +201,10 @@ struct SearchControllerTests {
         let stale = SearchResult(name: "VERALTET", detail: "", lng: 1, lat: 1, source: .photon)
 
         controller.setQuery("lange")
+        controller.searchOnline()
         try await TestWait.until("erster Aufruf") { await photon.calls == ["lange"] }
         controller.setQuery("lange laube")
+        controller.searchOnline()
         try await TestWait.until("zweiter Aufruf") { await photon.calls.count == 2 }
 
         // Neue Antwort zuerst …
@@ -196,8 +223,10 @@ struct SearchControllerTests {
         let fresh = SearchResult(name: "Lange Laube", detail: "30449, Hannover, Niedersachsen",
                                  lng: 9.735, lat: 52.375, source: .photon)
         controller.setQuery("lange")
+        controller.searchOnline()
         try await TestWait.until("erster Aufruf") { await photon.calls.count == 1 }
         controller.setQuery("lange laube")
+        controller.searchOnline()
         try await TestWait.until("zweiter Aufruf") { await photon.calls.count == 2 }
 
         await photon.settle(1, .ok([fresh]))
@@ -251,6 +280,7 @@ struct SearchControllerTests {
         for reason in [PhotonErrorKind.timeout, .server] {
             let (controller, photon, _) = try await fixtureHarness()
             controller.setQuery("lange laube")
+            controller.searchOnline()
             try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
             await photon.settle(0, .failure(reason))
             try await TestWait.until("Fehler sichtbar") { controller.state.online == .error(reason) }
@@ -261,6 +291,7 @@ struct SearchControllerTests {
     func offlineState() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("hannover")
+        controller.searchOnline()
         try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         await photon.settle(0, .failure(.offline))
         try await TestWait.until("offline sichtbar") {
@@ -273,6 +304,7 @@ struct SearchControllerTests {
     func errorIsNotEmpty() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("xyzzyq")
+        controller.searchOnline()
         try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         await photon.settle(0, .failure(.timeout))
         try await TestWait.until("Fehler sichtbar") { controller.state.online == .error(.timeout) }
@@ -285,6 +317,7 @@ struct SearchControllerTests {
     func empty() async throws {
         let (controller, photon, _) = try await fixtureHarness()
         controller.setQuery("xyzzyq")
+        controller.searchOnline()
         try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         await photon.settle(0, .ok([]))
         try await TestWait.until("empty") {
@@ -302,6 +335,7 @@ struct SearchControllerTests {
         try await TestWait.until("bereit") { controller.state.index == .ready(count: 3) }
 
         controller.setQuery("xyzzyq")
+        controller.searchOnline()
         try await TestWait.until("Photon gefragt") { await photon.calls.count == 1 }
         await photon.settle(0, .ok([]))
         await TestWait.settle()
@@ -349,6 +383,7 @@ struct SearchControllerTests {
         try await TestWait.until("Offline-Treffer") {
             controller.state.offlineResults.map(\.name).contains("Linden-Mitte")
         }
+        controller.searchOnline()
         try await TestWait.until("Aufruf") { await photon.calls.count == 1 }
         await photon.settle(0, .ok([
             SearchResult(name: "Linden-Mitte", detail: "30449, Hannover, Niedersachsen",

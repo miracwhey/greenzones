@@ -10,13 +10,13 @@ struct SnapViewerView: View {
     let model: CommunityModel
     let source: SnapSource
     let startIndex: Int
-    /// Screenshot-Schalter: faehrt den Melden-Dialog ueber denselben Zustand an,
+    /// Screenshot-Schalter: faehrt den Ausblenden-Dialog ueber denselben Zustand an,
     /// den das Kontextmenue setzt.
-    var autoReport: Bool = false
+    var autoHide: Bool = false
 
     @State private var index: Int
     @State private var dragY: CGFloat = 0
-    @State private var reporting: Snap?
+    @State private var hiding: Snap?
     @State private var deleting: Snap?
     @State private var originals: [String: UIImage] = [:]
     /// Das Original kam nicht — dann steht hier die Vorschau, und der Betrachter
@@ -25,11 +25,11 @@ struct SnapViewerView: View {
     @State private var missingOriginal = false
     @State private var routed = false
 
-    init(model: CommunityModel, source: SnapSource, startIndex: Int, autoReport: Bool = false) {
+    init(model: CommunityModel, source: SnapSource, startIndex: Int, autoHide: Bool = false) {
         self.model = model
         self.source = source
         self.startIndex = startIndex
-        self.autoReport = autoReport
+        self.autoHide = autoHide
         _index = State(initialValue: startIndex)
     }
 
@@ -88,16 +88,27 @@ struct SnapViewerView: View {
         .statusBarHidden(true)
         // `.alert` statt `.confirmationDialog`: Letzterer verschluckt unter
         // iOS 26 den Abbrechen-Knopf (Screenshot-Beweis aus dem Spike).
-        .alert("Snap melden?", isPresented: Binding(get: { reporting != nil },
-                                                    set: { if !$0 { reporting = nil } }),
-               presenting: reporting) { snap in
-            Button("Melden", role: .destructive) {
-                reporting = nil
-                report(snap)
+        .alert("Bild ausblenden?", isPresented: Binding(get: { hiding != nil },
+                                                    set: { if !$0 { hiding = nil } }),
+               presenting: hiding) { snap in
+            Button("Ausblenden", role: .destructive) {
+                hiding = nil
+                hide(snap)
             }
-            Button("Abbrechen", role: .cancel) { reporting = nil }
-        } message: { _ in
-            Text("Er wird für dich ausgeblendet und in der geteilten Zone gemeldet.")
+            // Der zweite Weg gehoert hierher, nicht drei Blaetter weiter in die
+            // Freundesliste: wer ein Bild wegnimmt, meint oft nicht das Bild.
+            if let name = authorName(snap) {
+                Button("Ausblenden und \(name) entfernen", role: .destructive) {
+                    hiding = nil
+                    hide(snap)
+                    model.run { try await model.sync.removeFriend(id: snap.authorId) }
+                }
+            }
+            Button("Abbrechen", role: .cancel) { hiding = nil }
+        } message: { snap in
+            Text(authorName(snap).map {
+                "Das Bild verschwindet dauerhaft für dich — auch nach dem nächsten Abgleich. Wer gar nichts mehr von \($0) sehen will, entfernt \($0)."
+            } ?? "Das Bild verschwindet dauerhaft für dich.")
         }
         .alert("Snap löschen?", isPresented: Binding(get: { deleting != nil },
                                                      set: { if !$0 { deleting = nil } }),
@@ -128,13 +139,13 @@ struct SnapViewerView: View {
             }
         }
         .contextMenu {
-            // Melden gehoert an den Snap, nicht an die Person (Lock B) — und nur
-            // fremde Bilder lassen sich melden.
+            // Ausblenden gehoert an den Snap, nicht an die Person (Lock B) — und
+            // nur fremde Bilder lassen sich ausblenden. Das eigene loescht man.
             if !snap.isMine {
                 Button {
-                    reporting = snap
+                    hiding = snap
                 } label: {
-                    Label("Melden…", systemImage: "flag")
+                    Label("Ausblenden…", systemImage: "eye.slash")
                 }
             }
             if model.canDelete(snap) {
@@ -173,8 +184,8 @@ struct SnapViewerView: View {
             // nicht. Das Kontextmenue bleibt als zweiter, gewohnter Weg.
             if let current {
                 if !current.isMine {
-                    chromeButton(icon: "flag", label: "Snap melden",
-                                 identifier: "gz.viewer.report") { reporting = current }
+                    chromeButton(icon: "eye.slash", label: "Bild ausblenden",
+                                 identifier: "gz.viewer.hide") { hiding = current }
                 }
                 if model.canDelete(current) {
                     chromeButton(icon: "trash", label: "Snap löschen",
@@ -240,10 +251,18 @@ struct SnapViewerView: View {
 
     // MARK: - Aktionen
 
-    private func report(_ snap: Snap) {
+    /// Name des Autors, solange er als Freund bekannt ist. Fehlt er (fremder
+    /// Snap aus einem geteilten Spot, dessen Autor nicht mein Freund ist), gibt
+    /// es niemanden zu entfernen — dann bleibt es beim Ausblenden.
+    private func authorName(_ snap: Snap) -> String? {
+        guard !snap.isMine else { return nil }
+        return model.friends.friend(id: snap.authorId)?.name
+    }
+
+    private func hide(_ snap: Snap) {
         let source = source
         model.run {
-            try await model.snapSync.report(snap)
+            try await model.snapSync.hide(snap)
             model.thumbs.forget(id: snap.id)
             // Der letzte Snap ist weg — dann gibt es hier nichts mehr zu sehen.
             // Das Bild ist fort — es gaebe keine Kachel mehr, in die es
@@ -289,10 +308,10 @@ struct SnapViewerView: View {
 
     private func applyAutoRoute() {
         #if DEBUG
-        guard autoReport, !routed else { return }
+        guard autoHide, !routed else { return }
         routed = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            reporting = current
+            hiding = current
         }
         #endif
     }

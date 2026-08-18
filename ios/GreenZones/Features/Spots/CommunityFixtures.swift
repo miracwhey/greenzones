@@ -236,14 +236,14 @@ enum CommunityFixtures {
                     DebugEnvironment.motionGo()
                     model.closeCover()
                 }
-            case .report:
-                // Index 0 ist der neueste Snap und stammt von Tara — melden
+            case .hideSnap:
+                // Index 0 ist der neueste Snap und stammt von Tara — ausblenden
                 // laesst sich nur ein fremdes Bild.
-                model.openViewer(.spot(spotId: "s1"), index: 0, report: true)
+                model.openViewer(.spot(spotId: "s1"), index: 0, hide: true)
             // W2-Routen: Suche und Ziel-Modus fahren ihren Zustand selbst an
             // (Overlay in `RootView`, Ziel in `AppModel.start()`). Der Community-
             // Bestand steht dann trotzdem — die Spot-Pins gehoeren zur Karte.
-            case .search, .searchResults, .searchOffline, .target, .targetDetail:
+            case .search, .searchResults, .searchOffline, .searchOffer, .target, .targetDetail:
                 break
             }
         }

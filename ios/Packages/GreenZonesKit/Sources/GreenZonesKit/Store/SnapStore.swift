@@ -30,10 +30,14 @@ public enum SnapMigrations {
             try db.create(index: "snap_spot", on: "snap", columns: ["spotZone"])
             try db.create(index: "snap_created", on: "snap", columns: ["createdAt"])
 
-            // Gemeldete fremde Snaps: der Report geht in die Cloud, die
-            // Ausblendung ist lokal (`snap.hidden`). Diese Tabelle merkt sich,
-            // was schon gemeldet wurde — ein zweiter Report derselben Person
-            // waere derselbe Record, aber ein zweiter Netz-Aufruf.
+            // Diese Tabelle gehoerte zum Melden und wird seit dem 18.08. nicht
+            // mehr beschrieben: Melden ging als Record in die Zone des
+            // Gemeldeten, wurde nie gelesen und nannte den Absender. Geblieben
+            // ist das Ausblenden, und das steht in `snap.hidden`.
+            //
+            // Die Migration bleibt trotzdem stehen — eine bereits gelaufene
+            // Migration nachtraeglich zu aendern, gibt Bestandsgeraeten eine
+            // andere Datenbank als Neuinstallationen. Die Tabelle bleibt leer.
             try db.create(table: "snap_report") { t in
                 t.column("snapId", .text).primaryKey()
                 t.column("createdAt", .integer).notNull()
@@ -256,23 +260,6 @@ public final class SnapStore {
         try await database.writer.write { db in
             try db.execute(sql: "DELETE FROM snap_deletion WHERE recordName = ?",
                            arguments: [recordName])
-        }
-    }
-
-    /// Wurde dieser Snap von mir schon gemeldet?
-    public func isReported(id: String) throws -> Bool {
-        try database.writer.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM snap_report WHERE snapId = ?",
-                             arguments: [id]) ?? 0 > 0
-        }
-    }
-
-    public func markReported(id: String, at date: Date) async throws {
-        try await database.writer.write { db in
-            try db.execute(sql: """
-                INSERT INTO snap_report (snapId, createdAt) VALUES (?, ?)
-                ON CONFLICT(snapId) DO NOTHING
-                """, arguments: [id, Int(date.timeIntervalSince1970 * 1000)])
         }
     }
 

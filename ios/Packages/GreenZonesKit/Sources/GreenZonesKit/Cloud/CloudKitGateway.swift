@@ -492,23 +492,6 @@ public actor CloudKitGateway: CloudGateway {
         }
     }
 
-    public func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
-        let myID = try await requireAccount()
-        do {
-            guard let located = try await zoneIndex()[zoneName] else { throw SyncError.notFound }
-            let record = CKRecord(recordType: CKSchema.typeReport,
-                                  recordID: CKRecord.ID(recordName: CKSchema.reportRecordName(snapId: snapId,
-                                                                                              userID: myID),
-                                                        zoneID: located.zoneID))
-            record["snapId"] = snapId
-            record["createdAt"] = date
-            _ = try await (located.isMine ? privateDB : sharedDB)
-                .modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: true)
-        } catch {
-            throw CKErrorMapper.syncError(for: error)
-        }
-    }
-
     public func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data] {
         try await fetchAssets(refs, key: "thumb")
     }

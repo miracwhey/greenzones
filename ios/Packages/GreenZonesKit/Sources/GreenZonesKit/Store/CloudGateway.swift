@@ -50,9 +50,6 @@ public protocol CloudGateway: Sendable {
     func uploadSnap(_ snap: Snap, original: URL, thumb: URL) async throws -> SnapUpload
     /// Eigenen Snap loeschen; als Spot-Owner auch fremde in der eigenen Zone.
     func deleteSnap(zoneName: String, recordName: String) async throws
-    /// Meldung zu einem Snap in dessen Zone ablegen. Kein Auto-Loeschen — der
-    /// Autor sieht die Meldung, das Ausblenden passiert lokal.
-    func reportSnap(zoneName: String, snapId: String, at date: Date) async throws
     /// Vorschaubilder nachladen (Batch); Rueckgabe je Snap-Id.
     func fetchThumbs(_ refs: [SnapAsset]) async throws -> [String: Data]
     /// Original eines einzelnen Snaps — erst beim Oeffnen im Viewer.
@@ -179,10 +176,6 @@ public struct NoCloudGateway: CloudGateway {
     }
 
     public func deleteSnap(zoneName: String, recordName: String) async throws {
-        throw SyncError.noAccount
-    }
-
-    public func reportSnap(zoneName: String, snapId: String, at date: Date) async throws {
         throw SyncError.noAccount
     }
 
