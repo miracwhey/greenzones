@@ -286,6 +286,11 @@ final class FreeSnapPinView: MLNAnnotationView {
     private static let tipY: CGFloat = 44
     private static let photoSize: CGFloat = 32
 
+    /// Wo das Foto im Pin sitzt. Der Morph in den Betrachter geht von genau
+    /// dieser Flaeche aus — nicht von der Buehne, die auch den Stiel umfasst.
+    static let photoFrame = CGRect(x: (stage.width - photoSize) / 2, y: 0,
+                                   width: photoSize, height: photoSize)
+
     private let content = UIView()
     private let photo = makeRoundPhotoView(size: 32, ring: 1.5)
     private let stem = CAShapeLayer()

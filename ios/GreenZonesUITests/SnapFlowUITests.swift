@@ -99,6 +99,13 @@ final class SnapFlowUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 10), "Betrachter oeffnet nicht")
         close.tap()
         XCTAssertTrue(close.waitForNonExistence(timeout: 5), "Betrachter schliesst nicht")
+
+        // Und die Kachel ist wieder da. Das ist kein Selbstlaeufer: waehrend das
+        // Bild in den Betrachter und zurueck wandert, ist sie absichtlich leer —
+        // bliebe die Herkunft danach stehen (weil die Rueckkehr nie gemeldet
+        // wird), zeigte das Album fuer immer eine Luecke, ohne dass irgendein
+        // Zustand danach noch falsch aussaehe.
+        XCTAssertTrue(photo.waitForExistence(timeout: 5), "Kachel kommt nicht zurueck")
     }
 
     /// Der ganze Weg an einem Stueck: Auslöser → Bild durch die Pipeline →

@@ -39,6 +39,11 @@ private struct FullLayer<Cover: View>: ViewModifier {
                     .transition(.opacity)
             }
         }
+        // Der Grund kommt VOR dem Objekt (Choreografie des Prototyps): beim
+        // Morph in den Betrachter waechst das Bild sonst ins Helle statt ins
+        // fertige Dunkel. Dieselbe Feder wie das wandernde Bild, damit beide
+        // eine Bewegung sind und nicht zwei.
+        .animation(GZ.elementSpring, value: isActive)
     }
 }
 

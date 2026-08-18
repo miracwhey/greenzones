@@ -56,9 +56,15 @@ struct SnapViewerView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            // KEIN `ignoresSafeArea` hier: die Seitendarstellung haelt ihre
+            // eigenen Raender, das Bild sitzt zwischen den Systemraendern. Genau
+            // diese Flaeche ist `SPScreen.contentBounds`, und dorthin zielt der
+            // Morph — im Bild nachgemessen, nicht angenommen.
             .offset(y: dragY)
             .scaleEffect(1 - min(max(dragY, 0) / 2600, 0.08))
             .highPriorityGesture(dismissDrag)
+            // Solange das Bild noch unterwegs ist, gehoert es dem Flieger.
+            .opacity(model.morphInFlight ? 0 : 1)
 
             VStack(spacing: 0) {
                 topBar
@@ -73,7 +79,11 @@ struct SnapViewerView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .opacity(dragY > 8 ? 0 : 1)
+            // Chrome kommt NACH dem Bild und geht VOR ihm (Choreografie des
+            // abgenommenen Prototyps): waehrend das Foto noch fliegt, wuerde
+            // eine Kopfzeile ueber halbem Weg den Blick vom Bild wegziehen.
+            .opacity(dragY > 8 || model.morphInFlight ? 0 : 1)
+            .animation(GZ.microSpring, value: model.morphInFlight)
         }
         .statusBarHidden(true)
         // `.alert` statt `.confirmationDialog`: Letzterer verschluckt unter
@@ -192,7 +202,10 @@ struct SnapViewerView: View {
             }
             .onEnded { value in
                 if value.translation.height > 130 || value.predictedEndTranslation.height > 320 {
-                    model.closeCover()
+                    // Kein Rueckweg in die Kachel: der Finger hat das Bild
+                    // gerade woanders hingezogen, ein Sprung zurueck an den
+                    // Ausgangsort waere ein zweiter, widersprechender Weg.
+                    model.dismissCover()
                 } else {
                     withAnimation(GZ.sheetSpring) { dragY = 0 }
                 }
@@ -207,7 +220,9 @@ struct SnapViewerView: View {
             try await model.snapSync.report(snap)
             model.thumbs.forget(id: snap.id)
             // Der letzte Snap ist weg — dann gibt es hier nichts mehr zu sehen.
-            if model.visibleSnaps(source).isEmpty { model.closeCover() }
+            // Das Bild ist fort — es gaebe keine Kachel mehr, in die es
+            // zurueckfliegen koennte.
+            if model.visibleSnaps(source).isEmpty { model.dismissCover() }
         }
     }
 
@@ -216,7 +231,9 @@ struct SnapViewerView: View {
         model.run {
             try await model.snapSync.delete(snap)
             model.thumbs.forget(id: snap.id)
-            if model.visibleSnaps(source).isEmpty { model.closeCover() }
+            // Das Bild ist fort — es gaebe keine Kachel mehr, in die es
+            // zurueckfliegen koennte.
+            if model.visibleSnaps(source).isEmpty { model.dismissCover() }
         }
     }
 

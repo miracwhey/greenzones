@@ -47,6 +47,20 @@ enum SPScreen {
     static var height: CGFloat { keyWindow?.bounds.height ?? 844 }
     static var width: CGFloat { keyWindow?.bounds.width ?? 390 }
     static var bottomInset: CGFloat { keyWindow?.safeAreaInsets.bottom ?? 0 }
+    static var topInset: CGFloat { keyWindow?.safeAreaInsets.top ?? 0 }
+
+    /// Die Flaeche zwischen den Systemraendern — dort zeichnet der Betrachter
+    /// sein Bild, und dorthin zielt der Morph.
+    ///
+    /// Gemessen, nicht angenommen: ein `ignoresSafeArea` an der Seitenansicht
+    /// des Betrachters aendert daran nichts (die Seitendarstellung haelt ihre
+    /// eigenen Raender), das Bild sass im Beweisbild 42 px tiefer als die
+    /// Schirmmitte — genau die halbe Differenz der beiden Systemraender. Waere
+    /// hier die volle Fensterflaeche eingetragen, spraenge das Bild im
+    /// Uebergabe-Frame um diese 42 px.
+    static var contentBounds: CGRect {
+        CGRect(x: 0, y: topInset, width: width, height: height - topInset - bottomInset)
+    }
     /// Innenbreite der Sheets (18 pt Rand je Seite).
     static var sheetContentWidth: CGFloat { width - 36 }
 }

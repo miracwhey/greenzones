@@ -46,6 +46,25 @@ enum DebugRoute: String {
     case viewer
     /// Betrachter mit offenem Melden-Dialog.
     case report
+    /// Bewegung B: Betrachter geht aus der Album-Kachel hervor. Eigene Route,
+    /// weil `viewer` ihn ohne Blatt darunter oeffnet — dort gibt es keine
+    /// Kachel, aus der etwas hervorgehen koennte, und die vorhandenen
+    /// Beweisbilder sollen unveraendert bleiben.
+    case viewerTile = "viewer_tile"
+    /// Bewegung E: Betrachter geht aus dem freien Snap-Pin hervor. Der Pin
+    /// TRAEGT das Foto bereits — es aufblenden zu lassen verschenkt genau den
+    /// Zusammenhang, den er schon zeigt.
+    case viewerPin = "viewer_pin"
+    /// Der Rueckweg: Betrachter steht, dann schliesst er und das Bild faehrt in
+    /// seine Kachel zurueck. Eigene Route, weil die Startmarke nur EINMAL faellt
+    /// — sie gehoert hier ans Schliessen, nicht ans Oeffnen.
+    case viewerTileBack = "viewer_tile_back"
+
+    /// Routen, deren zu messender Uebergang NICHT der erste Zustandswechsel
+    /// ist: `viewer_tile` oeffnet zuerst das Blatt und erst danach den
+    /// Betrachter. Sie setzen die Startmarke selbst — sonst zaehlte das
+    /// Bildwerkzeug ab dem Blatt und traefe den Morph nie.
+    var announcesMotionItself: Bool { self == .viewerTile || self == .viewerTileBack }
 
     /// Alle Routen, die mit offener Suche starten.
     var opensSearch: Bool {
@@ -55,7 +74,8 @@ enum DebugRoute: String {
     /// Routen, die Snaps im Bestand brauchen.
     var needsSnaps: Bool {
         switch self {
-        case .detail, .manage, .solo, .viewer, .report, .camera, .cameraSpot, .freesnap, .mapSpots:
+        case .detail, .manage, .solo, .viewer, .viewerTile, .report, .camera, .cameraSpot,
+             .freesnap, .viewerPin, .viewerTileBack, .mapSpots:
             return true
         default:
             return false

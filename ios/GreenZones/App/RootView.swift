@@ -22,6 +22,13 @@ struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var model = AppModel()
     @State private var routed = false
+    /// Stand des wandernden Bildes: 0 = in der Kachel, 1 = im Vollbild.
+    @State private var morphProgress: Double = 0
+    /// Herkunft DIESES Flugs, beim Start festgehalten. Ein Tap auf einen freien
+    /// Pin zentriert die Karte — der Pin wandert also, waehrend das Bild
+    /// unterwegs ist, und ein laufend nachgelesenes Rechteck zoege den Startpunkt
+    /// mit. Fuer den Rueckweg wird neu gelesen: dann liegt der Pin woanders.
+    @State private var morphFrom: MorphRect?
 
     // W3: die Community haengt am AppModel, die Views lesen sie hier heraus.
     private var community: CommunityModel { model.community }
@@ -50,6 +57,7 @@ struct RootView: View {
                          // W2: Ziel-Pin + Anflug.
                          target: model.target?.result.coordinate,
                          centerSink: community.mapCenter,
+                         pinRectSink: community.mapPinRects,
                          popInSnapId: community.popInSnapId,
                          onSelectSpot: { community.sheet = .detail(spotId: $0) },
                          onSelectFreeSnap: { community.openViewer(.free(snapId: $0)) },
@@ -172,6 +180,46 @@ struct RootView: View {
             case .viewer(let source, let index, let report):
                 SnapViewerView(model: community, source: source, startIndex: index,
                                autoReport: report)
+            }
+        }
+        // Das wandernde Bild liegt UEBER dem Vollbild: es soll bis zum letzten
+        // Frame sichtbar bleiben, auch wenn der Betrachter darunter schon steht.
+        .overlay {
+            // Der Flieger entsteht mit der HERKUNFT, nicht mit dem Flug: eine
+            // View, die im selben Zug eingefuegt wird, in dem die Feder laeuft,
+            // hat keinen Vorzustand — sie stuende sofort am Ziel. Im Bild
+            // gesehen (dieselbe Falle wie beim Blatt). Sichtbar ist er nur
+            // waehrend des Flugs, danach gehoert das Bild dem Betrachter.
+            if let snapId = community.morphSnapId,
+               let origin = morphFrom ?? community.snapRect(snapId),
+               let image = community.thumbs.image(id: snapId) {
+                SnapFlier(image: image,
+                          from: origin,
+                          to: .contain(image: image.size, in: SPScreen.contentBounds),
+                          progress: morphProgress)
+                    .opacity(community.morphInFlight ? 1 : 0)
+            }
+        }
+        // Ein Wert steuert beide Richtungen: bei 0 sitzt das Bild in der Kachel,
+        // bei 1 im Vollbild. Welche Richtung gemeint ist, sagt der Stand — beim
+        // Oeffnen liegt er unten, beim Schliessen oben.
+        .onChange(of: community.morphInFlight) { _, flying in
+            guard flying, let snapId = community.morphSnapId else { return }
+            morphFrom = community.snapRect(snapId)
+            let opening = morphProgress < 0.5
+            withAnimation(GZ.elementSpring) {
+                morphProgress = opening ? 1 : 0
+            } completion: {
+                if opening { community.morphArrived() } else { community.morphReturned() }
+            }
+        }
+        // Ohne Herkunft gibt es keinen Weg — und der Stand muss unten liegen,
+        // sonst liefe der naechste Morph rueckwaerts. Das passiert wirklich:
+        // der Wisch nach unten schliesst ohne Rueckweg und laesst 1 stehen.
+        .onChange(of: community.morphSnapId) { _, new in
+            if new == nil {
+                morphProgress = 0
+                morphFrom = nil
             }
         }
         // Die Pins der Karte tragen Vorschaubilder: was noch nicht auf der

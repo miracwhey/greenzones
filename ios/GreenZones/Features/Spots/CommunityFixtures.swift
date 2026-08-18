@@ -131,7 +131,7 @@ enum CommunityFixtures {
         // ueber halb geladenen Tiles. `GZ_UI_SETTLE` hebt die Wartezeit fuer
         // Bewegungsbilder an.
         DispatchQueue.main.asyncAfter(deadline: .now() + DebugEnvironment.uiSettle) {
-            DebugEnvironment.motionGo()
+            if !route.announcesMotionItself { DebugEnvironment.motionGo() }
             switch route {
             case .newspot:
                 model.openNewSpot()
@@ -168,6 +168,13 @@ enum CommunityFixtures {
             // W5: Karte mit freien Snap-Pins — kein Blatt, die Pins sind der Prüfling.
             case .freesnap:
                 break
+            case .viewerPin:
+                // Wie der Tap auf den Pin: derselbe Aufruf, dieselbe Herkunft.
+                // Die Pins muessen dafuer schon auf der Karte liegen — deshalb
+                // erst nach dem Settle, und die Startmarke sitzt hier.
+                if let pin = model.freeSnapPins().first {
+                    model.openViewer(.free(snapId: pin.id))
+                }
             case .camera:
                 // Ohne Spot in Reichweite: derselbe Weg wie der Plus-FAB.
                 model.openCamera()
@@ -180,6 +187,33 @@ enum CommunityFixtures {
                 model.openCamera(spotId: "s1")
             case .viewer:
                 model.openViewer(.spot(spotId: "s1"))
+            case .viewerTile:
+                // Der echte Weg: erst steht das Blatt, dann meldet die Kachel
+                // ihre Lage, dann geht der Betrachter aus ihr hervor. Ohne die
+                // Pause dazwischen kennt niemand die Herkunft, und der Morph
+                // faende still nicht statt — genau der Fehler, den eine Route
+                // sichtbar machen soll.
+                model.sheet = .detail(spotId: "s1")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    DebugEnvironment.motionGo()
+                    model.openViewer(.spot(spotId: "s1"), index: 0)
+                }
+            case .viewerTileBack:
+                // Erst den ganzen Hinweg gehen lassen, dann schliessen wie der
+                // Knopf im Betrachter. Die Marke faellt beim Schliessen.
+                model.sheet = .detail(spotId: "s1")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    model.openViewer(.spot(spotId: "s1"), index: 0)
+                }
+                // Der Hinweg muss DURCH sein, bevor der Rueckweg beginnt — und
+                // er dauert unter der Zeitlupe entsprechend laenger. Eine feste
+                // Wartezeit schnitte bei jedem Dehnfaktor woanders hinein und
+                // maesse dann eine Richtungsumkehr statt eines Rueckwegs.
+                let flight = 1.2 + 3.0 * 0.36 * GZ.slowmo
+                DispatchQueue.main.asyncAfter(deadline: .now() + flight) {
+                    DebugEnvironment.motionGo()
+                    model.closeCover()
+                }
             case .report:
                 // Index 0 ist der neueste Snap und stammt von Tara — melden
                 // laesst sich nur ein fremdes Bild.

@@ -30,6 +30,8 @@ struct MapContainer: UIViewRepresentable {
     /// W3: Pick-Modus liest hierueber den Kartenmittelpunkt. Kein Zustand in der
     /// Karte — nur eine Leseschliesse, die sie eintraegt.
     var centerSink: MapCenterSink?
+    /// W6: Lage der freien Snap-Pins auf dem Schirm — Herkunft des Morphs.
+    var pinRectSink: MapPinRectSink?
     /// W5: GENAU dieser Pin ploppt auf — der gerade aufgenommene. Alles andere
     /// erscheint ruhig: beim Start liegt der ganze Bestand an, und eine Karte,
     /// auf der zwanzig Pins gleichzeitig hereinspringen, zappelt nur.
@@ -65,6 +67,13 @@ struct MapContainer: UIViewRepresentable {
                                    user: userCoordinate, accuracyM: accuracyM)
         // W3
         centerSink?.read = { [weak mapView] in mapView?.centerCoordinate }
+        // W6: Woher der Betrachter hervorgeht, wenn ein freier Pin ihn oeffnet.
+        // Auf Nachfrage statt laufend gemeldet: die Lage aendert sich mit jeder
+        // Kamerabewegung, und gebraucht wird sie zweimal — Hin- und Rueckweg.
+        pinRectSink?.read = { [weak mapView, weak coordinator = context.coordinator] id in
+            guard let mapView, let coordinator else { return nil }
+            return coordinator.photoRect(ofFreeSnap: id, in: mapView)
+        }
         return mapView
     }
 
@@ -416,6 +425,19 @@ struct MapContainer: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, annotationCanShowCallout annotation: MLNAnnotation) -> Bool {
             false
+        }
+
+        /// Fotoflaeche eines freien Pins in Fensterkoordinaten — dasselbe
+        /// Bezugssystem, in dem die Album-Kacheln ihre Lage melden.
+        /// `nil`, wenn der Pin gerade nicht auf dem Schirm ist: dann gibt es
+        /// keine Herkunft, und der Betrachter blendet ehrlich auf.
+        @MainActor
+        func photoRect(ofFreeSnap id: String, in mapView: MLNMapView) -> MorphRect? {
+            guard let annotation = freeAnnotations[id],
+                  let view = mapView.view(for: annotation) else { return nil }
+            let inWindow = view.convert(FreeSnapPinView.photoFrame, to: nil)
+            guard inWindow.width > 0 else { return nil }
+            return MorphRect(rect: inWindow, cornerRadius: inWindow.width / 2)
         }
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {

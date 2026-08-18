@@ -215,6 +215,14 @@ Design-Tokens 1:1 aus dem Spike (`GZ.*`, dynamische UIColor, `theme.css`-Werte),
 **drei Federn nach Masse** (`GZ.sheetSpring` 0.52/0.90 · `GZ.elementSpring` 0.36/0.82 · `GZ.microSpring` 0.22/0.80,
 Werte aus `mockup/motion-v6.html`; die frühere Einheitsfeder `GZ.spring` gibt es nicht mehr),
 Glas = `.regularMaterial` für Sheets, `.ultraThinMaterial` für Chips/FAB, System-Font. Beide Themes Pflicht.
+
+**Morph (Design/SnapMorph.swift).** Wo ein Bild schon sichtbar ist, geht das Vollbild daraus HERVOR statt aufzublenden
+(Album-Kachel und freier Snap-Pin tragen das Foto bereits). Ein Element macht den ganzen Weg (`SnapFlier`), Quelle und
+Ziel rechnet dieselbe Funktion: cover → contain ist ein Ausschnittwechsel, das Ziel ist die contain-Fläche des Bildes in
+`SPScreen.contentBounds` — nie der volle Schirm, sonst springt es im Übergabe-Frame. Herkunft steht im Register
+(`CommunityModel.noteSnapRect` / `MapPinRectSink`), nicht im Aufruf: die Karte kann ihre Pin-Lage nur auf Nachfrage
+liefern, und sie ändert sich zwischen Hin- und Rückweg. Wisch-Dismiss geht ohne Rückmorph (die Geste hat das Bild
+bereits bewegt).
 Wording konsumneutral (nur „Spot", „Snap", „Freunde"; Store-Fassade), Legal-Texte aus v1 (`StatusBar.tsx`, `ZoneList.tsx`, `InfoSheet.tsx`) wörtlich.
 
 | Screen | Referenz (bindend) | Hinweise |

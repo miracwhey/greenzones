@@ -38,6 +38,32 @@ struct SnapAlbumSection: View {
                         SnapTileView(snap: snap,
                                      caption: model.snapCaption(snap),
                                      image: model.thumbs.image(id: snap.id))
+                            // Lage melden statt herleiten: der Streifen
+                            // scrollt, eine aus Index und Abstaenden gerechnete
+                            // Position waere nach dem ersten Wischen falsch.
+                            .background {
+                                GeometryReader { proxy in
+                                    let frame = proxy.frame(in: .global)
+                                    Color.clear.onChange(of: frame, initial: true) { _, new in
+                                        model.noteSnapRect(snap.id,
+                                            MorphRect(rect: new,
+                                                      cornerRadius: SnapTileView.cornerRadius))
+                                    }
+                                }
+                            }
+                            // Solange ihr Bild woanders ist, bleibt die Kachel
+                            // leer — sonst laege dasselbe Foto zweimal da. Die
+                            // Herkunft steht genau so lange, wie das gilt: vom
+                            // Oeffnen bis zur Rueckkehr (das Vollbild ist auf
+                            // dem Rueckweg schon fort und taugt nicht als Mass).
+                            .opacity(model.morphSnapId == snap.id ? 0 : 1)
+                            // Auch fuer VoiceOver: eine Kachel, deren Bild
+                            // gerade im Vollbild liegt, ist keine Kachel. Der
+                            // Bedienungstest misst daran, dass die Herkunft
+                            // nach der Rueckkehr wirklich faellt — an der
+                            // Deckkraft allein koennte er das nicht, ein
+                            // unsichtbares Element bleibt trefferbar.
+                            .accessibilityHidden(model.morphSnapId == snap.id)
                             .onTapGesture {
                                 GZ.haptic()
                                 model.openViewer(.spot(spotId: spot.id), index: index)
@@ -95,6 +121,11 @@ struct SnapTileView: View {
     let caption: String
     let image: UIImage?
 
+    /// Eine Quelle fuer den Eckenradius: die Kachel rundet damit, und der Morph
+    /// startet mit demselben Wert. Zwei Zahlen liefen auseinander, sobald eine
+    /// von beiden angefasst wird — sichtbar als Kante, die im ersten Frame springt.
+    static let cornerRadius: CGFloat = 14
+
     /// Sichtbarkeits-Marke NUR auf fremden Kacheln (Lock C): sie sagt, WER den
     /// Snap sieht — bei eigenen weiss ich das selbst.
     private var showsAudience: Bool { !snap.isMine && snap.scope == .feed }
@@ -132,12 +163,12 @@ struct SnapTileView: View {
                 tileBadge("wartet")
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                 .strokeBorder(GZ.stroke, lineWidth: 1)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .accessibilityElement()
         .accessibilityLabel(showsAudience ? "\(caption), alle Freunde"
                             : (isWaiting ? "\(caption), wartet auf Upload" : caption))

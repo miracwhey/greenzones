@@ -86,6 +86,20 @@ final class CommunityModel {
     /// Frisch aufgenommener freier Snap — sein Pin ploppt einmal auf (SPEC 9).
     private(set) var popInSnapId: String?
 
+    /// Aus WELCHEM Snap der Betrachter hervorgeht: die Album-Kachel oder der
+    /// freie Snap-Pin, beide tragen das Bild schon. Ohne Herkunft (etwa im
+    /// Melden-Screenshot) blendet er auf wie bisher — das ist ein ehrlicher
+    /// Ausgang, kein Sonderfall zum Verstecken.
+    ///
+    /// Nur die Id, nicht das Rechteck: der Karten-Pin wandert, waehrend der
+    /// Betrachter offen ist (der Tap zentriert ihn erst). Ein beim Oeffnen
+    /// festgehaltenes Rechteck waere auf dem Rueckweg falsch — das Bild floege
+    /// dorthin, wo der Pin einmal lag.
+    private(set) var morphSnapId: String?
+    /// Solange das Bild unterwegs ist, zeigt der Betrachter seines NICHT —
+    /// sonst laegen zwei Fotos uebereinander und der Weg waere umsonst.
+    private(set) var morphInFlight = false
+
     /// Wo die Bilder liegen — Bestand, Aufnahme und Fixture-Laeufe teilen sich
     /// dieselbe Basis.
     @ObservationIgnored let files: SnapFiles
@@ -259,11 +273,71 @@ final class CommunityModel {
         cover = .camera(spotId: spotId)
     }
 
+    /// Wo die Snaps gerade auf dem Schirm liegen. Album-Kacheln melden sich
+    /// hier an, Karten-Pins ebenso — beide tragen das Bild schon, und aus
+    /// beiden soll der Betrachter hervorgehen.
+    ///
+    /// Als Register statt als Parameter: sonst muesste jeder Aufrufer die
+    /// Geometrie kennen und weiterreichen, und die Karte koennte es gar nicht
+    /// (ihre Pins sind UIKit-Ansichten). So schlaegt `openViewer` die Herkunft
+    /// selbst nach, und wer keine gemeldet hat, bekommt eben keine.
+    @ObservationIgnored private var snapRects: [String: MorphRect] = [:]
+    /// Die Karte kennt die Lage ihrer Pins nur auf Nachfrage — sie aendert sich
+    /// bei jeder Kamerabewegung, laufend zu melden waere Arbeit pro Frame.
+    @ObservationIgnored let mapPinRects = MapPinRectSink()
+
+    func noteSnapRect(_ id: String, _ frame: MorphRect?) {
+        if let frame { snapRects[id] = frame } else { snapRects.removeValue(forKey: id) }
+    }
+
+    /// Wo der Snap gerade auf dem Schirm liegt — Kachel oder Karten-Pin.
+    func snapRect(_ id: String) -> MorphRect? {
+        snapRects[id] ?? mapPinRects.read?(id)
+    }
+
     func openViewer(_ source: SnapSource, index: Int = 0, report: Bool = false) {
+        let snaps = visibleSnaps(source)
+        let opened = snaps.indices.contains(index) ? snaps[index] : nil
+        let origin = opened.map(\.id).flatMap { snapRect($0) != nil ? $0 : nil }
+        morphSnapId = origin
+        morphInFlight = origin != nil
         cover = .viewer(source: source, index: index, report: report)
     }
 
-    func closeCover() { cover = nil }
+    /// Das Bild ist angekommen — ab jetzt zeigt der Betrachter seines.
+    func morphArrived() { morphInFlight = false }
+
+    /// Das Bild ist zurueck in der Kachel. Das Vollbild ist da laengst weg —
+    /// hier faellt nur noch die Herkunft.
+    func morphReturned() {
+        morphSnapId = nil
+        morphInFlight = false
+        cover = nil
+    }
+
+    func closeCover() {
+        // Gibt es eine Herkunft, faehrt das Bild dorthin zurueck — und das
+        // Vollbild geht SOFORT, nicht erst danach. Der Flieger lebt ueber dem
+        // Vollbild und ueberlebt es; bliebe der schwarze Grund bis zum Ende
+        // stehen, schrumpfte das Bild in eine leere Flaeche statt zurueck ins
+        // Blatt. Genau so sah es im ersten Rueckweg-Bild aus.
+        if let id = morphSnapId, snapRect(id) != nil {
+            morphInFlight = true
+            cover = nil
+        } else {
+            morphSnapId = nil
+            cover = nil
+        }
+    }
+
+    /// Schliessen ohne Rueckweg — fuer den Wisch nach unten, der das Bild
+    /// bereits selbst bewegt hat: von dort in die Kachel zurueckzuspringen
+    /// waere ein zweiter, widersprechender Weg.
+    func dismissCover() {
+        morphSnapId = nil
+        morphInFlight = false
+        cover = nil
+    }
 
     /// Aufnahme abschliessen: Datei, Bestand, Vorschau, Pin. Der Upload laeuft
     /// hinterher (Outbox) — sichtbar ist der Snap sofort.
@@ -356,5 +430,13 @@ final class CommunityModel {
 @MainActor
 final class MapCenterSink {
     var read: (() -> CLLocationCoordinate2D?)?
+    init() {}
+}
+
+/// Lage eines freien Snap-Pins auf dem Schirm, auf Nachfrage. Die Karte setzt
+/// die Closure, das Model fragt — genauso wie beim Kartenmittelpunkt.
+@MainActor
+final class MapPinRectSink {
+    var read: ((String) -> MorphRect?)?
     init() {}
 }
