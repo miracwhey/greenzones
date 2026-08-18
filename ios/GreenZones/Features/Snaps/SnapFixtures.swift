@@ -35,7 +35,7 @@ enum SnapFixtures {
 
         switch route {
         case .detail, .manage, .viewer, .viewerTile, .viewerTileBack, .report, .cameraSpot,
-             .spotSnap, .mapSpots:
+             .spotSnap, .toastMap, .mapSpots:
             // Mockup-Zustand 1: Album mit vier Snaps, gemischte Autoren und
             // Zeiten — Uhrzeit, „gestern", Wochentag.
             planned = [

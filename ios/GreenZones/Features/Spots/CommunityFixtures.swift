@@ -165,6 +165,10 @@ enum CommunityFixtures {
                 model.sheet = .friends(intent: .edit)
             case .welcome, .mapSpots, .map, .statusDetail, .info:
                 break
+            case .toastMap:
+                // Derselbe Weg wie jede echte Meldung — nur der Anlass ist
+                // gestellt. Der Text ist der laengste, den die App kennt.
+                model.notice("Ohne Standort kann der Snap nicht auf die Karte — Ortung erlauben und nochmal.")
             case .freeSnapLand:
                 // Wie der Ausloeser in der Kamera: dieselbe `captureAndClose`,
                 // nur ohne Sucher davor. Ohne Spot in Reichweite wird daraus ein

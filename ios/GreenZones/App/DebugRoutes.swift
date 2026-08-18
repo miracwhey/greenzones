@@ -65,6 +65,9 @@ enum DebugRoute: String {
     /// Bewegung C: Ausloeser → Karte. Das Bild verlaesst den Sucher und fliegt
     /// an seinen Platz, der Pin uebernimmt dort.
     case freeSnapLand = "free_snap_land"
+    /// Langer Toast ohne Blatt — der Ort unten, wo er sich die Flaeche mit der
+    /// FAB-Spalte teilt.
+    case toastMap = "toast_map"
 
     /// Routen, deren zu messender Uebergang NICHT der erste Zustandswechsel
     /// ist: `viewer_tile` oeffnet zuerst das Blatt und erst danach den
@@ -84,7 +87,8 @@ enum DebugRoute: String {
     var needsSnaps: Bool {
         switch self {
         case .detail, .manage, .solo, .viewer, .viewerTile, .report, .camera, .cameraSpot,
-             .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .freeSnapLand, .mapSpots:
+             .freesnap, .viewerPin, .viewerTileBack, .spotSnap, .freeSnapLand, .toastMap,
+             .mapSpots:
             return true
         default:
             return false

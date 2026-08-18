@@ -159,6 +159,12 @@ struct RootView: View {
             if let toast = community.toast {
                 SPToast(text: toast)
                     .padding(sheetOpen ? .top : .bottom, sheetOpen ? 12 : 84)
+                    // Unten haelt er die FAB-Spalte frei (Leon-Entscheid): ein
+                    // langer Toast lief vorher unter dem Snap-FAB durch. Nach
+                    // OBEN auszuweichen hilft nicht — direkt darueber steht der
+                    // naechste FAB, und der uebernaechste darueber. Also endet
+                    // er davor: 14 pt Rand plus 56 pt FAB plus Luft.
+                    .padding(.trailing, sheetOpen ? 0 : 66)
             }
         }
         .animation(GZ.microSpring, value: community.toast)
