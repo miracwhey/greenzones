@@ -11,10 +11,17 @@ VENV_PY="$DIR/../.venv/bin/python"
 mkdir -p "$OUT"
 
 echo "== 1/4 osmium tags-filter =="
-osmium tags-filter "$PBF" \
-  nwr/amenity=school,kindergarten \
-  nwr/leisure=playground,pitch,sports_centre,stadium,swimming_pool \
-  w/highway=pedestrian \
+# Der Filter kommt aus build_zones.py — dort steht die einzige Tag-Liste.
+FILTER=()
+while IFS= read -r line; do
+  [ -n "$line" ] && FILTER+=("$line")
+done < <("$VENV_PY" "$DIR/build_zones.py" --osmium-filter)
+if [ ${#FILTER[@]} -eq 0 ]; then
+  echo "FEHLER: build_zones.py --osmium-filter lieferte nichts" >&2
+  exit 1
+fi
+printf '   %s\n' "${FILTER[@]}"
+osmium tags-filter "$PBF" "${FILTER[@]}" \
   -o "$OUT/filtered.osm.pbf" --overwrite
 
 echo "== 2/4 osmium export =="

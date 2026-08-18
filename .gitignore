@@ -8,3 +8,4 @@ dist/
 client/ios/App/App/public/
 client/ios/App/Pods/
 client/ios/DerivedData/
+__pycache__/
