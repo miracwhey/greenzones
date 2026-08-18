@@ -16,7 +16,7 @@ struct SpotDetailSheet: View {
     let userCoordinate: CLLocationCoordinate2D?
     let hour: Int
 
-    enum Mode { case view, hostTime, myTime, share, access }
+    enum Mode { case view, hostTime, myTime, share, access, manage }
 
     @State private var mode: Mode = .view
     @State private var draft = Date()
@@ -57,6 +57,7 @@ struct SpotDetailSheet: View {
             switch mode {
             case .share: shareSheet
             case .access: accessSheet
+            case .manage: manageSheet
             case .hostTime: hostTimeSheet
             case .myTime: myTimeSheet
             case .view: detailSheet
@@ -67,10 +68,17 @@ struct SpotDetailSheet: View {
         // Zugangs-Blatt direkt an, damit es fotografierbar ist — ohne ihn gaebe
         // es von diesem Blatt nur eine Behauptung.
         .task {
-            guard ProcessInfo.processInfo.environment["GZ_SHARE_OPEN"] == "1",
-                  spot.isMine else { return }
-            access = Set(spot.participantIds)
-            mode = .access
+            guard spot.isMine,
+                  let want = ProcessInfo.processInfo.environment["GZ_SHARE_OPEN"] else { return }
+            switch want {
+            case "1", "access":
+                access = Set(spot.participantIds)
+                mode = .access
+            case "manage":
+                mode = .manage
+            default:
+                break
+            }
         }
         .task(id: spot.id) { await model.loadStatus(at: spot.coordinate) }
         // `.alert` statt `.confirmationDialog`: der schluckt unter iOS 26 den
@@ -104,13 +112,10 @@ struct SpotDetailSheet: View {
     // MARK: - Ansicht
 
     private var detailSheet: some View {
-        CommunitySheet(estimate: 560) {
-            SPTitle(text: spot.name)
-            if let invitation {
-                SPSubtitle(text: isHost
-                    ? "Deine Einladung — \(Tape.dayWord(invitation.time, now: frozenNow).lowercased()) \(Tape.fmtClock(invitation.time))."
-                    : "\(hostName) lädt dich ein — \(Tape.dayWord(invitation.time, now: frozenNow).lowercased()) \(Tape.fmtClock(invitation.time)).")
-            }
+        CommunitySheet(estimate: 520) {
+            // Der Name stand hier zweimal — als Titel UND in der Karte
+            // darunter. Die Karte traegt ihn samt Status und Entfernung, also
+            // ist sie die Ueberschrift.
             SPSpotCard(spot: spot, status: status, hour: hour, userCoordinate: userCoordinate)
 
             // Legal-Zeile zur Anker-Zeit: „Am Spot um 20:00 erlaubt". Der Bezug
@@ -125,51 +130,33 @@ struct SpotDetailSheet: View {
             // gewinnt, was am Spot passiert ist, nicht der Verwaltungsteil.
             SnapAlbumSection(model: model, spot: spot)
 
-            if let invitation, isHost {
-                SPSection(text: "Deine Zeit")
-                SPTimeRow(text: "\(Tape.dayWord(invitation.time, now: frozenNow)) · \(Tape.fmtClock(invitation.time))") {
-                    draft = invitation.time
-                    mode = .hostTime
-                }
-            }
-
-            // Wer den Spot sieht, ist eine DAUERHAFTE Eigenschaft des Spots.
-            // Bis zum 18.08. hing die Verwaltung an der Einladung: entfernen
-            // ging nur ueber das Personen-Menue unter „Wer kommt", und das gab
-            // es nur, solange eine Einladung lief. Ohne Einladung stand hier
-            // eine Reihe toter Chips (`onToggle: nil`), die wie Auswahl aussah.
-            // Deshalb steht die Sektion jetzt IMMER, unabhaengig von Einladung
-            // und Teilnehmerzahl.
-            if spot.isMine, !friends.isEmpty {
-                SPSection(text: "Geteilt mit")
-                sharedWithSection
-            } else if invitation == nil, !spot.participantIds.isEmpty {
-                // Fremder Spot: nur Anzeige, verwaltet wird er vom Gastgeber.
-                SPSection(text: "Geteilt mit")
-                participantChips(spot.participantIds)
-            }
 
             if spot.sharePending {
                 SPNote(text: "Teilen wird nachgeholt, sobald du wieder Netz hast — lokal ist der Spot längst da.")
             }
 
+            // Der Termin als EIN Block: Zeit, wer kommt, und der Weg ihn
+            // abzusagen. Vorher lagen „Deine Zeit", „Wer kommt" und „Einladung
+            // absagen" an drei Stellen, mit „Geteilt mit" dazwischen — man
+            // musste den Termin aus dem Blatt zusammensuchen.
             if let invitation {
-                // Nur die Gemeinten — bei fuenf Leuten am Spot und zwei
-                // Eingeladenen waeren die anderen drei hier „offen", obwohl sie
-                // nie gefragt wurden.
+                SPSection(text: isHost ? "Dein Termin" : "\(hostName) lädt dich ein")
+                SPTimeRow(text: "\(Tape.dayWord(invitation.time, now: frozenNow)) · \(Tape.fmtClock(invitation.time))",
+                          action: isHost ? {
+                              draft = invitation.time
+                              mode = .hostTime
+                          } : nil)
+
                 let rows = rsvpEntries(invitation, friends: friends,
                                        participantIds: invitation.invitees(
                                            spotParticipants: spot.participantIds))
-                if !rows.isEmpty {
-                    SPSection(text: "Wer kommt")
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
-                        // Das Menue haengt an der Person, nicht an der Zeile:
-                        // ohne bekannten Freund dahinter gaebe es nichts zu tun.
-                        let friend = entry.friendId.flatMap { model.friends.friend(id: $0) }
-                        SPRsvpRow(entry: entry, showDivider: index > 0,
-                                  onRemoveFromSpot: removeFromSpotAction(friend),
-                                  onRemoveFriend: removeFriendAction(friend))
-                    }
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
+                    // Das Menue haengt an der Person, nicht an der Zeile:
+                    // ohne bekannten Freund dahinter gaebe es nichts zu tun.
+                    let friend = entry.friendId.flatMap { model.friends.friend(id: $0) }
+                    SPRsvpRow(entry: entry, showDivider: index > 0,
+                              onRemoveFromSpot: removeFromSpotAction(friend),
+                              onRemoveFriend: removeFriendAction(friend))
                 }
             }
 
@@ -211,11 +198,11 @@ struct SpotDetailSheet: View {
                         model.run { try await model.sync.cancelInvitation(invitationId: invitation.id) }
                     }
                 }
-                SPGhost(title: spot.isMine ? "Spot entfernen" : "Spot verlassen", danger: true) {
-                    let id = spot.id
-                    model.run { try await model.sync.removeSpot(spotId: id) }
-                    model.closeSheet()
-                }
+                // Alles Dauerhafte liegt hinter EINER benannten Zeile — nicht
+                // hinter einem Zeichen, das man kennen muesste. „Wer sieht den
+                // Spot" und „Spot entfernen" gehoeren nicht in den Blick, wenn
+                // man nur nachsehen will, was hier los ist.
+                SPGhost(title: "Spot verwalten") { mode = .manage }
                 SPGhost(title: "Schließen") { model.closeSheet() }
             }
             .padding(.top, 14)
@@ -267,6 +254,46 @@ struct SpotDetailSheet: View {
     }
 
     // MARK: - MOCKUP: „Wer sieht diesen Spot" (Variante A vs. B)
+
+    /// Alles, was den Spot als Sache betrifft: wer ihn sieht, und ihn loswerden.
+    ///
+    /// Eigenes Blatt seit dem 18.08. (Leon: „Die Spot-Übersicht finde ich
+    /// ziemlich überladen"). Im vollen Zustand standen elf Bloecke im
+    /// Detail-Blatt, es lief in den Deckel und scrollte. Der Schnitt laeuft
+    /// zwischen ANSEHEN (Ort, Bilder, Termin) und VERWALTEN — Verwaltung ist
+    /// selten und gehoert nicht in den Weg dessen, der nur nachsehen will.
+    private var manageSheet: some View {
+        CommunitySheet(estimate: 420) {
+            SPTitle(text: "Spot verwalten")
+            SPSubtitle(text: spot.name)
+
+            if spot.isMine, !friends.isEmpty {
+                SPSection(text: "Geteilt mit")
+                sharedWithSection
+            } else if !spot.participantIds.isEmpty {
+                // Fremder Spot: nur Anzeige, verwaltet wird er vom Gastgeber.
+                SPSection(text: "Geteilt mit")
+                participantChips(spot.participantIds)
+            }
+
+            if spot.isLocalOnly, spot.isMine {
+                SPNote(text: "Nur für dich — dieser Spot ist mit niemandem geteilt. Deine Snaps hier bleiben auf dem Gerät, bis du ihn teilst.")
+            }
+            if spot.isLocalOnly, friends.isEmpty {
+                SPCloudHint(status: model.sync.state.status)
+            }
+
+            VStack(spacing: 0) {
+                SPGhost(title: spot.isMine ? "Spot entfernen" : "Spot verlassen", danger: true) {
+                    let id = spot.id
+                    model.run { try await model.sync.removeSpot(spotId: id) }
+                    model.closeSheet()
+                }
+                SPGhost(title: "Zurück") { mode = .view }
+            }
+            .padding(.top, 14)
+        }
+    }
 
     /// Die Runde des Spots — und der Weg, sie zu aendern.
     @ViewBuilder

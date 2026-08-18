@@ -470,17 +470,19 @@ struct SPSpotCard: View {
 /// Zeit-Zeile mit Stift (Host).
 struct SPTimeRow: View {
     let text: String
-    let action: () -> Void
+    /// `nil` = Anzeige statt Bedienung. Als Gast lese ich die Zeit des
+    /// Gastgebers; „Ändern" waere dort ein Angebot, das ins Leere greift.
+    var action: (() -> Void)?
 
     var body: some View {
-        Button(action: { GZ.haptic(); action() }) {
-            HStack(spacing: 10) {
+        let row = HStack(spacing: 10) {
                 SPIcon(kind: .clock).stroked(GZ.ink2, size: 17)
                 Text(text)
                     .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(GZ.ink)
-                Spacer(minLength: 0)
+            Spacer(minLength: 0)
+            if action != nil {
                 HStack(spacing: 5) {
                     SPIcon(kind: .pencil).stroked(GZ.accent, size: 14, width: 2)
                     Text("Ändern")
@@ -488,15 +490,23 @@ struct SPTimeRow: View {
                         .foregroundStyle(GZ.accent)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .background(SP.tile, in: .rect(cornerRadius: 13, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .strokeBorder(GZ.stroke, lineWidth: 1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(SP.tile, in: .rect(cornerRadius: 13, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(GZ.stroke, lineWidth: 1)
+        }
+
+        return Group {
+            if let action {
+                Button(action: { GZ.haptic(); action() }) { row }
+                    .buttonStyle(.plain)
+            } else {
+                row
             }
         }
-        .buttonStyle(.plain)
         .padding(.top, 4)
         .padding(.bottom, 2)
     }
