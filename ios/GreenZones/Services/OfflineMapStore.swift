@@ -61,10 +61,61 @@ final class OfflineMapStore {
 
     /// Vorhandene Pakete einlesen — nach einem Neustart weiß die App sonst
     /// nicht, dass schon etwas gesichert ist, und böte es erneut an.
+    ///
+    /// `packs` ist direkt nach `reloadPacks()` noch `nil`: die Liste kommt aus
+    /// der Datenbank und wird asynchron nachgereicht. Der frühere `guard`
+    /// darauf lief deshalb IMMER ins Leere — die Anzeige sagte nach jedem
+    /// Neustart „noch nichts gesichert", und ein zweites Sichern legte ein
+    /// zweites Paket an. Gemessen am 18.08.: kein einziger Aufruf kam je bis
+    /// `apply`.
     func reload() {
         MLNOfflineStorage.shared.reloadPacks()
-        guard let packs = MLNOfflineStorage.shared.packs else { return }
-        apply(packs)
+        Task { [weak self] in
+            for _ in 0 ..< 20 {
+                if let packs = MLNOfflineStorage.shared.packs {
+                    self?.adopt(packs)
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    /// Kartenstil an einer Adresse, die ein App-Update überlebt.
+    ///
+    /// `MLNTilePyramidOfflineRegion` speichert die Style-Adresse **absolut** in
+    /// der Paket-Datenbank. Im Bundle-Pfad steckt eine Installations-UUID, die
+    /// bei jeder Installation neu vergeben wird — nach einem Update zeigt das
+    /// gespeicherte Paket also auf ein Bundle, das es nicht mehr gibt, und
+    /// jeder Versuch, es fortzusetzen, endet mit „URL nicht gefunden" (am
+    /// 18.08. in zwei Läufen nachgestellt: Paket trug `…/4EF79918…/`, installiert
+    /// war `…/81EBD4B0…/`).
+    ///
+    /// Deshalb liegt für die Pakete eine Kopie im Datenverzeichnis: dessen Pfad
+    /// bleibt über Updates gleich. Die Karte selbst lädt weiter direkt aus dem
+    /// Bundle — sie soll nicht davon abhängen, dass das Kopieren geklappt hat.
+    static func stableStyleURL(dark: Bool = false) -> URL {
+        let bundled = MapContainer.Coordinator.styleURL(dark: dark)
+        guard bundled.isFileURL else { return bundled }
+        let logger = Logger(subsystem: "de.leonvalentin.greenzones", category: "offline")
+        do {
+            let support = try FileManager.default.url(for: .applicationSupportDirectory,
+                                                      in: .userDomainMask,
+                                                      appropriateFor: nil, create: true)
+            let folder = support.appendingPathComponent("map", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let mirror = folder.appendingPathComponent(bundled.lastPathComponent)
+            let fresh = try Data(contentsOf: bundled)
+            // Nur schreiben, wenn sich etwas geändert hat: die Adresse muss
+            // gleich bleiben, der Inhalt darf mit einem Update wandern.
+            if (try? Data(contentsOf: mirror)) != fresh {
+                try fresh.write(to: mirror, options: .atomic)
+            }
+            return mirror
+        } catch {
+            logger.error("Stil-Kopie fehlgeschlagen: \(error.localizedDescription, privacy: .public)")
+            return bundled
+        }
     }
 
     /// Gebiet um diesen Punkt sichern. Ein zweiter Aufruf bei laufendem
@@ -83,10 +134,11 @@ final class OfflineMapStore {
             ne: CLLocationCoordinate2D(latitude: center.latitude + latDelta,
                                        longitude: center.longitude + lonDelta))
 
-        // Derselbe Style wie die Karte — sonst lüde das Paket andere Kacheln,
-        // als die App später zeichnet, und der Vorrat wäre wertlos.
+        // Derselbe Stil-Inhalt wie die Karte — sonst lüde das Paket andere
+        // Kacheln, als die App später zeichnet, und der Vorrat wäre wertlos.
+        // Die Adresse ist die update-feste Kopie, siehe `stableStyleURL`.
         let region = MLNTilePyramidOfflineRegion(
-            styleURL: MapContainer.Coordinator.styleURL(dark: false),
+            styleURL: Self.stableStyleURL(),
             bounds: bounds, fromZoomLevel: Self.minZoom, toZoomLevel: Self.maxZoom)
 
         state = .downloading(fraction: 0, bytes: 0)
@@ -98,6 +150,7 @@ final class OfflineMapStore {
                     self.state = .failed(error.localizedDescription)
                     return
                 }
+                self.active = pack
                 pack?.resume()
             }
         }
@@ -112,12 +165,60 @@ final class OfflineMapStore {
             pack.suspend()
             MLNOfflineStorage.shared.removePack(pack) { _ in }
         }
+        active = nil
         state = .none
     }
+
+    #if DEBUG
+    /// Vorrat UND Zwischenspeicher leeren — nur für Testläufe.
+    ///
+    /// Ohne das ist `testSavingTheAreaStartsARealDownload` genau EINMAL
+    /// aussagekräftig: danach liegen die Kacheln im Simulator, der zweite
+    /// Download ist sofort fertig und meldet nie „Lädt". Der Lauf wird rot,
+    /// ohne dass etwas kaputt wäre — und kostet die nächste Sitzung eine
+    /// Fehldiagnose. Der Zustand des Prüflings darf nicht vom vorigen Lauf
+    /// abhängen.
+    /// `resetDatabase` statt `removeAll` + `clearAmbientCache`: die Paketliste
+    /// ist direkt nach dem Start noch nicht geladen (`packs` ist `nil`), ein
+    /// Aufräumen über sie greift also ins Leere — gemessen, der zweite Lauf war
+    /// weiterhin rot. `resetDatabase` löscht die ganze Datei, Pakete und
+    /// Zwischenspeicher zusammen, und wartet nicht auf die Liste.
+    func resetForTesting() {
+        active = nil
+        state = .none
+        MLNOfflineStorage.shared.resetDatabase { [logger] error in
+            if let error {
+                logger.error("Kartenspeicher nicht zurückgesetzt: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+    #endif
 
     // MARK: - Intern
 
     private static let context = Data("gz-umgebung".utf8)
+
+    /// Das Paket, das dieser Lauf angelegt hat.
+    private var active: MLNOfflinePack?
+
+    /// Bestand übernehmen — und dabei aussortieren, was aus einer früheren
+    /// Installation stammt und nie fertig werden kann: solche Pakete tragen
+    /// eine Bundle-Adresse, die es nicht mehr gibt.
+    private func adopt(_ packs: [MLNOfflinePack]) {
+        let stable = Self.stableStyleURL()
+        let usable = packs.filter { pack in
+            guard let style = (pack.region as? MLNTilePyramidOfflineRegion)?.styleURL else { return true }
+            if style == stable { return true }
+            logger.log("Verwaistes Paket entfernt (Stil \(style.lastPathComponent, privacy: .public) aus alter Installation)")
+            MLNOfflineStorage.shared.removePack(pack) { _ in }
+            return false
+        }
+        // Ein ruhendes Paket führt keinen Fortschritt mit sich; ohne diese
+        // Anfrage stünden Zähler und Größe auf null und die Anzeige behauptete
+        // einen Anfang, den es nicht gibt.
+        usable.forEach { $0.requestProgress() }
+        apply(usable)
+    }
 
     private func observe() {
         let center = NotificationCenter.default
@@ -130,6 +231,11 @@ final class OfflineMapStore {
 
     private func handle(_ note: Notification) {
         guard let pack = note.object as? MLNOfflinePack else { return }
+        // Ein Fehler zählt nur für den Lauf, den der Nutzer gerade angestoßen
+        // hat. Sonst kippt ein liegengebliebenes Paket aus einer früheren
+        // Installation die Anzeige auf „Sichern fehlgeschlagen", während der
+        // eigene Download läuft — genau das war am 18.08. zu sehen.
+        if note.name == .MLNOfflinePackError, active !== pack { return }
         if note.name == .MLNOfflinePackError {
             let error = note.userInfo?[MLNOfflinePackUserInfoKey.error] as? NSError
             logger.error("Paket-Fehler: \(error?.localizedDescription ?? "unbekannt", privacy: .public)")

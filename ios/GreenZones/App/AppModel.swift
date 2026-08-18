@@ -195,6 +195,12 @@ final class AppModel {
         // W3: Fixture-Laeufe fahren den Bestand selbst; der Sync wuerde ihn nur
         // mit einem leeren Snapshot bewerten und den Screenshot verwaessern.
         #if DEBUG
+        // Der Kartenvorrat ueberlebt eine Neuinstallation der App nicht, wohl
+        // aber jeden weiteren Lauf auf demselben Simulator — und macht den
+        // naechsten Test-Lauf blind.
+        if ProcessInfo.processInfo.environment["GZ_OFFLINE_RESET"] == "1" {
+            offlineMap.resetForTesting()
+        }
         applyDebugSearchFixtures()
         if DebugEnvironment.usesFixtures {
             CommunityFixtures.seed(community, route: DebugEnvironment.route, clock: clock)
