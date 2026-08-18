@@ -62,6 +62,14 @@ targets:
       # still eine App ohne Ortsverzeichnis bauen.
       - path: GreenZones/Resources/Generated/places.sqlite
         buildPhase: resources
+      # Karten-Style im Bundle. Einzeln gelistet aus demselben Grund wie oben:
+      # fehlt er, soll der Bau scheitern. Er traegt nicht nur das Aussehen —
+      # die Zonen-Layer haengen an seinem Lade-Ereignis, ohne ihn zeigt die
+      # Karte ohne Empfang gar nichts an.
+      - path: GreenZones/Resources/Map/style-positron.json
+        buildPhase: resources
+      - path: GreenZones/Resources/Map/style-dark.json
+        buildPhase: resources
     dependencies:
       - package: MapLibre
         product: MapLibre

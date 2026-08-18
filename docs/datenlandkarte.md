@@ -119,11 +119,22 @@ der `LocationService` kennt CloudKit nicht.
 
 ### 3.2 `tiles.openfreemap.org` — das Kartenbild
 
-Die Grundkarte ist **nicht** offline. `MapContainer.swift:162-166` lädt den
-Style, daraus Vektorkacheln, Schriften und Symbole. Bei jeder Kartenbewegung
-gehen Kachelkoordinaten dorthin, also **der betrachtete Ausschnitt plus
-IP-Adresse**. Bei jedem Hell/Dunkel-Wechsel wird der Style neu geladen
-(`MapContainer.swift:199-205`). Betreiber ist OpenFreeMap, nicht GreenZones.
+Die Grundkarte ist **nicht** offline: Vektorkacheln, Schriften und Symbole
+kommen von dort. Bei jeder Kartenbewegung gehen Kachelkoordinaten dorthin, also
+**der betrachtete Ausschnitt plus IP-Adresse**. Betreiber ist OpenFreeMap, nicht
+GreenZones.
+
+**Der Style selbst liegt seit dem 18.08. im Bundle**
+(`GreenZones/Resources/Map/style-{positron,dark}.json`, in `project.yml` einzeln
+gelistet). Vorher wurde auch er geladen — und weil die Zonen-Layer in
+`didFinishLoading style:` eingehängt werden, hing die **Zonen-Anzeige** damit am
+Netz: ohne Empfang eine leere Fläche, obwohl `zones.pmtiles` im Bundle liegt.
+Im Bild nachgestellt und bestätigt. Jetzt zeigt die Karte ohne Netz die
+vollständigen Zonen, es fehlen nur Straßen, Namen und Wasser.
+
+Die Kachel-Quelle bleibt bewusst eine `url:`-Referenz auf das TileJSON: die
+Kachel-Adresse darin trägt einen Datumsstempel des Datensatzes und würde fest
+eingebacken irgendwann auf einen abgeräumten Stand zeigen.
 
 Ohne Netz bleiben Rechtsstatus, Zonenflächen, Ortssuche und alle lokalen Daten
 nutzbar — nur das Kartenbild fehlt.

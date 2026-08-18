@@ -159,10 +159,33 @@ struct MapContainer: UIViewRepresentable {
             self.timeActive = timeActive
         }
 
+        /// Der Karten-Style liegt im Bundle, nicht im Netz.
+        ///
+        /// Bis zum 18.08. wurde er von `tiles.openfreemap.org` geladen. Das hat
+        /// nicht nur das Kartenbild ans Netz gehaengt, sondern auch die
+        /// **Zonen**: `installZoneLayers` laeuft in `didFinishLoading style:`,
+        /// und ohne Style feuert der nie. Ohne Empfang stand die App also mit
+        /// leerer Flaeche da — obwohl `zones.pmtiles` im Bundle liegt und die
+        /// Statuszeile unten munter weiterrechnete. Im Bild nachgestellt und
+        /// bestaetigt (Sonde mit unerreichbarem Host).
+        ///
+        /// Die Kachel-Quelle im Style bleibt bewusst eine `url:`-Referenz auf
+        /// das TileJSON: dessen Kachel-Adresse traegt einen Datumsstempel des
+        /// Datensatzes. Fest eingebacken zeigte die App irgendwann auf einen
+        /// abgeraeumten Stand.
         static func styleURL(dark: Bool) -> URL {
-            URL(string: dark
-                ? "https://tiles.openfreemap.org/styles/dark"
-                : "https://tiles.openfreemap.org/styles/positron")!
+            let name = dark ? "style-dark" : "style-positron"
+            if let local = Bundle.main.url(forResource: name, withExtension: "json") {
+                return local
+            }
+            // Kein stiller Rueckfall: das hier ist der alte Zustand, und er
+            // steht als Fehler im Log. Die Datei ist in `project.yml` einzeln
+            // gelistet, damit ihr Fehlen schon den Bau anhaelt.
+            Logger(subsystem: "de.leonvalentin.greenzones", category: "map")
+                .error("\(name, privacy: .public).json fehlt im Bundle — Karte laeuft ueber das Netz, Zonen brauchen dann Empfang")
+            return URL(string: dark
+                       ? "https://tiles.openfreemap.org/styles/dark"
+                       : "https://tiles.openfreemap.org/styles/positron")!
         }
 
         // MARK: - Erstbestueckung
