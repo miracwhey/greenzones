@@ -3,28 +3,19 @@ import Foundation
 
 /// Vollabzug einer Zone — geteilt zwischen App und Notification-Extension.
 ///
-/// Beide brauchen dieselbe Leseart (SPEC 11: „Konstanten und `fetchAllRecords`
+/// Beide brauchen dieselbe Leseart (SPEC 11: „Konstanten und der Zonen-Leser
 /// aus `GreenZonesKit`, kein Duplikat mehr"). Ein zweites, eigenes Exemplar in
 /// der Extension driftet unbemerkt ab: sie laeuft nur bei Push, und ihr Fehler
 /// sieht aus wie ein fehlender Push.
+///
+/// Es gibt hier bewusst nur EINE Leseart, und die verlangt `desiredKeys`.
+/// Frueher stand daneben eine bequeme Fassung ohne Feldliste — die Extension
+/// griff zu ihr und zog damit bei jedem Push saemtliche Fotos aller Freunde in
+/// einen Prozess mit hartem Speicherlimit. Solange beide Fassungen
+/// nebeneinanderstehen, waehlt irgendwann wieder jemand die falsche; deshalb
+/// gibt es die andere nicht mehr. Wer Bilder braucht, holt sie einzeln
+/// (`CloudKitGateway.loadThumbs`/`loadPhoto`), nie im Abzug.
 public enum CKZoneReader {
-    /// `since: nil` liefert alle Records; der zurueckgegebene Token wird nur
-    /// innerhalb dieses Aufrufs zum Weiterblaettern gebraucht, nie gespeichert.
-    public static func fetchAllRecords(in zoneID: CKRecordZone.ID,
-                                       from database: CKDatabase) async throws -> [CKRecord] {
-        var records: [CKRecord] = []
-        var token: CKServerChangeToken?
-        while true {
-            let result = try await database.recordZoneChanges(inZoneWith: zoneID, since: token)
-            for (_, modification) in result.modificationResultsByID {
-                if case .success(let change) = modification { records.append(change.record) }
-            }
-            token = result.changeToken
-            if !result.moreComing { break }
-        }
-        return records
-    }
-
     /// Vollabzug OHNE die schweren Felder.
     ///
     /// Fuer Zonen mit Snaps ist das Pflicht: ein Abzug mit `thumb` und `photo`

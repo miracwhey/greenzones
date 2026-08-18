@@ -36,7 +36,12 @@ final class NotificationService: UNNotificationServiceExtension {
         logger.info("Push empfangen (scope \(note.databaseScope.rawValue, privacy: .public))")
         Task { [logger] in
             await EventComposer(scope: note.databaseScope).compose(into: content)
-            logger.info("Text: \(content.title.isEmpty ? "Fallback" : content.title, privacy: .public) — \(content.body, privacy: .public)")
+            // Der fertige Text enthaelt Klartextnamen von Freunden. Das
+            // Systemprotokoll ueberlebt die App und ist von aussen lesbar, also
+            // geht hier nur die Diagnose-Frage raus, die wir wirklich stellen:
+            // hat die Extension einen Text gebaut oder bleibt der Fallback? Der
+            // Text selbst ist am Geraet ohnehin auf dem Sperrbildschirm zu sehen.
+            logger.info("Betextet: \(content.title.isEmpty ? "nein, Fallback bleibt" : "ja", privacy: .public)")
             contentHandler(content)
         }
     }
@@ -82,7 +87,12 @@ private struct EventComposer {
         guard let zones = try? await database.allRecordZones() else { return }
         var all: [FoundRecord] = []
         for zone in zones where CKZoneReader.isGreenZonesZone(zone.zoneID.zoneName) {
-            guard let records = try? await CKZoneReader.fetchAllRecords(in: zone.zoneID, from: database) else {
+            // Ohne Feldliste zoege dieser Abzug `thumb` und `photo` jedes Snaps
+            // mit — in einen Prozess, den das System bei wenigen Dutzend MB
+            // abraeumt. Ein abgeraeumter Betexter sieht von aussen aus wie ein
+            // Push ohne Text, also genau wie der Fehler, den er beheben soll.
+            guard let records = try? await CKZoneReader.fetchRecords(in: zone.zoneID, from: database,
+                                                                    desiredKeys: CKSchema.Field.lightweight) else {
                 continue
             }
             all.append(contentsOf: records.map { FoundRecord(record: $0, zoneID: zone.zoneID) })

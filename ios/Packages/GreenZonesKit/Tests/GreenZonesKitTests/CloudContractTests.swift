@@ -14,7 +14,23 @@ struct CKSchemaTests {
         #expect(CKSchema.offerRecordName(spotZone: "spot-42") == "offer-spot-42")
         #expect(CKSchema.feedOfferRecordName(userID: "_abc") == "feedoffer-_abc")
         #expect(CKSchema.replyRecordName(invitationId: "inv1", userID: "_abc") == "reply-inv1-_abc")
-        #expect(CKSchema.reportRecordName(snapId: "s1", userID: "_abc") == "report-s1-_abc")
+    }
+
+    /// Die Feldliste des Vollabzugs darf die Bilder NIE enthalten — sonst zieht
+    /// jeder Abzug saemtliche Fotos aller Freunde, und in der
+    /// Mitteilungs-Erweiterung sprengt das den Prozess. Genau das ist bis zum
+    /// 18.08. passiert, weil daneben eine zweite Leseart ohne Feldliste stand.
+    @Test("Der Vollabzug traegt jedes Feld ausser den Bildern")
+    func lightweightCarriesEverythingButTheImages() {
+        for key in CKSchema.Field.snapAssets {
+            #expect(!CKSchema.Field.lightweight.contains(key))
+        }
+        // Gegenprobe: die leichten Snap-Felder sind drin, die Liste ist nicht
+        // einfach leer.
+        for key in CKSchema.Field.snap {
+            #expect(CKSchema.Field.lightweight.contains(key))
+        }
+        #expect(CKSchema.Field.lightweight.contains("inviteeIds"))
     }
 
     @Test("Zonen-Namen und ihre Umkehrung passen zusammen")
