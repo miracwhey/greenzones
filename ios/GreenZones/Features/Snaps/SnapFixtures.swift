@@ -6,11 +6,15 @@ import UIKit
 
 /// Fixture-Snaps der Screenshot-Routen (SPEC 12/14.4).
 ///
-/// Die vier Bilder sind die Duotone-Fixtures aus dem Spike — keine Fremdfotos,
-/// keine Personen. Sie laufen durch DIESELBE Pipeline wie eine echte Aufnahme
-/// (verkleinern, drehen, GPS raus) und landen als echte Dateien im
-/// Fixture-Ablageort: das Bild im Screenshot ist damit dasselbe Bild, das die
-/// App auch sonst zeigt, nur die Quelle ist eine andere.
+/// Die vier Bilder sind Aufnahmen aus Wikimedia Commons (keine Personen). Sie
+/// laufen durch DIESELBE Pipeline wie eine echte Aufnahme (verkleinern, drehen,
+/// GPS raus) und landen als echte Dateien im Fixture-Ablageort: das Bild im
+/// Screenshot ist damit dasselbe Bild, das die App auch sonst zeigt, nur die
+/// Quelle ist eine andere.
+///
+/// ⚠️ Fremde Bilder: fuer Beweis-Screenshots in Ordnung, fuer Store-Material
+/// nicht — CC BY-SA verlangt Namensnennung. Wer sie durch eigene Fotos ersetzt,
+/// macht damit auch Album und Kamera fuer den Store frei.
 ///
 /// Nur `#if DEBUG`, und die JPEGs sind in Release/Distribution aus dem Bundle
 /// ausgeschlossen (`EXCLUDED_SOURCE_FILE_NAMES` in `project.yml`).

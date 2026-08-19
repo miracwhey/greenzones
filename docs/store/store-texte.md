@@ -1,6 +1,6 @@
 # Store-Angaben GreenZones 2.0
 
-Stand 18.08.2026. Gilt für App-ID **6798829082**, `MARKETING_VERSION 2.0`,
+Stand 19.08.2026. Gilt für App-ID **6798829082**, `MARKETING_VERSION 2.0`,
 `CURRENT_PROJECT_VERSION 4`.
 
 Alle Texte hängen an `docs/datenlandkarte.md` — wer dort etwas ändert, ändert
@@ -8,8 +8,18 @@ hier mit. Und sie sind **konsumneutral** formuliert (App Store Review 1.4.3):
 die App beschreibt, wo das Gesetz Grenzen zieht, sie fordert zu nichts auf,
 bewirbt nichts und nennt keine Bezugsquellen.
 
-⚠️ Nichts davon ist eingetragen. Das Eintragen geschieht in der Web-UI von App
-Store Connect (die API darf keine App-Infos anlegen) — und erst auf Leons Wort.
+✅ **Am 19.08. in App Store Connect eingetragen** (Web-UI; die API darf keine
+App-Infos anlegen) und nach einem Neuladen der Seite feldweise gegengelesen:
+Name, Untertitel, Kategorien, Beschreibung, Werbetext, Schlüsselwörter,
+Support-URL, Version 2.0, Copyright, Review-Anmerkungen samt Kontakt,
+Datenschutz-URL, Altersfreigabe, Inhaltsrechte, Preis und Verfügbarkeit.
+
+Offen bleiben nur die **Screenshots** (siehe unten) und der **Build**.
+
+⚠️ **Nicht von mir gemacht, weil es Leon selbst tun muss:** App Store Connect
+meldet auf der Apps-Übersicht eine aktualisierte Lizenzvereinbarung des Apple
+Developer Program. Bis der Accountinhaber sie im Bereich „Verträge" annimmt,
+lässt sich keine Version zur Prüfung übermitteln.
 
 ---
 
@@ -21,7 +31,7 @@ Store Connect (die API darf keine App-Infos anlegen) — und erst auf Leons Wort
 | **Untertitel** | `Wo §5 KCanG Grenzen zieht` | 25 / 30 |
 | **Werbetext** (jederzeit änderbar) | `Neu: Karte auch ohne Netz, Spots mit Freunden, Bilder im eigenen Kreis.` | 71 / 170 |
 | **Keywords** | `KCanG,Cannabisgesetz,Konsumverbot,Schutzzone,Karte,Abstand,100 Meter,Fußgängerzone,Recht,Offline` | 98 / 100 |
-| **Primäre Kategorie** | Referenz | — |
+| **Primäre Kategorie** | Referenz (in der deutschen UI: „Nachschlagewerke") | — |
 | **Sekundäre Kategorie** | Navigation | — |
 | **Copyright** | `2026 Leon Karim Valentin` | — |
 
@@ -147,6 +157,26 @@ API-Nutzung nur `UserDefaults` mit Grund `CA92.1`.
 Im Fragebogen ist **eine** Frage einschlägig: Hinweise auf Drogen oder Alkohol.
 
 **Von Leon bestätigt (18.08.): „Selten/schwach" (Infrequent/Mild) → 17+.**
+
+**Eingetragen 19.08. — mit einer Abweichung, die Leon entschieden hat.** Apples
+Fragebogen ist inzwischen siebenstufig und kennt kein 17+ mehr; aus den Antworten
+(nur „Drogenverweise: selten", alles andere „nie") rechnet er **13+**. Leon hat
+auf **18+ überschrieben** — das ist die nächste Stufe über 16+ und entspricht der
+Linie von 17+: KCanG gilt für Erwachsene, und ein Rückläufer wegen Richtlinie
+1.4.3 kostet mehr als die höhere Grenze. Gilt in 173 Ländern.
+
+Die übrigen Antworten, weil zwei davon streitbar sind:
+
+| Frage | Antwort | Warum |
+|---|---|---|
+| Benutzergenerierte Inhalte | **ja** | Shots sind vom Nutzer erstellt und Kern der App. Apples Definition nennt „weite Verbreitung", die hier fehlt — „ja" ist trotzdem die konservative Antwort und deckt sich mit den Review-Notes zu 1.2. |
+| Soziale Medien | **nein** | Die Definition verlangt Feed oder Entdecken-Funktion, „sichtbar an viele". Beides gibt es nicht: Freundschaft entsteht nur über einen persönlich verschickten Link. |
+| Uneingeschränkter Internetzugriff, Nachrichten/Chat, Werbung, Kindersicherung, Altersnachweis | nein | — |
+| alle Inhaltsfragen außer Drogen | nie | — |
+
+**Inhaltsrechte: „Ja, mit den erforderlichen Rechten."** Die App zeigt fremde
+Inhalte — OpenStreetMap-Daten und das Kartenbild von OpenFreeMap. Beides ist
+lizenziert und wird in der App und im Store genannt.
 
 Warum nicht „keine": die App nennt Cannabis beim Namen und bezieht sich auf das
 Konsumcannabisgesetz. Eine Einstufung, die das verschweigt, wäre angreifbar —
