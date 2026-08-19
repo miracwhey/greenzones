@@ -4,6 +4,32 @@ Stand: 2026-08-06 · Ergänzt `konzept-community-local-first.md` (Produktregeln 
 Dieser Contract ist das Design-Gate zwischen Swift-Plugin (Builder A) und TS-Sync-Layer (Builder B):
 beide bauen exakt gegen die hier definierte API. Abweichungen nur mit Begründung im Ergebnis-Report.
 
+## Schema in Production — Stand 19.08.2026
+
+**Deployt und feldweise gegengelesen.** Bis dahin fehlte in Production praktisch
+die gesamte v2: die Typen `Snap`, `Feed` und `FeedOffer` gab es dort gar nicht,
+`Profile` hatte kein `emoji` (der bekannte Build-3-Fall), `Invitation` kein
+`inviteeIds`. Ein Store-Build hätte keinen einzigen Shot hochladen können.
+
+Zwei Felder fehlten sogar in **Development**, und zwar aus demselben Grund:
+CloudKit legt ein Feld erst an, wenn es einmal mit einem Wert geschrieben wurde.
+
+| Feld | Wird nur geschrieben, wenn … |
+|---|---|
+| `Invitation.inviteeIds` | die Einladung an eine **Auswahl** geht (leer = alle Spot-Mitglieder → `nil`) |
+| `Snap.spotZone` | ein **Feed**-Snap zu einem Spot gehört (in der Spot-Zone ist die Zone der Spot) |
+
+Beide wurden von Hand angelegt (`String (List)` bzw. `String`) und mit deployt.
+
+> **Regel daraus:** Ein Feld hinter einer Bedingung existiert im Schema erst,
+> wenn die Bedingung mindestens einmal eingetreten ist. Vor jedem Production-Deploy
+> deshalb `CKSchema.Field` gegen die Feldliste **beider** Umgebungen halten — nicht
+> nur Development gegen Production.
+
+Die Security-Rolle `_world` bekam beim Deploy Lesen auf `Feed`, `FeedOffer` und
+`Snap`. Das ist Apples Standard für neue Record-Typen und folgenlos: die App
+benutzt keine öffentliche Datenbank, dort liegt kein einziger Record.
+
 ## Rahmen
 
 - Container: `iCloud.de.leonvalentin.greenzones` · Team `KXJRXU59ZB` · Deployment-Target iOS 15 → **klassische CKOperations, KEIN CKSyncEngine** (iOS 17+).
