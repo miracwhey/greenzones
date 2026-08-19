@@ -30,8 +30,15 @@ settings:
     SWIFT_STRICT_CONCURRENCY: targeted
     MARKETING_VERSION: "2.0"
     # v1-TestFlight endete bei Build 3.
-    CURRENT_PROJECT_VERSION: "4"
-    TARGETED_DEVICE_FAMILY: "1"
+    CURRENT_PROJECT_VERSION: "5"
+    # TARGETED_DEVICE_FAMILY steht bewusst NICHT hier: xcodegen schreibt jedem
+    # Target seinen eigenen Default "1,2", und Target-Settings schlagen
+    # Projekt-Settings. Ein Wert an dieser Stelle sieht richtig aus und wirkt
+    # nicht — Build 4 ging deshalb als iPad-App zu Apple und wurde bei der
+    # Einreichung mit SCREENSHOT_REQUIRED.APP_IPAD_PRO_3GEN_129 abgewiesen.
+    # Der Wert gehoert in `settings.base` JEDES Targets (siehe unten).
+    # Pruefen nie an dieser Datei, immer an der Autorität:
+    #   xcodebuild -target <T> -configuration Distribution -showBuildSettings
     ENABLE_USER_SCRIPT_SANDBOXING: NO
   configs:
     Debug:
@@ -110,6 +117,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: GreenZones/Resources/GreenZones.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: ""
+        # Nur iPhone. Hochformat-Sperre, UIRequiresFullScreen und jedes Blatt
+        # sind auf iPhone-Breite gerechnet; als iPad-App waere das ausgeliefert,
+        # ohne je auf einem iPad gelaufen zu sein.
+        TARGETED_DEVICE_FAMILY: "1"
       configs:
         # W5: Die vier Fixture-Fotos der Screenshot-Routen liegen im Bundle,
         # aber NUR im Debug-Build — der Fixture-Pfad selbst ist `#if DEBUG`.
@@ -135,6 +146,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(GZ_BUNDLE_ID).uitests
         TEST_TARGET_NAME: GreenZones
         GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
 
   NotificationService:
     type: app-extension
@@ -159,6 +171,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(GZ_BUNDLE_ID).NotificationService
         CODE_SIGN_ENTITLEMENTS: NotificationService/NotificationService.entitlements
+        # Die appex geht mit ins Bundle — eine iPad-faehige Extension in einer
+        # iPhone-App ist genau die Inkonsistenz, die die Validierung findet.
+        TARGETED_DEVICE_FAMILY: "1"
 
 schemes:
   GreenZones:

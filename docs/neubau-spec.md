@@ -81,6 +81,13 @@ Entitlements: iCloud-Container + CloudKit-Service wie v1; **`aps-environment` = 
 
 Signing: Automatic, Team `KXJRXU59ZB`. Versionen: `MARKETING_VERSION 2.0`, `CURRENT_PROJECT_VERSION` beginnt bei **4** (v1-Build 3 ist der letzte).
 
+**Nur iPhone: `TARGETED_DEVICE_FAMILY "1"` — und zwar in `settings.base` JEDES Targets, nicht auf Projekt-Ebene.**
+xcodegen schreibt jedem Target seinen Default `"1,2"`, und Target-Settings schlagen Projekt-Settings; ein Wert oben
+sieht richtig aus und wirkt nicht. Build 4 ging deshalb als iPad-App zu Apple und wurde bei der Einreichung mit
+`STATE_ERROR.SCREENSHOT_REQUIRED.APP_IPAD_PRO_3GEN_129` abgewiesen — kein Feld in App Store Connect zeigt das vorher an.
+Geprüft wird nie an `project.yml`, sondern an der Autorität, je Target:
+`xcodebuild -target <T> -configuration Distribution -showBuildSettings | grep TARGETED_DEVICE_FAMILY`.
+
 **Konfigurationen (xcodegen `configs`):** `Debug`, `Release` und `Distribution`. Debug/Release = Entwicklungs-Builds mit
 `PRODUCT_BUNDLE_IDENTIFIER de.leonvalentin.greenzones.dev` (NSE `…​.dev.NotificationService`) und `CFBundleDisplayName GZ Dev` —
 damit ein Geräte-Build während W1–W5 die installierte v1-TestFlight-App auf Leons iPhone NICHT ersetzt. `Distribution` = Store-Identität
