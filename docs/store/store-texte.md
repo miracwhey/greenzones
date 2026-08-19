@@ -208,27 +208,45 @@ per `simctl status_bar override --time 9:41`. Sie liegen in `ios/shots/store/`
 | `05_daten.png` | Onboarding „Deine Daten bleiben deine" |
 | `06_offline.png` | „Karte & Daten" mit „Umgebung sichern (20 km, ca. 70 MB)" |
 
-**Das sind rohe Gerätebilder, noch kein Store-Auftritt.** Was fehlt, ist der
-Marketing-Schritt: eine Textzeile je Bild und ein einheitlicher Hintergrund.
-Der gehört vor den Bau abgenommen (Mockup-Regel).
+### Der Store-Auftritt — gebaut, abgenommen, hochgeladen
 
-Dabei mit erledigen: In fünf der sechs Bilder schiebt sich ein Kartenlabel
-(„ALTSTADT") hinter die Uhrzeit der Statusleiste. Das steht im Kartenbild, nicht
-in der App — ein Rahmen oder Geräterahmen im Store-Auftritt deckt es ab. Den
-Fixture-Standort dafür zu verschieben wäre der falsche Weg: seine Lage ist gegen
-Wasserfläche, Gebäude und Zonen gemessen.
+`ios/Scripts/store_frames.py` macht daraus die Store-Bilder: **direkt in
+1320 × 2868 gezeichnet**, nicht hochskaliert, damit die Schrift scharf bleibt.
+Bild 1 als Vollbild mit dunkler Textfläche darunter, die übrigen hell mit
+Textzeile oben. Ein Lauf dauert zwei Sekunden.
 
-⚠️ **Zwei Dinge zu klären, bevor der Satz hochgeht:**
+Die **Statusleiste wird in beiden Auftritten abgeschnitten** (205 px). Damit ist
+auch das Kartenlabel „ALTSTADT" weg, das sich in fünf von sechs Aufnahmen hinter
+die Uhrzeit schob — abschneiden löst es, ein Rahmen hätte es nur verdeckt. Den
+Fixture-Standort dafür zu verschieben wäre der falsche Weg gewesen: seine Lage
+ist gegen Wasserfläche, Gebäude und Zonen gemessen.
 
-1. **Fremde Fotos.** Die Fixture-Bilder in Album und Bild-Pins sind Aufnahmen
-   aus Wikimedia Commons. Für Beweisbilder in Ordnung, für Store-Screenshots
-   nicht: dort sind sie Werbematerial und tragen fremde Lizenzbedingungen
-   (CC BY-SA verlangt Namensnennung). Auf `03_zugang.png` ist der Foto-Fächer
-   am Spot-Pin hinter dem Blatt noch als Daumennagel zu sehen. Sauberste Lösung:
-   drei eigene Fotos aufnehmen und die Fixtures damit ersetzen — dann sind auch
-   Album- und Kamera-Bilder für den Store frei.
-2. **Keine Aufnahme „ohne Netz".** Das stärkste Argument der Version lässt sich
-   im Simulator nicht fotografieren (Netz kappen ohne Adresswechsel geht dort
-   nicht). Entweder auf dem Gerät im Flugmodus aufnehmen — das steht ohnehin
-   auf der Liste für den Geräte-Lauf — oder es bleibt bei `06_offline.png`, das
-   die Zusage nur beschreibt.
+Leon-Abnahme 19.08. über das Artifact
+`77bf43eb-e432-4cc1-b447-3b4dfb3e7976` („Passt, hochladen").
+
+**Hochgeladen** ins Set `APP_IPHONE_67` (de-DE). Die Weboberfläche taugt dafür
+schlecht: mehrere Dateien auf einmal landen in beliebiger Reihenfolge, und
+sortieren geht nur per Drag. Deshalb `ios/Scripts/asc_screenshots.mjs` —
+dort ist die Reihenfolge ein eigener Aufruf.
+
+**Eigene Fotos statt Wikimedia — erledigt 19.08.** Leon hat vier Aufnahmen
+geliefert; drei davon sind verwendbar (die vierte war ein Screenshot). Daraus
+wurden die vier Fixtures in 3:4 zugeschnitten:
+
+| Fixture | Aufnahme |
+|---|---|
+| `snap1.jpg` | Abendlicht über der Stadt, Park und Fluss |
+| `snap2.jpg` | Balkonmauer mit Tee und Tulpen, Stadt dahinter |
+| `snap3.jpg` | Capitol bei Nacht, blaue Leuchtschrift |
+| `snap4.jpg` | enger Ausschnitt derselben Abendaufnahme: Steg am Wasser |
+
+⚠️ **Beim Zuschneiden wurden die Metadaten entfernt.** Die Originale trugen
+GPS-Koordinaten (52°22′ N, 9°43′ E) — die Wohnung des Fotografen. Wer die
+Fixtures künftig austauscht, muss das ebenso tun: die Kamera-Pipeline der App
+streift GPS ab, die Dateien im Repo laufen nicht durch sie hindurch.
+
+⚠️ **Weiter offen: keine Aufnahme „ohne Netz".** Das stärkste Argument der
+Version lässt sich im Simulator nicht fotografieren (Netz kappen ohne
+Adresswechsel geht dort nicht). Entweder auf dem Gerät im Flugmodus aufnehmen —
+das steht ohnehin auf der Liste für den Geräte-Lauf — oder es bleibt bei
+`06_offline.png`, das die Zusage nur beschreibt.
