@@ -163,13 +163,15 @@ keine Bezugsquelle; das Thema ist der räumliche Geltungsbereich eines Gesetzes.
 Pflicht ist **ein** Satz für 6,9 Zoll (1320 x 2868). Ältere Größen darf Apple
 daraus ableiten.
 
-**Aufgenommen am 18.08., Simulator iPhone 17 Pro Max, 1320 x 2868 nachgemessen,
-Statusleiste auf 9:41 festgesetzt.** Sie liegen in `ios/shots/store/`
+**Neu aufgenommen am 19.08.** (nach der Zonen-Erweiterung und der Verlegung der
+Fixture-Orte aus dem Maschsee), Simulator iPhone 17 Pro Max
+`910999EE-5AC2-43F3-815D-5CAFE7B77C33`, 1320 x 2868 nachgemessen, Statusleiste
+per `simctl status_bar override --time 9:41`. Sie liegen in `ios/shots/store/`
 (gitignoriert, überleben aber die Sitzung):
 
 | Datei | Zeigt |
 |---|---|
-| `01_karte.png` | Karte mit Zonen, Standort, Statuszeile „Hier erlaubt · Verbotszone 109 m" |
+| `01_karte.png` | Karte mit Zonen, Standort, Statuszeile „Hier erlaubt · Verbotszone 104 m" |
 | `02_suche.png` | Suche „masch" mit sechs Ortstreffern und Entfernungen |
 | `03_zugang.png` | „Wer sieht ,Unsere Bank‘?" — Zugang als Auswahl |
 | `04_termin.png` | Einladen mit Zeitband, „Nur die Angehakten bekommen Bescheid" |
@@ -179,6 +181,12 @@ Statusleiste auf 9:41 festgesetzt.** Sie liegen in `ios/shots/store/`
 **Das sind rohe Gerätebilder, noch kein Store-Auftritt.** Was fehlt, ist der
 Marketing-Schritt: eine Textzeile je Bild und ein einheitlicher Hintergrund.
 Der gehört vor den Bau abgenommen (Mockup-Regel).
+
+Dabei mit erledigen: In fünf der sechs Bilder schiebt sich ein Kartenlabel
+(„ALTSTADT") hinter die Uhrzeit der Statusleiste. Das steht im Kartenbild, nicht
+in der App — ein Rahmen oder Geräterahmen im Store-Auftritt deckt es ab. Den
+Fixture-Standort dafür zu verschieben wäre der falsche Weg: seine Lage ist gegen
+Wasserfläche, Gebäude und Zonen gemessen.
 
 ⚠️ **Zwei Dinge zu klären, bevor der Satz hochgeht:**
 
