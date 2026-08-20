@@ -79,6 +79,13 @@ Kein Keychain (`kSec`/`SecItem`: 0 Treffer) · keine App-Group · kein
 `NSUbiquitousKeyValueStore` · keine gespeicherte Kartenposition · **nichts
 Lokales überlebt die Deinstallation.**
 
+**Der Code-Scanner (20.08.) speichert nichts.** Er liest die Kamera nur live
+zur QR-Erkennung (`AVCaptureMetadataOutput`, kein Foto-Ausgang im Graph) und
+nimmt ausschließlich iCloud-Share-URLs an (`InviteLink.isShareURL`); fremde
+Inhalte werden verworfen und landen weder auf der Platte noch im Protokoll.
+Der gezeigte Code ist die eigene Einladungs-URL als Bild — er wird aus ihr
+gerechnet (`InviteLink.qrImage`), nicht abgelegt.
+
 ---
 
 ## 3. Was das Gerät verlässt
@@ -214,7 +221,8 @@ Alle Freigaben stehen auf `publicPermission = .readWrite`
 (`CloudKitGateway.swift:155`, `:782`). Wer den Link hat, ist Teilnehmer und darf
 schreiben — auch wenn er ihn von jemand anderem bekommen hat. Das ist die
 gleiche Klasse wie die App-Trennung bei `inviteeIds`: eine Einladung ist ein
-Schlüssel, kein Ausweis.
+Schlüssel, kein Ausweis. Gilt unverändert für den QR-Code (20.08.): er trägt
+dieselbe Share-URL als Bild — abfotografiert ist er derselbe Schlüssel.
 
 **B6 — halb erledigt. Der Suchverlauf ließ sich nicht löschen.**
 `RecentsStore.clear()` existierte seit W2 ohne Aufrufer; der X-Knopf leert nur

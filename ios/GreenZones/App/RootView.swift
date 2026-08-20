@@ -6,6 +6,7 @@ enum RootCover: Identifiable, Equatable {
     case onboarding
     case camera(spotId: String?)
     case viewer(source: SnapSource, index: Int, hide: Bool)
+    case codeScanner
 
     var id: String {
         switch self {
@@ -13,6 +14,7 @@ enum RootCover: Identifiable, Equatable {
         case .camera(let spotId): return "camera-\(spotId ?? "free")"
         case .viewer(let source, let index, let hide):
             return "viewer-\(source.key)-\(index)-\(hide)"
+        case .codeScanner: return "scanner"
         }
     }
 }
@@ -40,6 +42,7 @@ struct RootView: View {
         case .camera(let spotId): return .camera(spotId: spotId)
         case .viewer(let source, let index, let hide):
             return .viewer(source: source, index: index, hide: hide)
+        case .codeScanner: return .codeScanner
         case nil: return nil
         }
     }
@@ -199,6 +202,8 @@ struct RootView: View {
             case .viewer(let source, let index, let hide):
                 SnapViewerView(model: community, source: source, startIndex: index,
                                autoHide: hide)
+            case .codeScanner:
+                CodeScannerView(model: community)
             }
         }
         // Das wandernde Bild liegt UEBER dem Vollbild: es soll bis zum letzten

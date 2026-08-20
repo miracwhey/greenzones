@@ -19,6 +19,10 @@ struct SPIcon: Shape {
         case pencil
         /// Personen-Silhouette im leeren Avatar.
         case person
+        /// „Freund hinzufügen": Person mit Plus.
+        case personAdd
+        /// Sucher-Ecken mit Scan-Linie — der Weg fuer den Beitretenden.
+        case scan
         /// FAB „Freunde".
         case friends
         /// FAB „Spot markieren" (Pin mit Plus).
@@ -113,6 +117,40 @@ struct SPIcon: Shape {
             path.move(to: p(4.5, 20.5))
             path.addCurve(to: p(12, 14.5), control1: p(5.7, 16.5), control2: p(8.5, 14.5))
             path.addCurve(to: p(19.5, 20.5), control1: p(15.5, 14.5), control2: p(18.3, 16.5))
+
+        case .personAdd:
+            // Person leicht nach links, damit das Plus rechts oben Luft hat
+            // (wie im abgenommenen Mockup `qr.html`).
+            path.addEllipse(in: CGRect(x: (10 - 3.6) * s, y: (8 - 3.6) * s,
+                                       width: 7.2 * s, height: 7.2 * s))
+            path.move(to: p(4, 19.5))
+            path.addCurve(to: p(10, 14.3), control1: p(4.6, 16.3), control2: p(7, 14.3))
+            path.addCurve(to: p(16, 19.5), control1: p(13, 14.3), control2: p(15.4, 16.3))
+            path.move(to: p(18.5, 6.5))
+            path.addLine(to: p(18.5, 11.5))
+            path.move(to: p(16, 9))
+            path.addLine(to: p(21, 9))
+
+        case .scan:
+            // Vier Ecken plus Mittellinie („M4 8V5.5A1.5 1.5 …M4 12h16").
+            path.move(to: p(4, 8))
+            path.addLine(to: p(4, 5.5))
+            path.addQuadCurve(to: p(5.5, 4), control: p(4, 4))
+            path.addLine(to: p(8, 4))
+            path.move(to: p(16, 4))
+            path.addLine(to: p(18.5, 4))
+            path.addQuadCurve(to: p(20, 5.5), control: p(20, 4))
+            path.addLine(to: p(20, 8))
+            path.move(to: p(20, 16))
+            path.addLine(to: p(20, 18.5))
+            path.addQuadCurve(to: p(18.5, 20), control: p(20, 20))
+            path.addLine(to: p(16, 20))
+            path.move(to: p(8, 20))
+            path.addLine(to: p(5.5, 20))
+            path.addQuadCurve(to: p(4, 18.5), control: p(4, 20))
+            path.addLine(to: p(4, 16))
+            path.move(to: p(4, 12))
+            path.addLine(to: p(20, 12))
 
         case .friends:
             path.addEllipse(in: CGRect(x: (9.5 - 3.4) * s, y: (8.5 - 3.4) * s,

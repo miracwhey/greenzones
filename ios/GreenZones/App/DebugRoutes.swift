@@ -72,6 +72,15 @@ enum DebugRoute: String {
     /// FAB-Spalte teilt.
     case toastMap = "toast_map"
 
+    // Freunde per Code (`mockup/qr.html`).
+    /// Das Freunde-Blatt im Code-Schritt: fertiger QR mit Fixture-URL.
+    case inviteCode = "invite_code"
+    /// Derselbe Schritt im ehrlichen Fehlerzustand (keine Cloud).
+    case inviteCodeOffline = "invite_code_offline"
+    /// Der Scanner als Vollbild. `GZ_SCAN_RESULT=<text>` speist nach dem
+    /// Settle einen erkannten Code ein — derselbe Weg wie ein echter Treffer.
+    case scanner
+
     /// Routen, deren zu messender Uebergang NICHT der erste Zustandswechsel
     /// ist: `viewer_tile` oeffnet zuerst das Blatt und erst danach den
     /// Betrachter. Sie setzen die Startmarke selbst — sonst zaehlte das
@@ -157,6 +166,11 @@ enum DebugEnvironment {
     static var onboardingStep: Int {
         environment["GZ_ONBOARDING_STEP"].flatMap(Int.init) ?? 0
     }
+
+    /// `GZ_SCAN_RESULT=<text>`: was der Scanner im Fixture-Lauf „erkennt".
+    /// Er nimmt denselben Weg wie ein Kamera-Treffer — Annahme-Regel,
+    /// Haptik, Accept-Aufruf inklusive.
+    static var scanResult: String? { environment["GZ_SCAN_RESULT"] }
 
     // MARK: - Bewegung fotografieren
 

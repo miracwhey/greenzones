@@ -30,11 +30,14 @@ enum SnapCover: Identifiable, Equatable {
     /// Wert reist IM Item mit — ein daneben liegender `@State` kaeme im
     /// Praesentations-Closure zu spaet an.
     case viewer(source: SnapSource, index: Int, hide: Bool)
+    /// Einladungs-Code scannen — dieselbe Vollbild-Ebene wie die Kamera.
+    case codeScanner
 
     var id: String {
         switch self {
         case .camera(let spotId): return "camera-\(spotId ?? "free")"
         case .viewer(let source, let index, let hide): return "viewer-\(source.key)-\(index)-\(hide)"
+        case .codeScanner: return "scanner"
         }
     }
 }

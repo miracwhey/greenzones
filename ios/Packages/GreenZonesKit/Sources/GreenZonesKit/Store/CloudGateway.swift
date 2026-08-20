@@ -12,6 +12,9 @@ public protocol CloudGateway: Sendable {
 
     /// Legt Friendship-Zone + Share + eigenes Profile an und liefert die Einladungs-URL.
     func createFriendInvite(displayName: String, emoji: String) async throws -> String
+    /// Einladung annehmen (Freund oder Spot) — der Weg des Code-Scanners.
+    /// Idempotent: ein bereits angenommener Share ist Erfolg, kein Fehler.
+    func acceptShare(urlString: String) async throws
     /// Aktualisiert den eigenen Profile-Record in allen Friendship-Zonen.
     /// Leeres `emoji` loescht das Zeichen.
     func setProfile(name: String, emoji: String) async throws
@@ -141,6 +144,8 @@ public struct NoCloudGateway: CloudGateway {
     public func createFriendInvite(displayName: String, emoji: String) async throws -> String {
         throw SyncError.noAccount
     }
+
+    public func acceptShare(urlString: String) async throws { throw SyncError.noAccount }
 
     public func setProfile(name: String, emoji: String) async throws { throw SyncError.noAccount }
 

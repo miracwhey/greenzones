@@ -39,6 +39,13 @@ final class FakeGateway: CloudGateway, @unchecked Sendable {
         return "https://www.icloud.com/share/\(displayName)"
     }
 
+    private(set) var acceptedShareURLs: [String] = []
+
+    func acceptShare(urlString: String) async throws {
+        try guardCall("acceptShare")
+        acceptedShareURLs.append(urlString)
+    }
+
     func setProfile(name: String, emoji: String) async throws {
         try guardCall("setProfile")
     }

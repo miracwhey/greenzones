@@ -105,7 +105,7 @@ struct SpotDetailSheet: View {
             }
             Button("Abbrechen", role: .cancel) { removingFriend = nil }
         } message: { friend in
-            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über einen neuen Einladungs-Link.")
+            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über eine neue Einladung.")
         }
     }
 

@@ -160,6 +160,13 @@ enum CommunityFixtures {
                 }
             case .friends, .profileEmpty:
                 model.sheet = .friends(intent: nil)
+            // Das Blatt liest die Route selbst und startet im Code-Schritt
+            // (gleiches Muster wie `GZ_SHARE_OPEN` im Spot-Blatt).
+            case .inviteCode, .inviteCodeOffline:
+                model.sheet = .friends(intent: nil)
+            case .scanner:
+                model.sheet = .friends(intent: nil)
+                model.openScanner()
             case .profile:
                 // Wie der Tap auf die eigene Profilzeile in der Liste.
                 model.sheet = .friends(intent: .edit)

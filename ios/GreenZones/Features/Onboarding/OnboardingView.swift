@@ -232,8 +232,8 @@ extension OnboardingView {
             title: "Orte, die euch gehören",
             lead: ["Ein Spot ist ein Platz, den du mit Freunden teilst. Eure Bank, euer Park."],
             rows: [
-                Row(icon: AnyShape(SPIcon(kind: .share)), color: GZ.accent, title: "Per Link einladen",
-                    text: "Ohne Konto, ohne Adressbuch. Du schickst einen Link, fertig."),
+                Row(icon: AnyShape(SPIcon(kind: .share)), color: GZ.accent, title: "Per Code oder Link einladen",
+                    text: "Ohne Konto, ohne Adressbuch. Dein Freund scannt deinen Code — oder du schickst einen Link."),
                 Row(icon: AnyShape(VectorIcon.clock), color: GZ.ok, title: "Termine mit Zeit",
                     text: "Sag, ab wann du da bist. Jeder antwortet mit seiner eigenen Zeit."),
                 Row(icon: AnyShape(VectorIcon.banMark), color: GZ.ink3, title: "Nie deine Position",

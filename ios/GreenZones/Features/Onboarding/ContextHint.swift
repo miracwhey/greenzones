@@ -26,7 +26,7 @@ enum ContextHint: String {
     var text: String {
         switch self {
         case .friends:
-            return "Freunde entstehen über einen Link — ohne Konto, ohne Adressbuch. Name und Zeichen liegen in eurer iCloud."
+            return "Freunde entstehen über eine Einladung — Code zum Scannen oder Link, ohne Konto, ohne Adressbuch. Name und Zeichen liegen in eurer iCloud."
         case .newSpot:
             return "Geteilt wird der Ort des Spots — nie, wo du gerade bist."
         case .camera:

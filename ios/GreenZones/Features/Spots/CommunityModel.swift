@@ -307,6 +307,13 @@ final class CommunityModel {
         cover = .camera(spotId: spotId)
     }
 
+    /// Der Beitretende scannt den Code des Einladenden. Das Freunde-Blatt
+    /// bleibt darunter offen — nach dem X steht man wieder dort.
+    func openScanner() {
+        GZ.haptic()
+        cover = .codeScanner
+    }
+
     /// Wo die Snaps gerade auf dem Schirm liegen. Album-Kacheln melden sich
     /// hier an, Karten-Pins ebenso — beide tragen das Bild schon, und aus
     /// beiden soll der Betrachter hervorgehen.

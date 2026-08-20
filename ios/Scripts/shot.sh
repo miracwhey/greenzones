@@ -19,6 +19,8 @@
 #                         Verwalten-Unterblatt (der Schalter steckt seit dem
 #                         18.08. in SpotDetailSheet, kam hier aber nie an)
 #   GZ_HINTS_RESET=1      In-Kontext-Hinweise wieder auf ungesehen
+#   GZ_SCAN_RESULT=<text> Scanner-Route: dieser Inhalt gilt als erkannt
+#                         (Einladung → Accept-Weg, anderes → „Kein GreenZones-Code")
 #   GZ_ACCURACY=120   Genauigkeit der Fixture-Position in Metern
 #   GZ_AT=48.14,11.58 Fixture-Standort woandershin verlegen (Abdeckung pruefen)
 #
@@ -78,6 +80,7 @@ SIMCTL_CHILD_GZ_INFO_OPEN="${GZ_INFO_OPEN:-}" \
 SIMCTL_CHILD_GZ_SHARE_OPEN="${GZ_SHARE_OPEN:-}" \
 SIMCTL_CHILD_GZ_HINTS_RESET="${GZ_HINTS_RESET:-}" \
 SIMCTL_CHILD_GZ_AT="${GZ_AT:-}" \
+SIMCTL_CHILD_GZ_SCAN_RESULT="${GZ_SCAN_RESULT:-}" \
     xcrun simctl launch "$UDID" "$BUNDLE_ID" >/dev/null
 
 # 5. Settle: Basemap kommt aus dem Netz, das Sheet oeffnet nach 2,2 s.

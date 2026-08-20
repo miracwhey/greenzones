@@ -31,6 +31,9 @@ struct ProfileEditor: View {
     let intent: ProfileIntent
     let onDone: () -> Void
     let onCancel: () -> Void
+    /// Nur fuer `.invite`: weiter zum Code-Schritt (Name + Zeichen reisen mit,
+    /// gespeichert wird erst dort — mit der Einladung, in EINEM Fehlerpfad).
+    var onShowCode: ((String, String) -> Void)? = nil
 
     @State private var name = ""
     @State private var emoji = ""
@@ -80,7 +83,7 @@ struct ProfileEditor: View {
                 ? "Ohne Namen erscheinst du als „Freund“. Kannst du jederzeit nachholen."
                 : "Kein Konto, kein Server: Name und Zeichen gehen nur an die Freunde, mit denen du geteilt hast.")
 
-            SPCTA(title: isInvite ? "Weiter — Link teilen" : "Speichern",
+            SPCTA(title: isInvite ? "Weiter — Code zeigen" : "Speichern",
                   style: .blue, enabled: !busy && !trimmed.isEmpty, action: save)
             SPGhost(title: isWelcome ? "Überspringen" : "Abbrechen", action: skip)
         }
@@ -144,20 +147,20 @@ struct ProfileEditor: View {
     }
 
     private func save() {
+        // Einladen speichert hier NICHTS: Profil und Einladung gehen im
+        // Code-Schritt zusammen in die Cloud (`inviteFriend`) — sonst gaebe es
+        // zwei Fehlerpfade fuer eine Handlung.
+        if isInvite {
+            onShowCode?(trimmed, emoji)
+            return
+        }
         busy = true
         let chosenName = trimmed
         let chosenEmoji = emoji
         Task {
             do {
-                if isInvite {
-                    let url = try await model.sync.inviteFriend(displayName: chosenName,
-                                                                emoji: chosenEmoji)
-                    onDone()
-                    ShareLinkPresenter.present(url: url, name: chosenName)
-                } else {
-                    try await model.sync.setProfile(name: chosenName, emoji: chosenEmoji)
-                    onDone()
-                }
+                try await model.sync.setProfile(name: chosenName, emoji: chosenEmoji)
+                onDone()
             } catch {
                 model.notice(cloudMessage(error))
             }

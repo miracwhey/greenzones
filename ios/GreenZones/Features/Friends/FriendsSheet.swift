@@ -2,19 +2,33 @@ import GreenZonesKit
 import SwiftUI
 
 /// Freundesliste nach `mockup/community.html` (Szenario „friends"), mit dem
-/// eigenen Profil als erster Zeile (`mockup/profile.html`, Variante A).
+/// eigenen Profil als erster Zeile (`mockup/profile.html`, Variante A) und den
+/// beiden Wegen zueinander aus `mockup/qr.html`: „Freund hinzufügen" zeigt den
+/// eigenen Code, „Code scannen" tritt bei.
 ///
-/// Freunde entstehen ausschliesslich ueber einen Einladungslink: kein
-/// Verzeichnis, keine Kontakte, keine Handynummer. Das eigene Profil wohnt
-/// dauerhaft hier — wer ueber einen Link beigetreten ist, hat noch keins und
-/// findet an dieser Stelle den Weg dorthin, ohne dafuer selbst einladen zu muessen.
+/// Freunde entstehen ausschliesslich ueber eine iCloud-Einladung — als Code vor
+/// Ort oder als Link fuer alle, die nicht zusammen sind: kein Verzeichnis,
+/// keine Kontakte, keine Handynummer. Das eigene Profil wohnt dauerhaft hier —
+/// wer ueber einen Link beigetreten ist, hat noch keins und findet an dieser
+/// Stelle den Weg dorthin, ohne dafuer selbst einladen zu muessen.
 struct FriendsSheet: View {
     let model: CommunityModel
     /// Direkt im Profil-Schritt oeffnen (Absprung aus dem Spot-Detail ohne
     /// Freunde: `.invite`). `nil` = die Liste.
     let initialIntent: ProfileIntent?
 
-    @State private var intent: ProfileIntent?
+    /// Die drei Gesichter des Blatts. Ein Zustand IM Blatt, kein Blattwechsel:
+    /// der Inhalt geht mit der Blatt-Feder ineinander ueber, statt dass ein
+    /// Blatt faellt und ein neues steigt.
+    private enum Stage: Equatable {
+        case list
+        case editor(ProfileIntent)
+        /// Der eigene Einladungs-Code (`InviteCodeView`) — Name und Zeichen
+        /// reisen aus dem Editor mit, gespeichert wird erst mit der Einladung.
+        case code(name: String, emoji: String)
+    }
+
+    @State private var stage: Stage = .list
     @State private var seeded = false
     /// Freund, dessen Entfernen gerade nachgefragt wird.
     @State private var removing: Friend?
@@ -27,29 +41,53 @@ struct FriendsSheet: View {
 
     var body: some View {
         Group {
-            if let intent {
+            switch stage {
+            case .editor(let intent):
                 CommunitySheet(estimate: 700) {
                     ProfileEditor(model: model, intent: intent,
-                                  onDone: { self.intent = nil },
-                                  onCancel: { self.intent = nil })
+                                  onDone: { show(.list) },
+                                  onCancel: { show(.list) },
+                                  onShowCode: { name, emoji in
+                                      show(.code(name: name, emoji: emoji))
+                                  })
                 }
-            } else {
+                .transition(.opacity)
+            case .code(let name, let emoji):
+                CommunitySheet(estimate: 620) {
+                    InviteCodeView(model: model, name: name, emoji: emoji,
+                                   onClose: { show(.list) })
+                }
+                .transition(.opacity)
+            case .list:
                 list
+                    .transition(.opacity)
             }
         }
         .task {
             guard !seeded else { return }
             seeded = true
             // Der Absprung landet im Profil-Schritt (kein Cloud-Write beim Oeffnen).
-            intent = initialIntent
+            if let initialIntent { stage = .editor(initialIntent) }
+            #if DEBUG
+            // Screenshot-Route: direkt der Code-Schritt, mit dem Fixture-Profil.
+            if DebugEnvironment.route == .inviteCode || DebugEnvironment.route == .inviteCodeOffline {
+                stage = .code(name: profile.displayName, emoji: profile.emoji)
+            }
+            #endif
         }
     }
 
+    /// Stage-Wechsel immer mit der Blatt-Feder: Inhalt UND Hoehe federn
+    /// gemeinsam, nichts springt.
+    private func show(_ next: Stage) {
+        withAnimation(GZ.sheetSpring) { stage = next }
+    }
+
     private var list: some View {
-        CommunitySheet(estimate: 460) {
+        CommunitySheet(estimate: 500) {
             SPTitle(text: "Freunde")
             SPSubtitle(text: friends.isEmpty
-                ? "Noch niemand — teilt einen Link, dann seht ihr eure Spots gemeinsam."
+                ? "Noch niemand — verbindet euch per Code oder Link, dann seht ihr eure Spots gemeinsam."
                 : "\(friends.count) \(friends.count == 1 ? "Freund" : "Freunde") · \(shared.count) \(shared.count == 1 ? "gemeinsamer Spot" : "gemeinsame Spots")")
 
             ContextHintView(hint: .friends, settings: model.settings)
@@ -64,10 +102,10 @@ struct FriendsSheet: View {
                             onRemove: { removing = friend })
             }
 
-            Button(action: { GZ.haptic(); intent = .invite }) {
+            Button(action: { GZ.haptic(); show(.editor(.invite)) }) {
                 HStack(spacing: 8) {
-                    SPIcon(kind: .share).stroked(GZ.accent, size: 17, width: 2)
-                    Text("Freund hinzufügen — Link teilen")
+                    SPIcon(kind: .personAdd).stroked(GZ.accent, size: 18, width: 2)
+                    Text("Freund hinzufügen")
                         .font(.system(size: 14.5, weight: .semibold))
                         .foregroundStyle(GZ.accent)
                 }
@@ -82,7 +120,25 @@ struct FriendsSheet: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 14)
-            .padding(.bottom, 4)
+
+            // Der zweite Weg gehoert dem Beitretenden — eine ruhige Zeile, kein
+            // zweiter Kasten (Mockup-Entscheid: das Blatt bleibt leicht).
+            Button(action: { model.openScanner() }) {
+                HStack(spacing: 7) {
+                    Text("Eingeladen?")
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(GZ.ink2)
+                    SPIcon(kind: .scan).stroked(GZ.accent, size: 16, width: 2)
+                    Text("Code scannen")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(GZ.accent)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("gz.friends.scan")
+            .padding(.bottom, 2)
 
             SPCloudHint(status: model.sync.state.status)
             SPGhost(title: "Schließen") { model.closeSheet() }
@@ -98,14 +154,14 @@ struct FriendsSheet: View {
             }
             Button("Abbrechen", role: .cancel) { removing = nil }
         } message: { friend in
-            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über einen neuen Einladungs-Link.")
+            Text("\(friendLabel(friend)) sieht eure gemeinsamen Spots dann nicht mehr, und du seine nicht. Zurück geht es nur über eine neue Einladung.")
         }
     }
 
     /// Eigene Profilzeile ueber der Freundesliste (Variante A).
     private var selfRow: some View {
         let hasProfile = profile.isSet
-        return Button(action: { GZ.haptic(); intent = .edit }) {
+        return Button(action: { GZ.haptic(); show(.editor(.edit)) }) {
             HStack(spacing: 12) {
                 SPAvatar(name: profile.displayName, emoji: profile.emoji,
                          color: GZ.accent, size: 44)
