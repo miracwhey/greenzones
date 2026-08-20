@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GreenZones — Freunde per QR-Code: zeigen + scannen</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ok: #1DB954;
+    --ban: #E5484D;
+    --time: #F76B15;
+    --accent: #0A84FF;
+    --ink: #17191C;
+    --ink-2: #5A616B;
+    --ink-3: #9AA1AB;
+    --app-bg: #E8EAED;
+    --glass: rgba(255,255,255,.78);
+    --glass-strong: rgba(255,255,255,.90);
+    --stroke: rgba(23,25,28,.08);
+    --divider: rgba(23,25,28,.06);
+    --sat: 54px;
+    --sab: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    color: var(--ink);
+    background: var(--app-bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 9px; opacity: .55; }
+  .maplibregl-ctrl-bottom-right { bottom: 96px; }
+  .glassfx {
+    background: var(--glass);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid var(--stroke);
+  }
+
+  .statusbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: var(--sat);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px 0;
+    z-index: 50;
+    font-size: 15px;
+    font-weight: 650;
+    pointer-events: none;
+  }
+  .statusbar svg { height: 12px; fill: var(--ink); }
+  body[data-s^="scan"] .statusbar { color: #fff; }
+  body[data-s^="scan"] .statusbar svg { fill: #fff; }
+
+  .search {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    left: 14px; right: 14px;
+    height: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(23,25,28,.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    z-index: 10;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+  .search svg { width: 16px; height: 16px; stroke: var(--ink-2); stroke-width: 2; fill: none; flex: none; }
+
+  .bar {
+    position: absolute;
+    left: 14px; right: 14px;
+    bottom: calc(var(--sab) + 10px);
+    height: 58px;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 14px 0 12px;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(23,25,28,.14), 0 1px 2px rgba(23,25,28,.08);
+  }
+  .bar .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--ok);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 5px rgba(29,185,84,.18);
+    flex: none;
+  }
+  .bar .dot svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 3.2; fill: none; }
+  .bar .txt { flex: 1; min-width: 0; line-height: 1.18; }
+  .bar .txt b { font-size: 15px; font-weight: 650; letter-spacing: -.01em; display: block; }
+  .bar .txt span { font-size: 12px; color: var(--ink-2); font-weight: 480; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .bar .chev { flex: none; }
+  .bar .chev svg { width: 15px; height: 15px; stroke: var(--ink-3); stroke-width: 2.4; fill: none; }
+
+  /* ---------- Avatare ---------- */
+  .ava {
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex: none;
+    background: var(--ink-3);
+    color: #fff;
+    font-weight: 650;
+    line-height: 1;
+  }
+  .ava.s44 { width: 44px; height: 44px; font-size: 17px; }
+  .ava.s44.emo { font-size: 23px; }
+  .ava.m { background: #7C5CFF; }
+  .ava.t { background: #0A9B8E; }
+  .ava.l { background: #0A84FF; }
+
+  /* ---------- modale Sheets ---------- */
+  .backdrop {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(23,25,28,.22);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .modal {
+    display: none;
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 21;
+    background: var(--glass-strong);
+    backdrop-filter: blur(28px) saturate(1.7);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--stroke);
+    box-shadow: 0 -8px 40px rgba(23,25,28,.16);
+    padding: 8px 20px calc(var(--sab) + 16px);
+  }
+  body[data-s="friends"] .backdrop, body[data-s="friends"] #sheet-friends { display: block; }
+  body[data-s="qr"] .backdrop, body[data-s="qr"] #sheet-qr { display: block; }
+  body[data-s="scan"] #cam { display: block; }
+  body[data-s="scan-found"] #cam { display: block; }
+
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: rgba(23,25,28,.18); margin: 2px auto 12px; }
+  .modal h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; margin: 2px 0 2px; }
+  .modal .h-sub { font-size: 13px; color: var(--ink-2); margin-bottom: 14px; line-height: 1.4; }
+
+  .sec-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    margin: 14px 0 8px;
+  }
+
+  .selfrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 15px;
+    background: rgba(23,25,28,.035);
+    border: 1px solid var(--stroke);
+    text-align: left;
+  }
+  .selfrow .who { flex: 1; min-width: 0; line-height: 1.28; }
+  .selfrow .who b { font-size: 15px; font-weight: 650; display: block; }
+  .selfrow .who span { font-size: 12.5px; color: var(--ink-2); }
+  .selfrow .edit { font-size: 13px; font-weight: 600; color: var(--accent); flex: none; }
+
+  .member {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+  }
+  .member + .member { border-top: 1px solid var(--divider); }
+  .member .who { flex: 1; min-width: 0; line-height: 1.25; }
+  .member .who b { font-size: 14.5px; font-weight: 600; display: block; }
+  .member .who span { font-size: 12px; color: var(--ink-2); }
+
+  .invite-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    border-radius: 14px;
+    border: 1.5px dashed rgba(10,132,255,.45);
+    background: rgba(10,132,255,.06);
+    color: var(--accent);
+    font-size: 14.5px;
+    font-weight: 650;
+    margin: 14px 0 0;
+  }
+  .invite-btn svg { width: 17px; height: 17px; stroke: var(--accent); stroke-width: 2; fill: none; }
+
+  /* Zweiter Weg: der Beitretende scannt. Ruhige Zeile, kein zweiter Kasten. */
+  .scanrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    height: 42px;
+    background: none;
+    border: 0;
+    font-size: 13.5px;
+    color: var(--ink-2);
+    margin: 2px 0 0;
+  }
+  .scanrow b { color: var(--accent); font-weight: 650; font-size: 13.5px; }
+  .scanrow svg { width: 16px; height: 16px; stroke: var(--accent); stroke-width: 2; fill: none; }
+
+  .note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin: 13px 0 6px;
+  }
+  .note svg { width: 15px; height: 15px; flex: none; stroke: var(--ink-3); stroke-width: 1.9; fill: none; margin-top: 1px; }
+
+  .ghost {
+    width: 100%;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    color: var(--ink-2);
+    background: none;
+    border: 0;
+  }
+
+  /* ---------- QR-Blatt ---------- */
+  .qr-card {
+    width: 258px;
+    margin: 6px auto 0;
+    padding: 14px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid var(--stroke);
+    box-shadow: 0 10px 34px rgba(23,25,28,.10);
+    position: relative;
+  }
+  .qr-card svg.code { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .qr-card .center-ava {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3.5px solid #fff;
+    box-shadow: 0 2px 10px rgba(23,25,28,.18);
+    display: grid;
+    place-items: center;
+    font-size: 26px;
+    color: #fff;
+  }
+  .qr-name {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-2);
+    margin: 10px 0 2px;
+  }
+  .qr-name b { color: var(--ink); font-weight: 650; }
+
+  .alt-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 48px;
+    border-radius: 14px;
+    border: 1px solid var(--stroke);
+    background: rgba(23,25,28,.04);
+    color: var(--ink);
+    font-size: 14.5px;
+    font-weight: 600;
+    margin-top: 14px;
+  }
+  .alt-btn svg { width: 17px; height: 17px; stroke: var(--ink); stroke-width: 2; fill: none; }
+  .alt-btn span { color: var(--ink-2); font-weight: 480; }
+
+  /* ---------- Scanner (Vollbild-Ebene, wie die Shot-Kamera) ---------- */
+  #cam {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    background:
+      radial-gradient(120% 90% at 50% 30%, rgba(255,255,255,.05), transparent 60%),
+      linear-gradient(180deg, #17191d 0%, #101214 55%, #0b0d0f 100%);
+    overflow: hidden;
+  }
+  /* Das Kamerabild: das Handy des Freundes mit seinem Code-Blatt. */
+  .otherphone {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 168px;
+    padding: 14px 12px 26px;
+    border-radius: 22px;
+    background: #26292e;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06);
+    transform: translate(-44%, -54%) rotate(-7deg) scale(.94);
+    filter: blur(.4px) brightness(.92);
+  }
+  body[data-s="scan-found"] .otherphone {
+    transform: translate(-50%, -50%) rotate(-1.5deg) scale(1);
+    filter: none;
+  }
+  .otherphone .mini-sheet {
+    border-radius: 12px;
+    background: #f4f5f7;
+    padding: 10px 9px 9px;
+  }
+  .otherphone .mini-sheet .t { font-size: 8px; font-weight: 700; color: #17191C; margin-bottom: 6px; }
+  .otherphone .mini-sheet .codewrap { position: relative; }
+  .otherphone .mini-sheet svg.code { display: block; width: 100%; height: auto; background: #fff; border-radius: 4px; padding: 5px; }
+  .otherphone .mini-sheet .mini-ava {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid #fff;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+  }
+
+  .vf {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 264px; height: 264px;
+    pointer-events: none;
+  }
+  .vf .c { position: absolute; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,.92); }
+  .vf .c.tl { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 14px; }
+  .vf .c.tr { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 14px; }
+  .vf .c.bl { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 14px; }
+  .vf .c.br { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 14px; }
+  body[data-s="scan-found"] .vf .c { border-color: var(--ok); }
+
+  .cam-title {
+    position: absolute;
+    top: calc(var(--sat) + 16px);
+    left: 0; right: 0;
+    text-align: center;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+  }
+  .cam-hint {
+    position: absolute;
+    top: calc(50% + 158px);
+    left: 32px; right: 32px;
+    text-align: center;
+    color: rgba(255,255,255,.75);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .cam-close {
+    position: absolute;
+    top: calc(var(--sat) + 8px);
+    right: 16px;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: rgba(22,24,27,.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.14);
+    display: grid;
+    place-items: center;
+  }
+  .cam-close svg { width: 16px; height: 16px; stroke: #fff; stroke-width: 2.3; fill: none; }
+
+  .found-pill {
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: calc(50% + 158px);
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 9px;
+    height: 42px;
+    padding: 0 18px 0 14px;
+    border-radius: 21px;
+    background: rgba(22,24,27,.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .found-pill .spin {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2.2px solid rgba(255,255,255,.25);
+    border-top-color: #fff;
+    animation: rot 1s linear infinite;
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  body[data-s="scan-found"] .found-pill { display: flex; }
+  body[data-s="scan-found"] .cam-hint { display: none; }
+</style>
+</head>
+<body data-s="friends">
+
+<!-- Das QR-SVG einmal definiert, zweimal genutzt (Blatt + fremdes Handy im Sucher). -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="qrmod">
+      <path fill="#ffffff" d="M0 0h41v41H0z"/>
+      <path stroke="#000000" d="M0 0.5h7m2 0h4m1 0h1m3 0h1m2 0h1m1 0h5m1 0h2m3 0h7M0 1.5h1m5 0h1m3 0h2m1 0h3m1 0h1m2 0h3m1 0h3m1 0h2m1 0h2m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h3m1 0h3m3 0h1m1 0h3m3 0h1m2 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h4m1 0h1m1 0h1m2 0h3m1 0h2m2 0h3m2 0h1m2 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m2 0h5m1 0h4m1 0h2m1 0h3m3 0h1m1 0h1m2 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m2 0h1m2 0h1m2 0h1m1 0h1m2 0h3m2 0h2m5 0h1m1 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M9 7.5h1m1 0h1m2 0h2m1 0h1m1 0h3m3 0h1m2 0h1M3 8.5h2m1 0h2m1 0h1m1 0h2m1 0h1m1 0h3m1 0h1m2 0h1m2 0h4m2 0h1m4 0h2M0 9.5h1m1 0h3m2 0h3m4 0h2m2 0h2m1 0h1m3 0h3m3 0h1m3 0h2m2 0h2M0 10.5h1m4 0h3m1 0h1m1 0h1m3 0h2m4 0h1m2 0h1m2 0h2m1 0h1m2 0h1m1 0h2m1 0h1M0 11.5h3m1 0h2m1 0h1m3 0h2m2 0h1m1 0h4m2 0h1m1 0h2m1 0h2m1 0h3m2 0h2m1 0h1M1 12.5h1m1 0h1m1 0h2m3 0h1m6 0h1m2 0h1m2 0h4m1 0h1m5 0h2M0 13.5h1m1 0h1m9 0h1m1 0h2m4 0h2m1 0h1m1 0h2m1 0h3m2 0h1m1 0h2m3 0h1M0 14.5h1m1 0h3m1 0h1m3 0h1m1 0h2m2 0h1m1 0h1m4 0h4m1 0h1m1 0h2m1 0h2m3 0h1m1 0h1M1 15.5h4m2 0h1m1 0h3m2 0h2m1 0h2m1 0h2m2 0h2m1 0h1m3 0h1m1 0h1m1 0h1m1 0h2m1 0h1M0 16.5h2m4 0h4m1 0h4m8 0h1m1 0h1m3 0h1m2 0h2m3 0h1m1 0h1M2 17.5h1m2 0h1m3 0h3m2 0h3m1 0h1m1 0h2m1 0h5m2 0h1m1 0h2m2 0h1M0 18.5h3m3 0h1m2 0h1m1 0h2m1 0h8m3 0h1m1 0h5m1 0h4m1 0h1m1 0h1M3 19.5h1m3 0h1m1 0h1m2 0h2m4 0h3m7 0h1m1 0h1m2 0h2m1 0h1m1 0h1M1 20.5h2m1 0h3m1 0h4m1 0h1m1 0h1m2 0h3m3 0h3m1 0h1m1 0h2m2 0h2m1 0h1M3 21.5h1m4 0h1m1 0h1m1 0h3m2 0h1m3 0h5m1 0h1m2 0h3m2 0h2m1 0h1M0 22.5h1m1 0h1m1 0h3m3 0h3m2 0h1m1 0h4m1 0h1m4 0h1m7 0h1m2 0h1M0 23.5h1m1 0h1m1 0h2m4 0h2m6 0h6m3 0h3m2 0h6M0 24.5h2m2 0h1m1 0h1m2 0h2m3 0h1m1 0h1m1 0h2m4 0h1m1 0h3m3 0h1m1 0h3m3 0h1M3 25.5h1m4 0h1m2 0h2m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m2 0h1m2 0h2m1 0h1m1 0h1M1 26.5h1m1 0h2m1 0h1m2 0h1m1 0h1m1 0h4m1 0h1m1 0h2m1 0h2m1 0h3m1 0h3m1 0h2m1 0h1m2 0h1M1 27.5h1m1 0h3m6 0h1m1 0h2m2 0h1m2 0h2m1 0h1m2 0h1m2 0h2m2 0h1m1 0h3M1 28.5h2m1 0h1m1 0h4m1 0h2m7 0h1m5 0h1m1 0h1m2 0h1m3 0h1m1 0h1m2 0h1M0 29.5h2m5 0h3m1 0h1m2 0h5m1 0h1m2 0h2m3 0h1m1 0h1m1 0h2m1 0h3m1 0h1M0 30.5h2m4 0h2m3 0h1m3 0h1m2 0h1m1 0h3m2 0h3m2 0h2m1 0h1m1 0h2m1 0h3M0 31.5h2m1 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h1m1 0h1m4 0h2m2 0h3m1 0h3M0 32.5h4m2 0h1m3 0h2m4 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h3m1 0h8M8 33.5h1m3 0h1m1 0h1m1 0h1m3 0h3m1 0h3m2 0h2m1 0h1m3 0h1m1 0h1M0 34.5h7m1 0h1m1 0h3m1 0h6m6 0h3m2 0h2m1 0h1m1 0h1M0 35.5h1m5 0h1m2 0h1m2 0h3m1 0h3m2 0h2m3 0h3m1 0h3m3 0h2m1 0h1M0 36.5h1m1 0h3m1 0h1m1 0h2m5 0h2m1 0h3m3 0h3m2 0h1m1 0h7m1 0h2M0 37.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h2m3 0h2m1 0h3m2 0h3m1 0h2m3 0h1m1 0h4M0 38.5h1m1 0h3m1 0h1m3 0h2m1 0h1m1 0h1m3 0h1m4 0h1m2 0h1m1 0h1m3 0h1m1 0h2m2 0h2M0 39.5h1m5 0h1m2 0h7m1 0h1m1 0h1m2 0h2m1 0h1m2 0h1m4 0h1m2 0h3m1 0h1M0 40.5h7m2 0h2m1 0h2m2 0h2m2 0h4m2 0h2m2 0h3m1 0h1m1 0h3"/>
+    </g>
+  </defs>
+</svg>
+
+<div id="map"></div>
+
+<div class="statusbar">
+  <span>9:41</span>
+  <svg viewBox="0 0 62 12"><path d="M1 8h3v4H1zM6 6h3v6H6zM11 3.5h3V12h-3zM16 1h3v11h-3z"/><rect x="26" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-width="1"/><rect x="28" y="3" width="15" height="6" rx="1.5"/><path d="M49.5 4.5v3c1 0 1.5-.7 1.5-1.5s-.5-1.5-1.5-1.5z" opacity=".4"/></svg>
+</div>
+
+<div class="search glassfx">
+  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+  Ort oder Adresse suchen
+</div>
+
+<div class="bar glassfx">
+  <div class="dot"><svg viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11"/></svg></div>
+  <div class="txt">
+    <b>Hier erlaubt</b>
+    <span>Verbotszone 190 m · Fußgängerzone 45 m</span>
+  </div>
+  <div class="chev"><svg viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></svg></div>
+</div>
+
+<div class="backdrop"></div>
+
+<!-- =========================================================
+     Szenario „friends" — Freunde-Blatt mit beiden Einstiegen:
+     „Freund hinzufügen" (zeigt den Code) + „Code scannen" (tritt bei).
+     ========================================================= -->
+<div class="modal" id="sheet-friends">
+  <div class="grab"></div>
+  <h2>Freunde</h2>
+  <div class="h-sub">2 Freunde · 2 gemeinsame Spots</div>
+
+  <button class="selfrow">
+    <span class="ava s44 emo l">🌿</span>
+    <span class="who">
+      <b>Leon</b>
+      <span>So sehen dich deine Freunde</span>
+    </span>
+    <span class="edit">Ändern</span>
+  </button>
+
+  <div class="sec-label">Deine Freunde</div>
+
+  <div class="member">
+    <span class="ava s44 emo m">🦊</span>
+    <div class="who">
+      <b>Marcel</b>
+      <span>2 gemeinsame Spots · Unsere Bank, Maschsee-Ecke</span>
+    </div>
+  </div>
+  <div class="member">
+    <span class="ava s44 t">T</span>
+    <div class="who">
+      <b>Tara</b>
+      <span>1 gemeinsamer Spot · Unsere Bank</span>
+    </div>
+  </div>
+
+  <button class="invite-btn">
+    <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><path d="M18.5 6.5v5M16 9h5"/></svg>
+    Freund hinzufügen
+  </button>
+  <button class="scanrow">
+    Eingeladen?
+    <svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/></svg>
+    <b>Code scannen</b>
+  </button>
+
+  <button class="ghost">Schließen</button>
+</div>
+
+<!-- =========================================================
+     Szenario „qr" — der Einladende zeigt seinen Code.
+     Aus „Freund hinzufügen"; der Link bleibt als zweiter Weg drin.
+     ========================================================= -->
+<div class="modal" id="sheet-qr">
+  <div class="grab"></div>
+  <h2>Freund hinzufügen</h2>
+  <div class="h-sub">Dein Freund scannt den Code — dann seid ihr verbunden.</div>
+
+  <div class="qr-card">
+    <svg class="code" viewBox="0 0 41 41" shape-rendering="crispEdges"><use href="#qrmod"/></svg>
+    <div class="center-ava">🌿</div>
+  </div>
+  <div class="qr-name">Du lädst ein als <b>Leon</b></div>
+
+  <button class="alt-btn">
+    <svg viewBox="0 0 24 24"><path d="M12 15V4M8 7.5 12 3.5l4 4"/><path d="M5 12v7h14v-7"/></svg>
+    Link teilen&nbsp;<span>— wenn ihr nicht zusammen seid</span>
+  </button>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="9" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+    Code und Link sind dieselbe Einladung über iCloud. Wer sie annimmt, wird dein Freund — sonst sieht sie niemand.
+  </div>
+
+  <button class="ghost">Schließen</button>
+</div>
+
+<!-- =========================================================
+     Szenarien „scan" / „scan-found" — der Beitretende scannt.
+     Eigene Vollbild-Ebene wie die Shot-Kamera.
+     ========================================================= -->
+<div id="cam">
+  <div class="otherphone">
+    <div class="mini-sheet">
+      <div class="t">Freund hinzufügen</div>
+      <div class="codewrap">
+        <svg class="code" viewBox="0 0 41 41" shape-rendering="crispEdges"><use href="#qrmod"/></svg>
+        <div class="mini-ava">🌿</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vf">
+    <span class="c tl"></span><span class="c tr"></span>
+    <span class="c bl"></span><span class="c br"></span>
+  </div>
+
+  <div class="cam-title">Code scannen</div>
+  <div class="cam-hint">Richte die Kamera auf den Code deines Freundes.</div>
+
+  <div class="found-pill">
+    <div class="spin"></div>
+    Code erkannt — verbinde …
+  </div>
+
+  <button class="cam-close">
+    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+  </button>
+</div>
+
+<script>
+const S = new URLSearchParams(location.search).get("s") || "friends";
+document.body.dataset.s = S;
+
+if (S.startsWith("scan")) {
+  // Kamera-Vollbild: keine Karte noetig, Shot-Skript nicht warten lassen.
+  window.__MAP_READY__ = true;
+} else {
+  function circle(lng, lat, radiusM, steps = 64) {
+    const coords = [];
+    const kmPerDegLat = 110.574;
+    const kmPerDegLng = 111.320 * Math.cos(lat * Math.PI / 180);
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      coords.push([
+        lng + (Math.cos(a) * radiusM / 1000) / kmPerDegLng,
+        lat + (Math.sin(a) * radiusM / 1000) / kmPerDegLat,
+      ]);
+    }
+    return coords;
+  }
+  const feat = (geom, props = {}) => ({ type: "Feature", properties: props, geometry: geom });
+  const poly = coords => ({ type: "Polygon", coordinates: [coords] });
+
+  const banZones = {
+    type: "FeatureCollection",
+    features: [
+      feat(poly(circle(9.7318, 52.3730, 100))),
+      feat(poly(circle(9.7300, 52.3773, 100))),
+      feat(poly(circle(9.7472, 52.3765, 100))),
+      feat(poly(circle(9.7450, 52.3690, 100))),
+      feat(poly(circle(9.7370, 52.3672, 100))),
+      feat(poly(circle(9.7330, 52.3700, 100))),
+    ],
+  };
+  const timeZones = {
+    type: "FeatureCollection",
+    features: [
+      feat(poly([
+        [9.7328, 52.3756], [9.7388, 52.3748], [9.7437, 52.3725],
+        [9.7433, 52.3719], [9.7386, 52.3742], [9.7330, 52.3750],
+        [9.7328, 52.3756],
+      ])),
+    ],
+  };
+
+  const map = new maplibregl.Map({
+    container: "map",
+    style: "https://tiles.openfreemap.org/styles/positron",
+    center: [9.7350, 52.3720],
+    zoom: 14.0,
+    attributionControl: { compact: true },
+  });
+
+  map.on("load", () => {
+    map.addSource("ban", { type: "geojson", data: banZones });
+    map.addSource("time", { type: "geojson", data: timeZones });
+    map.addLayer({ id: "ban-fill", type: "fill", source: "ban", paint: { "fill-color": "#E5484D", "fill-opacity": 0.16 } });
+    map.addLayer({ id: "ban-line", type: "line", source: "ban", paint: { "line-color": "#E5484D", "line-width": 1.6, "line-opacity": 0.75 } });
+    map.addLayer({ id: "time-fill", type: "fill", source: "time", paint: { "fill-color": "#F76B15", "fill-opacity": 0.16 } });
+    map.addLayer({ id: "time-line", type: "line", source: "time", paint: { "line-color": "#F76B15", "line-width": 1.6, "line-dasharray": [2.2, 1.6], "line-opacity": 0.85 } });
+    map.once("idle", () => { window.__MAP_READY__ = true; });
+  });
+}
+</script>
+</body>
+</html>
